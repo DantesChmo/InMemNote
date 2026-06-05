@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-state="draft" data-specs="off">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inmemnote — Draft (hi-fi)</title>
+<style>
+  /* ============================================================
+     INMEMNOTE · DRAFT (V1 quick-capture overlay)
+     Spec grid: 4px base. All paddings/sizes are integers.
+     ============================================================ */
+  :root{
+    --accent:#c2603a;
+    --accent-ink:#ffffff;
+
+    /* radii */
+    --r-panel:16px;
+    --r-icon:8px;
+    --r-pill:12px;
+
+    /* type */
+    --f-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    --f-mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+
+  /* ---- dark (primary) ---- */
+  html[data-theme="dark"]{
+    --panel:#1c1b18;
+    --text:#f3f1ec;
+    --text-2:#a39e95;
+    --text-3:#6f6a62;
+    --line:rgba(255,255,255,.08);
+    --sel:rgba(194,96,58,.26);
+    --bar:#2a2824;
+    --bar-line:rgba(255,255,255,.07);
+    --shadow:0 24px 64px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+    --desk-a:#16140f; --desk-b:#23201a;
+    --menubar:rgba(20,18,15,.55);
+  }
+  /* ---- light ---- */
+  html[data-theme="light"]{
+    --panel:#ffffff;
+    --text:#1c1b18;
+    --text-2:#6b665e;
+    --text-3:#9b968d;
+    --line:rgba(0,0,0,.08);
+    --sel:rgba(194,96,58,.18);
+    --bar:#ffffff;
+    --bar-line:rgba(0,0,0,.07);
+    --shadow:0 24px 64px rgba(40,34,26,.20), 0 2px 6px rgba(40,34,26,.10);
+    --desk-a:#d8d2c6; --desk-b:#ece7dd;
+    --menubar:rgba(255,255,255,.55);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:var(--f-ui);
+    -webkit-font-smoothing:antialiased;
+    background:#000;
+    color:var(--text);
+    overflow:hidden;
+  }
+
+  /* ---------------- desktop backdrop ---------------- */
+  .stage{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(120% 120% at 50% 0%, var(--desk-b) 0%, var(--desk-a) 70%);
+  }
+  /* dim, blurred "other app" behind to convey: floats over everything */
+  .behind{
+    position:absolute; width:760px; height:460px; border-radius:14px;
+    top:calc(50% - 188px); left:calc(50% - 380px);
+    background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+    border:1px solid rgba(255,255,255,.05);
+    filter:blur(1px);
+    opacity:.5;
+  }
+  html[data-theme="light"] .behind{
+    background:linear-gradient(160deg, rgba(0,0,0,.04), rgba(0,0,0,.01));
+    border-color:rgba(0,0,0,.05);
+  }
+  .scrim{ position:absolute; inset:0; background:rgba(0,0,0,.28); }
+  html[data-theme="light"] .scrim{ background:rgba(20,16,10,.10); }
+
+  /* ---------------- macOS menu bar ---------------- */
+  .menubar{
+    position:fixed; top:0; left:0; right:0; height:28px; z-index:5;
+    display:flex; align-items:center; gap:20px;
+    padding:0 16px;
+    background:var(--menubar);
+    -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--line);
+    font-size:13px; color:var(--text-2);
+  }
+  .menubar .mb-zap{ color:var(--accent); font-size:14px; }
+  .menubar .mb-strong{ color:var(--text); font-weight:600; }
+  .menubar .mb-right{ margin-left:auto; display:flex; align-items:center; gap:16px; }
+  .menubar .mb-clock{ font-variant-numeric:tabular-nums; }
+
+  /* ---------------- the Draft panel ---------------- */
+  .panel-wrap{ position:relative; }
+
+  .panel{
+    position:relative; z-index:2;
+    width:560px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--r-panel);
+    box-shadow:var(--shadow);
+  }
+
+  /* header */
+  .p-head{
+    display:flex; align-items:center;
+    height:60px;
+    padding:0 20px;
+  }
+  .p-icon{
+    width:28px; height:28px; flex:0 0 auto;
+    border-radius:var(--r-icon);
+    background:var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--accent-ink); font-size:15px; line-height:1;
+  }
+  .p-title{ margin-left:12px; font-size:15px; font-weight:600; letter-spacing:.1px; }
+  .p-pin{
+    margin-left:auto; width:16px; height:16px; color:var(--text-3);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .p-pin svg{ width:16px; height:16px; display:block; }
+
+  .p-divider{ height:1px; background:var(--line); }
+
+  /* body — seamless writing surface (V1: no chrome) */
+  .p-body{
+    padding:20px 24px 24px;
+    min-height:96px;
+    position:relative;
+  }
+  .md-h1{
+    display:flex; align-items:baseline;
+    font-size:20px; line-height:28px; font-weight:700;
+    color:var(--text);
+    margin:0 0 14px;
+  }
+  .md-h1 .hash{ color:var(--accent); margin-right:10px; font-weight:700; }
+
+  .md-list{ list-style:none; margin:0; padding:0; }
+  .md-li{
+    display:flex; align-items:flex-start;
+    font-size:15px; line-height:24px; color:var(--text);
+    min-height:24px;
+  }
+  .md-li + .md-li{ margin-top:6px; }
+  .md-li .dot{ color:var(--text-3); width:16px; flex:0 0 auto; }
+
+  .ph{ font-size:15px; line-height:24px; color:var(--text-3); }
+
+  .caret{
+    display:inline-block; width:2px; height:18px;
+    background:var(--accent); margin-left:1px; vertical-align:-3px;
+    animation:blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* selection highlight */
+  .seltext{ background:var(--sel); border-radius:3px; padding:0 1px; }
+
+  /* footer */
+  .p-foot{
+    display:flex; align-items:center;
+    height:46px;
+    padding:0 20px;
+    border-top:1px solid var(--line);
+    font-size:12px; color:var(--text-3);
+  }
+  .p-foot .hint{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .kbd{
+    font-family:var(--f-mono); font-size:11px; color:var(--text-2);
+    border:1px solid var(--line); border-radius:5px;
+    padding:2px 6px; line-height:1;
+  }
+  .dotsep{ color:var(--text-3); }
+
+  /* ---------------- selection toolbar (V1 signature) ---------------- */
+  .seltoolbar{
+    position:absolute; z-index:6;
+    display:none;
+    left:72px; top:64px;            /* anchored above the selected phrase */
+    align-items:center; gap:2px;
+    padding:4px;
+    background:var(--bar);
+    border:1px solid var(--bar-line);
+    border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  }
+  html[data-theme="light"] .seltoolbar{ box-shadow:0 10px 30px rgba(40,34,26,.22), 0 1px 2px rgba(40,34,26,.10); }
+  .seltoolbar::after{
+    content:""; position:absolute; left:24px; bottom:-6px;
+    width:10px; height:10px; background:var(--bar);
+    border-right:1px solid var(--bar-line); border-bottom:1px solid var(--bar-line);
+    transform:rotate(45deg);
+  }
+  .tbtn{
+    width:28px; height:28px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-2); font-size:13px; font-weight:600;
+    cursor:default;
+  }
+  .tbtn:hover{ background:rgba(127,127,127,.16); color:var(--text); }
+  .tbtn.is-on{ background:var(--accent); color:var(--accent-ink); }
+  .tbtn.mono{ font-family:var(--f-mono); font-weight:400; font-size:12px; }
+  .tbsep{ width:1px; height:18px; background:var(--bar-line); margin:0 2px; }
+
+  /* state visibility */
+  .state{ display:none; }
+  html[data-state="empty"]  .state.empty{ display:block; }
+  html[data-state="draft"]  .state.draft{ display:block; }
+  html[data-state="select"] .state.draft{ display:block; }
+  html[data-state="select"] .seltoolbar{ display:flex; }
+  html[data-state="select"] .selword{ background:var(--sel); border-radius:3px; }
+  html:not([data-state="select"]) .selword{ background:transparent; }
+
+  /* ---------------- specs (redline) overlay ---------------- */
+  .specs{ position:absolute; inset:0; z-index:3; pointer-events:none; display:none; }
+  html[data-specs="on"] .specs{ display:block; }
+  html[data-specs="on"] .caret{ animation:none; }
+  .rl{ position:absolute; }
+  .rl-line{ position:absolute; background:var(--accent); }
+  .rl-chip{
+    position:absolute;
+    font-family:var(--f-mono); font-size:11px; line-height:1;
+    color:#fff; background:var(--accent);
+    padding:3px 6px; border-radius:5px; white-space:nowrap;
+    transform:translate(-50%,-50%);
+  }
+  .rl-chip.lt{ transform:translate(0,-50%); }
+  /* width bracket above the panel */
+  .rl-width{ left:0; right:0; top:-28px; height:1px; }
+  .rl-width .rl-line{ left:0; right:0; top:0; height:1px; }
+  .rl-width .tick{ width:1px; height:10px; top:-5px; }
+  .rl-width .t1{ left:0; } .rl-width .t2{ right:0; }
+  .rl-width .rl-chip{ left:50%; top:0; }
+
+  /* token legend card (appears with specs) */
+  .specsheet{
+    display:none;
+    width:560px; margin:20px auto 0;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  html[data-specs="on"] .specsheet{ display:block; }
+  .ss-head{
+    display:flex; align-items:center; gap:8px;
+    padding:14px 18px; border-bottom:1px solid var(--line);
+    font-size:13px; font-weight:600; color:var(--text);
+  }
+  .ss-head .dotmark{ width:8px; height:8px; border-radius:2px; background:var(--accent); }
+  .ss-grid{ display:grid; grid-template-columns:1fr 1fr; }
+  .ss-col{ padding:14px 18px; }
+  .ss-col + .ss-col{ border-left:1px solid var(--line); }
+  .ss-row{ display:flex; align-items:baseline; justify-content:space-between; padding:5px 0; }
+  .ss-k{ font-size:12px; color:var(--text-2); }
+  .ss-v{ font-family:var(--f-mono); font-size:12px; color:var(--text); }
+  .ss-cap{ font-size:11px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin:2px 0 6px; }
+
+  /* ---------------- caption under panel ---------------- */
+  .caption{
+    position:fixed; left:0; right:0; bottom:22px; z-index:4;
+    text-align:center; font-size:12px; color:var(--text-3);
+  }
+  html[data-specs="on"] .caption{ display:none; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="behind"></div>
+    <div class="scrim"></div>
+
+    <!-- menu bar -->
+    <div class="menubar">
+      <span class="mb-zap">⚡</span>
+      <span class="mb-strong">Inmemnote</span>
+      <span>Файл</span>
+      <span>Правка</span>
+      <span class="mb-right">
+        <span>⌕</span>
+        <span class="mb-clock">9:41</span>
+      </span>
+    </div>
+
+    <!-- column: panel + specsheet -->
+    <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+      <div class="panel-wrap">
+
+        <!-- THE PANEL -->
+        <div class="panel" id="panel">
+          <!-- header -->
+          <div class="p-head">
+            <div class="p-icon">⚡</div>
+            <div class="p-title">Быстрая заметка</div>
+            <div class="p-pin" title="Закрепить">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1.5h4M7 1.5l-.4 4.2L4.5 8h7L9.4 5.7 9 1.5M8 8v6.5"/></svg>
+            </div>
+          </div>
+          <div class="p-divider"></div>
+
+          <!-- body -->
+          <div class="p-body">
+            <!-- selection toolbar -->
+            <div class="seltoolbar">
+              <div class="tbtn is-on">B</div>
+              <div class="tbtn" style="font-style:italic;">I</div>
+              <div class="tbtn mono">H</div>
+              <div class="tbsep"></div>
+              <div class="tbtn">•</div>
+              <div class="tbtn">☑</div>
+              <div class="tbtn">❝</div>
+              <div class="tbsep"></div>
+              <div class="tbtn mono">&lt;/&gt;</div>
+              <div class="tbtn mono">⌘K</div>
+            </div>
+
+            <!-- empty state -->
+            <div class="state empty">
+              <div class="ph">Начни писать…<span class="caret"></span></div>
+            </div>
+
+            <!-- draft / select state -->
+            <div class="state draft">
+              <h1 class="md-h1"><span class="hash">#</span><span>Созвон с командой</span></h1>
+              <ul class="md-list">
+                <li class="md-li"><span class="dot">•</span><span>обсудить <span class="selword">дату релиза</span></span></li>
+                <li class="md-li"><span class="dot">•</span><span>демо для стейкхолдеров<span class="caret"></span></span></li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- footer -->
+          <div class="p-foot">
+            <span>Markdown</span>
+            <span class="hint">
+              <span class="kbd">esc</span><span class="dotsep">·</span><span class="kbd">⌘ ↵</span>
+            </span>
+          </div>
+
+          <!-- redline specs overlay (inside panel coords) -->
+          <div class="specs">
+            <!-- panel width bracket -->
+            <div class="rl rl-width">
+              <div class="rl-line"></div>
+              <div class="rl-line tick t1"></div>
+              <div class="rl-line tick t2"></div>
+              <div class="rl-chip">560</div>
+            </div>
+            <!-- header height -->
+            <div class="rl-line" style="left:-1px; top:0; width:1px; height:60px;"></div>
+            <div class="rl-chip" style="left:-26px; top:30px;">60</div>
+            <!-- header side padding -->
+            <div class="rl-line" style="left:0; top:30px; width:20px; height:1px;"></div>
+            <div class="rl-chip" style="left:10px; top:30px;">20</div>
+            <!-- icon size -->
+            <div class="rl-chip lt" style="left:34px; top:52px;">28</div>
+            <!-- body top padding -->
+            <div class="rl-line" style="left:24px; top:61px; width:1px; height:20px;"></div>
+            <div class="rl-chip" style="left:24px; top:71px;">20</div>
+            <!-- body side padding -->
+            <div class="rl-line" style="left:0; top:108px; width:24px; height:1px;"></div>
+            <div class="rl-chip" style="left:12px; top:96px;">24</div>
+            <!-- h1 type -->
+            <div class="rl-chip lt" style="left:300px; top:96px;">20 / 700</div>
+            <!-- list type -->
+            <div class="rl-chip lt" style="left:300px; top:142px;">15 / 24</div>
+            <!-- radius -->
+            <div class="rl-chip lt" style="left:566px; top:8px;">r16</div>
+          </div>
+        </div>
+
+        <!-- selection-toolbar offset annotation handled in CSS -->
+      </div>
+
+      <!-- token legend (dev handoff) -->
+      <div class="specsheet">
+        <div class="ss-head"><span class="dotmark"></span> Draft · спецификация</div>
+        <div class="ss-grid">
+          <div class="ss-col">
+            <div class="ss-cap">Размеры · сетка 4px</div>
+            <div class="ss-row"><span class="ss-k">Ширина панели</span><span class="ss-v">560</span></div>
+            <div class="ss-row"><span class="ss-k">Радиус панели</span><span class="ss-v">16</span></div>
+            <div class="ss-row"><span class="ss-k">Высота шапки</span><span class="ss-v">60</span></div>
+            <div class="ss-row"><span class="ss-k">Иконка</span><span class="ss-v">28 · r8</span></div>
+            <div class="ss-row"><span class="ss-k">Тело · padding</span><span class="ss-v">20 / 24 / 24</span></div>
+            <div class="ss-row"><span class="ss-k">Высота футера</span><span class="ss-v">46</span></div>
+            <div class="ss-row"><span class="ss-k">Бордер</span><span class="ss-v">1</span></div>
+          </div>
+          <div class="ss-col">
+            <div class="ss-cap">Типографика</div>
+            <div class="ss-row"><span class="ss-k">Заголовок H1</span><span class="ss-v">20 / 28 · 700</span></div>
+            <div class="ss-row"><span class="ss-k">Тело</span><span class="ss-v">15 / 24 · 400</span></div>
+            <div class="ss-row"><span class="ss-k">Тайтл шапки</span><span class="ss-v">15 · 600</span></div>
+            <div class="ss-row"><span class="ss-k">Футер / хинт</span><span class="ss-v">12 · 400</span></div>
+            <div class="ss-cap" style="margin-top:12px;">Цвет</div>
+            <div class="ss-row"><span class="ss-k">Акцент</span><span class="ss-v" id="acc-hex">#c2603a</span></div>
+            <div class="ss-row"><span class="ss-k">Фон (dark)</span><span class="ss-v">#1c1b18</span></div>
+            <div class="ss-row"><span class="ss-k">Текст</span><span class="ss-v">#f3f1ec</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">Draft · V1 — вызов <span class="kbd" style="border-color:var(--line)">⌘ ⇧ Space</span> · поверх всех окон</div>
+  </div>
+
+  <!-- ===================== TWEAKS ===================== -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <div id="tweaks-root"></div>
+  <script type="text/babel">
+    const TW_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "light",
+      "state": "select",
+      "specs": false,
+      "accent": "#3f7d6b"
+    }/*EDITMODE-END*/;
+
+    function DraftTweaks(){
+      const [t, setTweak] = useTweaks(TW_DEFAULTS);
+      React.useEffect(() => {
+        const r = document.documentElement;
+        r.setAttribute('data-theme', t.theme);
+        r.setAttribute('data-state', t.state);
+        r.setAttribute('data-specs', t.specs ? 'on' : 'off');
+        r.style.setProperty('--accent', t.accent);
+        const hx = document.getElementById('acc-hex');
+        if (hx) hx.textContent = t.accent;
+      }, [t.theme, t.state, t.specs, t.accent]);
+
+      return (
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="Экран" />
+          <TweakRadio label="Тема" value={t.theme} options={['dark','light']}
+            onChange={(v) => setTweak('theme', v)} />
+          <TweakRadio label="Состояние" value={t.state} options={['empty','draft','select']}
+            onChange={(v) => setTweak('state', v)} />
+          <TweakToggle label="Спецификация" value={t.specs}
+            onChange={(v) => setTweak('specs', v)} />
+          <TweakSection label="Бренд" />
+          <TweakColor label="Акцент" value={t.accent}
+            options={['#c2603a','#d98a3d','#3f7d6b','#5a6b8c']}
+            onChange={(v) => setTweak('accent', v)} />
+        </TweaksPanel>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<DraftTweaks />);
+  </script>
+</body>
+</html>

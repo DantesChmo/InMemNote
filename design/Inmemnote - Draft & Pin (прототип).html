@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-corner="tr" data-guides="off">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inmemnote — Draft & Pin (прототип)</title>
+<style>
+  :root{
+    --accent:#3f7d6b;
+    --accent-ink:#ffffff;
+    --r-panel:16px; --r-pin:14px;
+    --f-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    --f-mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  html[data-theme="dark"]{
+    --panel:#1c1b18; --text:#f3f1ec; --text-2:#a39e95; --text-3:#6f6a62;
+    --line:rgba(255,255,255,.08); --hl:rgba(255,255,255,.085); --codebg:rgba(255,255,255,.10);
+    --shadow:0 24px 64px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+    --pin-shadow:0 16px 40px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.4);
+    --desk-a:#16140f; --desk-b:#23201a; --menubar:rgba(20,18,15,.55);
+  }
+  html[data-theme="light"]{
+    --panel:#ffffff; --text:#1c1b18; --text-2:#6b665e; --text-3:#9b968d;
+    --line:rgba(0,0,0,.08); --hl:rgba(0,0,0,.05); --codebg:rgba(0,0,0,.06);
+    --shadow:0 24px 64px rgba(40,34,26,.20), 0 2px 6px rgba(40,34,26,.10);
+    --pin-shadow:0 16px 40px rgba(40,34,26,.22), 0 2px 6px rgba(40,34,26,.12);
+    --desk-a:#d8d2c6; --desk-b:#ece7dd; --menubar:rgba(255,255,255,.55);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{ font-family:var(--f-ui); -webkit-font-smoothing:antialiased; background:#000; color:var(--text); overflow:hidden; }
+
+  /* desktop */
+  .stage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(120% 120% at 50% 0%, var(--desk-b) 0%, var(--desk-a) 70%); }
+  .behind{ position:absolute; width:760px; height:460px; border-radius:14px;
+    top:calc(50% - 188px); left:calc(50% - 380px);
+    background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+    border:1px solid rgba(255,255,255,.05); filter:blur(1px); opacity:.5; }
+  html[data-theme="light"] .behind{ background:linear-gradient(160deg, rgba(0,0,0,.04), rgba(0,0,0,.01)); border-color:rgba(0,0,0,.05); }
+  .scrim{ position:absolute; inset:0; background:rgba(0,0,0,.28); }
+  html[data-theme="light"] .scrim{ background:rgba(20,16,10,.10); }
+
+  /* menu bar */
+  .menubar{ position:fixed; top:0; left:0; right:0; height:28px; z-index:5; display:flex; align-items:center; gap:20px;
+    padding:0 16px; background:var(--menubar); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--line); font-size:13px; color:var(--text-2); }
+  .menubar .mb-zap{ color:var(--accent); font-size:14px; }
+  .menubar .mb-strong{ color:var(--text); font-weight:600; }
+  .menubar .mb-right{ margin-left:auto; display:flex; align-items:center; gap:16px; }
+  .menubar .mb-clock{ font-variant-numeric:tabular-nums; }
+
+  /* ---------------- panel ---------------- */
+  .panel{ position:relative; z-index:2; width:560px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--r-panel); box-shadow:var(--shadow); will-change:transform; }
+
+  .p-head{ display:flex; align-items:center; height:60px; padding:0 16px 0 20px; }
+  .p-icon{ width:28px; height:28px; flex:0 0 auto; border-radius:8px; background:var(--accent);
+    display:flex; align-items:center; justify-content:center; color:var(--accent-ink); font-size:15px; }
+  .p-title{ margin-left:12px; font-size:15px; font-weight:600; }
+  .pin-btn{ margin-left:auto; width:32px; height:32px; border-radius:8px; border:0; background:transparent;
+    color:var(--text-3); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .pin-btn:hover{ background:var(--hl); color:var(--text-2); }
+  .pin-btn svg{ width:17px; height:17px; }
+  .pin-btn.on{ background:var(--accent); color:var(--accent-ink); }
+  .p-divider{ height:1px; background:var(--line); }
+
+  .p-body{ padding:16px 24px 20px; min-height:96px; max-height:min(60vh, 520px); overflow-y:auto; }
+  .p-foot{ display:flex; align-items:center; height:46px; padding:0 20px; border-top:1px solid var(--line);
+    font-size:12px; color:var(--text-3); }
+  .p-foot .hint{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .kbd{ font-family:var(--f-mono); font-size:11px; color:var(--text-2); border:1px solid var(--line); border-radius:5px; padding:2px 6px; line-height:1; }
+  .dotsep{ color:var(--text-3); }
+
+  /* ---------------- editor ---------------- */
+  .md-editor{ outline:none; }
+  .md-editor .ln{ position:relative; font-size:15px; line-height:24px; color:var(--text);
+    padding:2px 8px; margin:0 -8px; border-radius:6px; min-height:24px; transition:background .12s ease; }
+  .md-editor .ln + .ln{ margin-top:2px; }
+  .md-editor .ln.active{ background:var(--hl); }
+  .md-editor .mark{ color:var(--text-3); }
+  .md-editor .ln.h1{ font-size:21px; line-height:30px; font-weight:700; }
+  .md-editor .ln.h2{ font-size:17px; line-height:26px; font-weight:700; }
+  .md-editor .ln.h3{ font-size:15px; line-height:24px; font-weight:700; }
+  .md-editor .ln.h1 .mark, .md-editor .ln.h2 .mark, .md-editor .ln.h3 .mark{ color:var(--accent); }
+  .md-editor .ln.quote{ color:var(--text-2); font-style:italic; box-shadow:inset 2px 0 0 var(--accent); padding-left:14px; }
+  .md-editor .ln.quote .mark{ color:var(--accent); font-style:normal; }
+  /* list rendered markers when inactive */
+  .md-editor .ln.ul:not(.active) .rest::before{ content:"•"; color:var(--text-3); display:inline-block; width:18px; }
+  .md-editor .ln.ol:not(.active) .rest::before{ content:attr(data-num) "."; color:var(--text-3); display:inline-block; min-width:18px; margin-right:2px; }
+  /* hide raw markers on inactive lines */
+  .md-editor .ln:not(.active) .mark{ display:none; }
+  .md-editor .ln:not(.active) .mk{ display:none; }
+  /* inline styles always applied */
+  .md-editor .b{ font-weight:700; }
+  .md-editor .i{ font-style:italic; }
+  .md-editor .code{ font-family:var(--f-mono); font-size:13px; background:var(--codebg); padding:1px 5px; border-radius:5px; }
+  .md-editor .mk{ color:var(--text-3); }
+
+  /* ---------------- pinned (compact sticky) ---------------- */
+  .panel.is-pinned{ position:fixed; width:320px; z-index:30; box-shadow:var(--pin-shadow); border-radius:var(--r-pin);
+    opacity:.82; transition:opacity .18s ease; }
+  .panel.is-pinned:hover{ opacity:1; }
+  html[data-corner="tr"] .panel.is-pinned{ top:40px; right:24px; left:auto; bottom:auto; }
+  html[data-corner="br"] .panel.is-pinned{ bottom:24px; right:24px; left:auto; top:auto; }
+  html[data-corner="tl"] .panel.is-pinned{ top:40px; left:24px; right:auto; bottom:auto; }
+  html[data-corner="bl"] .panel.is-pinned{ bottom:24px; left:24px; right:auto; top:auto; }
+  .panel.is-pinned .p-head{ height:40px; padding:0 8px 0 12px; }
+  .panel.is-pinned .p-icon{ width:20px; height:20px; border-radius:6px; font-size:11px; }
+  .panel.is-pinned .p-title{ margin-left:8px; font-size:13px; }
+  .panel.is-pinned .pin-btn{ width:28px; height:28px; }
+  .panel.is-pinned .p-body{ padding:10px 14px 14px; min-height:0; max-height:180px; }
+  .panel.is-pinned .p-foot{ display:none; }
+  .panel.is-pinned .md-editor .ln.h1{ font-size:16px; line-height:22px; }
+
+  /* ---------------- sizes & states reference ---------------- */
+  .guides{ position:fixed; left:24px; bottom:24px; z-index:20; width:300px;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow);
+    display:none; overflow:hidden; }
+  html[data-guides="on"] .guides{ display:block; }
+  .guides h4{ margin:0; padding:12px 16px; font-size:12px; font-weight:600; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:8px; }
+  .guides h4 .dotmark{ width:8px; height:8px; border-radius:2px; background:var(--accent); }
+  .g-sec{ padding:10px 16px; border-bottom:1px solid var(--line); }
+  .g-sec:last-child{ border-bottom:0; }
+  .g-cap{ font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; }
+  .g-row{ display:flex; justify-content:space-between; padding:3px 0; font-size:12px; }
+  .g-k{ color:var(--text-2); } .g-v{ font-family:var(--f-mono); color:var(--text); }
+  .g-states{ display:flex; flex-wrap:wrap; gap:5px; }
+  .g-chip{ font-size:11px; border:1px solid var(--line); border-radius:20px; padding:2px 9px; color:var(--text-2); }
+
+  .hint-bottom{ position:fixed; left:0; right:0; bottom:22px; z-index:4; text-align:center; font-size:12px; color:var(--text-3); }
+  html[data-guides="on"] .hint-bottom{ display:none; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="behind"></div>
+    <div class="scrim"></div>
+
+    <div class="menubar">
+      <span class="mb-zap">⚡</span>
+      <span class="mb-strong">Inmemnote</span>
+      <span>Файл</span><span>Правка</span>
+      <span class="mb-right"><span style="font-size:15px;">⌕</span><span class="mb-clock">9:41</span></span>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="p-head">
+        <div class="p-icon">⚡</div>
+        <div class="p-title">Быстрая заметка</div>
+        <button class="pin-btn" id="pinBtn" title="Закрепить поверх окон">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1.5h4M7 1.5l-.4 4.2L4.5 8h7L9.4 5.7 9 1.5M8 8v6.5"/></svg>
+        </button>
+      </div>
+      <div class="p-divider"></div>
+      <div class="p-body">
+        <div class="md-editor" id="editor" contenteditable="true" spellcheck="false"></div>
+      </div>
+      <div class="p-foot">
+        <span>Markdown — на лету</span>
+        <span class="hint"><span class="kbd">esc</span><span class="dotsep">·</span><span class="kbd">⌘ ↵</span></span>
+      </div>
+    </div>
+
+    <!-- sizes & states reference -->
+    <div class="guides">
+      <h4><span class="dotmark"></span> Размеры и состояния</h4>
+      <div class="g-sec">
+        <div class="g-cap">Draft · оверлей</div>
+        <div class="g-row"><span class="g-k">Ширина</span><span class="g-v">560 · фикс</span></div>
+        <div class="g-row"><span class="g-k">Шапка / футер</span><span class="g-v">60 / 46</span></div>
+        <div class="g-row"><span class="g-k">Тело</span><span class="g-v">min 96 · max 60vh</span></div>
+        <div class="g-row"><span class="g-k">Переполнение</span><span class="g-v">скролл тела</span></div>
+        <div class="g-row"><span class="g-k">Радиус</span><span class="g-v">16</span></div>
+      </div>
+      <div class="g-sec">
+        <div class="g-cap">Pin · стикер</div>
+        <div class="g-row"><span class="g-k">Ширина</span><span class="g-v">320</span></div>
+        <div class="g-row"><span class="g-k">Шапка</span><span class="g-v">40 · без футера</span></div>
+        <div class="g-row"><span class="g-k">Превью</span><span class="g-v">max 180 · скролл</span></div>
+        <div class="g-row"><span class="g-k">Поведение</span><span class="g-v">поверх окон</span></div>
+        <div class="g-row"><span class="g-k">Радиус</span><span class="g-v">14</span></div>
+      </div>
+      <div class="g-sec">
+        <div class="g-cap">Состояния</div>
+        <div class="g-states">
+          <span class="g-chip">Draft · пусто</span>
+          <span class="g-chip">ввод</span>
+          <span class="g-chip">выделение</span>
+          <span class="g-chip">сохранение</span>
+          <span class="g-chip">Pin · свёрнут</span>
+          <span class="g-chip">наведён</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint-bottom">Кликай по строкам и печатай · спецсимволы видны только на активной строке · 📌 — закрепить</div>
+  </div>
+
+  <script src="md-editor.js"></script>
+  <script>
+    (function(){
+      var root = document.documentElement;
+      var editor = document.getElementById('editor');
+      var panel = document.getElementById('panel');
+      var pinBtn = document.getElementById('pinBtn');
+
+      var seed = [
+        "# Созвон с командой:",
+        "1) Обсудить что-нибудь",
+        "2) Показать **демо** стейкхолдерам",
+        "- черновик не теряется",
+        "> цель — подтвердить дату релиза"
+      ];
+      var api = window.InmemEditor.init(editor, seed);
+
+      // demonstrate the spec on load: caret on line (2) -> line (1) is H1 without the #
+      setTimeout(function(){ api.focusLine(1, null); }, 120);
+
+      // ---- pin with FLIP morph ----
+      var pinned = false;
+      function setPinned(on){
+        if(on === pinned) return;
+        var first = panel.getBoundingClientRect();
+        panel.classList.toggle('is-pinned', on);
+        root.classList.toggle('pinned', on);
+        pinBtn.classList.toggle('on', on);
+        var last = panel.getBoundingClientRect();
+        var dx = first.left - last.left, dy = first.top - last.top;
+        var sx = first.width / last.width, sy = first.height / last.height;
+        panel.style.transformOrigin = 'top left';
+        panel.animate(
+          [{ transform: 'translate('+dx+'px,'+dy+'px) scale('+sx+','+sy+')' },
+           { transform: 'none' }],
+          { duration: 360, easing: 'cubic-bezier(.22,.7,.3,1)' }
+        );
+        panel.querySelector('.p-body').animate(
+          [{ opacity:.3 }, { opacity:1 }], { duration: 300, easing:'ease-out' }
+        );
+        pinned = on;
+      }
+      pinBtn.addEventListener('click', function(){ setPinned(!pinned); });
+      window.__setPinned = setPinned;
+      window.__setCorner = function(c){ root.setAttribute('data-corner', c); };
+    })();
+  </script>
+
+  <!-- tweaks -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <div id="tweaks-root"></div>
+  <script type="text/babel">
+    const TW_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "dark",
+      "corner": "tr",
+      "pinned": false,
+      "guides": false,
+      "accent": "#3f7d6b"
+    }/*EDITMODE-END*/;
+
+    function Tw(){
+      const [t, setTweak] = useTweaks(TW_DEFAULTS);
+      React.useEffect(() => {
+        const r = document.documentElement;
+        r.setAttribute('data-theme', t.theme);
+        r.setAttribute('data-corner', t.corner);
+        r.setAttribute('data-guides', t.guides ? 'on' : 'off');
+        r.style.setProperty('--accent', t.accent);
+      }, [t.theme, t.corner, t.guides, t.accent]);
+      React.useEffect(() => { if (window.__setPinned) window.__setPinned(t.pinned); }, [t.pinned]);
+      return (
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="Экран" />
+          <TweakRadio label="Тема" value={t.theme} options={['dark','light']} onChange={(v)=>setTweak('theme',v)} />
+          <TweakToggle label="Размеры и состояния" value={t.guides} onChange={(v)=>setTweak('guides',v)} />
+          <TweakSection label="Закреп" />
+          <TweakToggle label="Закреплено" value={t.pinned} onChange={(v)=>setTweak('pinned',v)} />
+          <TweakSelect label="Угол" value={t.corner}
+            options={[{value:'tr',label:'Сверху справа'},{value:'br',label:'Снизу справа'},{value:'tl',label:'Сверху слева'},{value:'bl',label:'Снизу слева'}]}
+            onChange={(v)=>setTweak('corner',v)} />
+          <TweakSection label="Бренд" />
+          <TweakColor label="Акцент" value={t.accent}
+            options={['#3f7d6b','#c2603a','#d98a3d','#5a6b8c']} onChange={(v)=>setTweak('accent',v)} />
+        </TweaksPanel>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<Tw />);
+  </script>
+</body>
+</html>

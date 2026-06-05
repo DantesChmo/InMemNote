@@ -1,0 +1,59 @@
+/* Design tokens lifted verbatim from `design/Inmemnote - Draft (hi-fi).html`.
+   Single source of truth — Tailwind classes reference these via var(--token). */
+
+:root {
+  --accent: #3f7d6b;
+  --accent-ink: #ffffff;
+
+  --r-panel: 16px;
+  --r-pin: 14px;
+  --r-icon: 8px;
+  --r-pill: 12px;
+
+  --f-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --f-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+html[data-theme='dark'] {
+  --panel: #1c1b18;
+  --panel-2: #211f1b;
+  --sink: #161512;
+  --text: #f3f1ec;
+  --text-2: #a39e95;
+  --text-3: #6f6a62;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.05);
+  --hl: rgba(255, 255, 255, 0.085);
+  --codebg: rgba(255, 255, 255, 0.1);
+  --sel: rgba(63, 125, 107, 0.26);
+  --bar: #2a2824;
+  --bar-line: rgba(255, 255, 255, 0.07);
+  --accent-tint: rgba(63, 125, 107, 0.22);
+  --accent-tint-2: rgba(63, 125, 107, 0.14);
+  --shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --pin-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme='light'] {
+  --panel: #ffffff;
+  --panel-2: #faf8f3;
+  --sink: #f1eee7;
+  --text: #1c1b18;
+  --text-2: #6b665e;
+  --text-3: #9b968d;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-2: rgba(0, 0, 0, 0.055);
+  --hl: rgba(0, 0, 0, 0.05);
+  --codebg: rgba(0, 0, 0, 0.06);
+  --sel: rgba(63, 125, 107, 0.18);
+  --bar: #ffffff;
+  --bar-line: rgba(0, 0, 0, 0.07);
+  --accent-tint: rgba(63, 125, 107, 0.18);
+  --accent-tint-2: rgba(63, 125, 107, 0.1);
+  --shadow:
+    0 24px 64px rgba(40, 34, 26, 0.2), 0 2px 6px rgba(40, 34, 26, 0.1);
+  --pin-shadow:
+    0 16px 40px rgba(40, 34, 26, 0.22), 0 2px 6px rgba(40, 34, 26, 0.12);
+}

@@ -1,0 +1,4 @@
+{
+  "$schema": "./hotkeys.schema.json",
+  "openDraft": "CommandOrControl+Shift+Space"
+}

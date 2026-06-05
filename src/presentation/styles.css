@@ -1,0 +1,61 @@
+/* `@import` rules MUST precede every other at-rule per the CSS spec.
+   Putting our design tokens above the Tailwind directives makes the custom
+   properties (`--panel`, `--accent`, …) available to the rest of the file. */
+@import './theme/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: transparent;
+  color: var(--text);
+  font-family: var(--f-ui);
+  -webkit-font-smoothing: antialiased;
+  /* The frameless Electron window is what gives us the rounded look — make
+     sure nothing here paints outside the panel. */
+  overflow: hidden;
+}
+
+/* The whole header is a drag region by default; interactive elements opt out
+   via `-webkit-app-region: no-drag`. Keeps the user able to slide the
+   floating panel around without a dedicated grab handle. */
+.draft-drag {
+  -webkit-app-region: drag;
+}
+.draft-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Same idea, scoped to the Library toolbar. Kept as separate classes so
+   future per-window tweaks (e.g. disable drag while a sheet is open) don't
+   leak across screens. */
+.lib-drag {
+  -webkit-app-region: drag;
+}
+.lib-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.lib-hl {
+  background: color-mix(in oklch, var(--accent) 40%, transparent);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* Tailwind 3 ships `line-clamp` utilities only via the plugin; we declare a
+   tiny shim so we don't have to add another dependency for a single use. */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

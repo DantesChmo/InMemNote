@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ru" data-annotations="on" data-sketch="on" data-paper="grid">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inmemnote — Концепт (вайрфреймы)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script>
+  // Force-load Caveat (incl. Cyrillic subset) at the weights we use so first paint
+  // and DOM-snapshot capture both embed the handwriting face.
+  if (document.fonts && document.fonts.load) {
+    ['400','500','600','700'].forEach(function(w){
+      document.fonts.load(w + ' 32px Caveat', 'Inmemnote концепт-доска АБВ');
+    });
+  }
+</script>
+<style>
+  :root{
+    --paper:#efece2;
+    --ink:#2c2a26;
+    --ink-2:#6f6b62;
+    --ink-3:#a6a299;
+    --line:#cdc9bd;
+    --panel:#fbfaf6;
+    --screen:#f6f4ee;
+    --accent:#d98a3d;
+    --ok:#5a9b6b;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 120px;
+  }
+  body[data-paper="grid"]{
+    background-image:
+      linear-gradient(rgba(80,76,68,.05) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(80,76,68,.05) 1px,transparent 1px);
+    background-size:26px 26px;
+  }
+  .hand{ font-family:"Caveat",cursive; }
+  .mono{ font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+
+  .wrap{ max-width:1320px; margin:0 auto; padding:0 40px; }
+
+  /* ---- top masthead ---- */
+  .masthead{ padding:54px 0 26px; border-bottom:2px dashed var(--line); margin-bottom:46px; }
+  .masthead h1{ font-family:"Caveat",cursive; font-weight:700; font-size:52px; line-height:.95; margin:0 0 8px; letter-spacing:.5px; }
+  .masthead .zap{ color:var(--accent); }
+  .masthead p{ margin:0; color:var(--ink-2); font-size:15px; max-width:680px; }
+  .masthead .meta{ margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; }
+  .chip{ font-family:"Caveat",cursive; font-size:19px; border:1.5px solid var(--ink); border-radius:140px 16px 130px 16px/16px 130px 16px 140px; padding:2px 14px; color:var(--ink); background:var(--panel); }
+  body[data-sketch="off"] .chip{ border-radius:999px; }
+
+  /* ---- section scaffold ---- */
+  section.board{ margin:0 0 64px; }
+  .sec-head{ display:flex; align-items:baseline; gap:16px; margin-bottom:26px; }
+  .sec-num{ font-family:"Caveat",cursive; font-weight:700; font-size:30px; width:46px; height:46px; flex:0 0 auto; display:grid; place-items:center; border:2px solid var(--ink); border-radius:60% 40% 55% 45%/45% 55% 45% 55%; background:var(--panel); }
+  body[data-sketch="off"] .sec-num{ border-radius:50%; }
+  .sec-head h2{ font-family:"Caveat",cursive; font-weight:700; font-size:32px; margin:0; line-height:1; }
+  .sec-head .sec-sub{ font-family:system-ui,sans-serif; font-size:13.5px; color:var(--ink-2); margin:5px 0 0; }
+
+  /* ---- generic sketch surfaces ---- */
+  .sketch{ border:2px solid var(--ink); border-radius:18px 220px 18px 220px/220px 18px 220px 18px; background:var(--panel); }
+  .frame{ border:2px solid var(--ink); background:var(--panel); border-radius:255px 14px 225px 14px/14px 225px 14px 255px; }
+  body[data-sketch="off"] .frame,
+  body[data-sketch="off"] .sketch{ border-radius:14px; }
+
+  .note{ font-family:"Caveat",cursive; font-size:20px; color:var(--ink-2); line-height:1.18; }
+  .note b{ color:var(--ink); font-weight:600; }
+  .note .acc{ color:var(--accent); }
+  body[data-annotations="off"] .note{ display:none; }
+  body[data-annotations="off"] .anno-row{ display:none; }
+
+  .tag{ font-family:"Caveat",cursive; font-size:18px; background:var(--accent); color:#fff; padding:1px 10px 2px; border-radius:120px 10px 110px 10px/10px 110px 10px 120px; display:inline-block; transform:rotate(-1.5deg); }
+  body[data-sketch="off"] .tag{ border-radius:6px; transform:none; }
+
+  /* placeholder text bars (wireframe) */
+  .bar{ height:9px; border-radius:6px; background:repeating-linear-gradient(90deg,var(--ink-3),var(--ink-3) 7px,transparent 7px,transparent 11px); opacity:.55; }
+  .bar.w90{ width:90%; } .bar.w80{ width:80%; } .bar.w70{ width:70%; } .bar.w60{ width:60%; } .bar.w45{ width:45%; }
+  .bars{ display:flex; flex-direction:column; gap:9px; }
+
+  /* ---------- A · flow map ---------- */
+  .flow{ display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .node{ flex:1 1 180px; min-width:170px; padding:16px 16px; text-align:center; }
+  .node .nt{ font-family:"Caveat",cursive; font-size:23px; font-weight:600; margin-bottom:6px; line-height:1.05; }
+  .node .nd{ font-size:12.5px; color:var(--ink-2); line-height:1.3; }
+  .node .key{ display:inline-block; font-family:ui-monospace,monospace; font-size:12px; border:1.5px solid var(--ink); border-radius:7px; padding:2px 8px; margin-bottom:8px; background:var(--screen); }
+  .arrow{ align-self:center; font-family:"Caveat",cursive; font-size:40px; color:var(--accent); padding:0 4px; flex:0 0 auto; }
+  .flow-branch{ display:flex; align-items:center; gap:14px; margin-top:18px; padding-left:8px; }
+  .flow-branch .arrow{ font-size:30px; transform:rotate(20deg); }
+
+  /* ---------- macOS overlay mock ---------- */
+  .desk{ position:relative; padding:30px 22px 26px; }
+  .ghost-app{ position:absolute; inset:14px; border:1.5px dashed var(--ink-3); border-radius:12px; opacity:.5; }
+  .ghost-label{ position:absolute; top:18px; left:24px; font-family:"Caveat",cursive; font-size:17px; color:var(--ink-3); }
+  .overlay{ position:relative; z-index:2; width:100%; background:var(--screen); border:2px solid var(--ink); border-radius:20px; box-shadow:6px 8px 0 rgba(44,42,38,.10); }
+  .ov-head{ display:flex; align-items:center; gap:9px; padding:11px 14px; border-bottom:1.5px solid var(--line); }
+  .ov-zap{ width:24px; height:24px; flex:0 0 auto; border-radius:7px; background:var(--accent); color:#fff; display:grid; place-items:center; font-size:14px; }
+  .ov-ttl{ font-size:13px; font-weight:600; }
+  .ov-meta{ margin-left:auto; font-size:11.5px; color:var(--ink-3); display:flex; gap:10px; align-items:center; }
+  .ov-body{ padding:14px; min-height:90px; }
+  .md-h{ font-size:17px; font-weight:700; margin:0 0 9px; display:flex; gap:7px; }
+  .md-h .hash{ color:var(--accent); }
+  .ov-foot{ display:flex; align-items:center; padding:9px 14px; border-top:1.5px solid var(--line); font-size:11.5px; color:var(--ink-3); }
+  .ov-foot .hint{ margin-left:auto; font-family:ui-monospace,monospace; font-size:11px; }
+  .caret{ display:inline-block; width:2px; height:1.05em; background:var(--accent); vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* markdown toolbar */
+  .mdbar{ display:flex; gap:6px; align-items:center; padding:8px 12px; border-top:1.5px solid var(--line); flex-wrap:wrap; }
+  .mdbtn{ min-width:26px; height:26px; padding:0 7px; border:1.5px solid var(--ink); border-radius:7px; background:var(--panel); font-size:12px; display:grid; place-items:center; color:var(--ink); font-weight:600; }
+  .mdbtn.mono{ font-family:ui-monospace,monospace; font-weight:400; }
+  .mdsep{ width:1.5px; height:18px; background:var(--line); }
+
+  .three{ display:grid; grid-template-columns:repeat(3,1fr); gap:30px; align-items:start; }
+  .variant .vh{ display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+  .variant .vh .vn{ font-family:"Caveat",cursive; font-size:24px; font-weight:700; }
+  .variant .vh .vtag{ font-size:11px; color:var(--ink-2); border:1.5px solid var(--line); border-radius:30px; padding:1px 9px; }
+
+  /* split preview variant */
+  .split{ display:grid; grid-template-columns:1fr 1fr; }
+  .split .left{ padding:14px; border-right:1.5px dashed var(--line); }
+  .split .right{ padding:14px; background:rgba(0,0,0,.015); }
+  .split .lbl{ font-family:"Caveat",cursive; font-size:15px; color:var(--ink-3); margin-bottom:8px; }
+  .raw{ font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-2); line-height:1.5; white-space:pre-wrap; }
+
+  /* ---------- states storyboard ---------- */
+  .strip{ display:grid; grid-template-columns:repeat(3,1fr); gap:30px; align-items:start; }
+  .stagecap{ font-family:"Caveat",cursive; font-size:22px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .stagecap .num{ color:var(--accent); }
+  .saved{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:96px; }
+  .check{ width:48px; height:48px; border-radius:50%; border:2.5px solid var(--ok); color:var(--ok); display:grid; place-items:center; font-size:24px; }
+  .saved .lab{ font-size:13px; font-weight:600; color:var(--ink); }
+
+  /* ---------- library window ---------- */
+  .winbar{ display:flex; align-items:center; gap:8px; padding:9px 13px; border-bottom:1.5px solid var(--line); }
+  .lights{ display:flex; gap:7px; }
+  .lights i{ width:12px; height:12px; border-radius:50%; border:1.5px solid var(--ink); display:block; }
+  .winttl{ font-size:12.5px; color:var(--ink-2); margin:0 auto; font-weight:600; }
+  .wintools{ display:flex; gap:8px; align-items:center; }
+  .toolbtn{ font-size:11px; border:1.5px solid var(--ink); border-radius:7px; padding:3px 9px; background:var(--panel); display:flex; gap:5px; align-items:center; }
+  .search{ display:flex; align-items:center; gap:8px; border:1.5px solid var(--ink); border-radius:9px; padding:5px 11px; flex:1 1 auto; min-width:140px; background:var(--screen); font-size:12px; color:var(--ink-3); white-space:nowrap; overflow:hidden; }
+  .search .ph{ overflow:hidden; text-overflow:ellipsis; }
+
+  .frame.win{ border-radius:24px 30px 24px 30px/28px 24px 30px 24px; }
+  body[data-sketch="off"] .frame.win{ border-radius:14px; }
+  .libgrid{ display:grid; grid-template-columns:172px 250px 1fr; min-height:380px; }
+  .sidebar{ border-right:1.5px solid var(--line); padding:14px 12px; }
+  .side-h{ font-family:"Caveat",cursive; font-size:16px; color:var(--ink-3); margin:14px 0 7px; }
+  .side-h:first-child{ margin-top:0; }
+  .side-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:6px 9px; border-radius:8px; color:var(--ink); }
+  .side-item.on{ background:rgba(217,138,61,.14); border:1.5px solid var(--accent); }
+  .side-item .ic{ width:14px; height:14px; border:1.5px solid var(--ink-2); border-radius:4px; flex:0 0 auto; }
+  .side-count{ margin-left:auto; font-size:11px; color:var(--ink-3); }
+
+  .notelist{ border-right:1.5px solid var(--line); padding:10px; display:flex; flex-direction:column; gap:9px; }
+  .ncard{ border:1.5px solid var(--line); border-radius:11px; padding:10px 11px; background:var(--panel); }
+  .ncard.on{ border:2px solid var(--ink); box-shadow:3px 3px 0 rgba(44,42,38,.08); }
+  .ncard .nct{ font-size:13px; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+  .ncard .pin{ color:var(--accent); font-size:11px; margin-left:auto; }
+  .ncard .ncm{ display:flex; gap:8px; margin-top:8px; font-size:10.5px; color:var(--ink-3); }
+
+  .editor{ padding:18px 22px; }
+  .ed-meta{ display:flex; align-items:center; gap:10px; font-size:11px; color:var(--ink-3); margin-bottom:14px; }
+  .ed-h{ font-size:21px; font-weight:800; margin:0 0 12px; display:flex; gap:8px; }
+  .ed-h .hash{ color:var(--accent); }
+
+  .theme-mini{ margin-top:16px; display:flex; gap:16px; align-items:flex-start; }
+  .mini{ width:150px; }
+  .mini .cap{ font-family:"Caveat",cursive; font-size:18px; color:var(--ink-2); margin-bottom:6px; }
+  .mini-win{ border:2px solid var(--ink); border-radius:10px; overflow:hidden; }
+  .mini-win .mb{ display:flex; gap:4px; padding:6px 8px; border-bottom:1.5px solid var(--line); }
+  .mini-win .mb i{ width:7px; height:7px; border-radius:50%; border:1px solid var(--ink); }
+  .mini-win .mbody{ padding:9px; display:flex; flex-direction:column; gap:6px; }
+  .mini.dark .mini-win{ background:#23211d; border-color:#23211d; }
+  .mini.dark .mini-win .mb{ border-color:#3a3833; }
+  .mini.dark .bar{ background:repeating-linear-gradient(90deg,#6c6862,#6c6862 7px,transparent 7px,transparent 11px); }
+
+  /* ---------- details: menubar + hotkeys ---------- */
+  .det{ display:grid; grid-template-columns:1.1fr 1fr; gap:34px; align-items:start; }
+  .menubar{ background:var(--screen); border:2px solid var(--ink); border-radius:12px; overflow:hidden; }
+  .mbar-top{ display:flex; align-items:center; gap:18px; padding:7px 14px; border-bottom:1.5px solid var(--line); font-size:12px; }
+  .mbar-top .apple{ font-size:14px; }
+  .mbar-top .spacer{ margin-left:auto; }
+  .mbar-top .zapm{ color:var(--accent); font-weight:700; }
+  .dropdown{ padding:8px; width:280px; }
+  .ditem{ display:flex; align-items:center; padding:7px 10px; border-radius:7px; font-size:12.5px; }
+  .ditem:hover{ background:rgba(217,138,61,.12); }
+  .ditem .sc{ margin-left:auto; font-family:ui-monospace,monospace; font-size:11px; color:var(--ink-3); }
+  .ditem.div{ border-top:1.5px solid var(--line); margin:5px 4px; padding:0; border-radius:0; }
+
+  .keys{ display:flex; flex-direction:column; gap:0; }
+  .keyrow{ display:flex; align-items:center; gap:12px; padding:10px 2px; border-bottom:1.5px dashed var(--line); }
+  .keyrow:last-child{ border-bottom:0; }
+  .kbd{ font-family:ui-monospace,monospace; font-size:12px; border:1.5px solid var(--ink); border-bottom-width:3px; border-radius:7px; padding:3px 9px; background:var(--screen); white-space:nowrap; }
+  .keyrow .kd{ font-size:13px; color:var(--ink); }
+
+  .legend{ margin-top:18px; display:flex; gap:22px; flex-wrap:wrap; align-items:center; padding-top:18px; border-top:2px dashed var(--line); }
+  .legend .li{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2); }
+  .legend .sw{ width:26px; height:14px; border:1.5px solid var(--ink); border-radius:5px; }
+  .legend .sw.acc{ background:var(--accent); border-color:var(--accent); }
+  .legend .sw.gh{ border-style:dashed; border-color:var(--ink-3); }
+
+  .anno-row{ margin-top:14px; }
+  @media (max-width:980px){
+    .three,.strip,.det{ grid-template-columns:1fr; }
+    .libgrid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- ===================== MASTHEAD ===================== -->
+    <header class="masthead">
+      <h1><span class="zap">⚡</span> Inmemnote — концепт-доска</h1>
+      <p>Лоу-фай вайрфреймы: разводим <b>концепцию</b>, а не финальную графику. Фокус — способ вызова overlay поверх окон, связка «быстрый захват ↔ библиотека», markdown-тулбар. Тёмная тема и причёсанный визуал — на следующем шаге.</p>
+      <div class="meta">
+        <span class="chip">Spotlight-style overlay</span>
+        <span class="chip">macOS · меню-бар · ⌘-хоткеи</span>
+        <span class="chip">Захват ↔ Библиотека</span>
+        <span class="chip">Markdown</span>
+      </div>
+    </header>
+
+    <!-- ===================== A · FLOW ===================== -->
+    <section class="board">
+      <div class="sec-head">
+        <span class="sec-num">A</span>
+        <div>
+          <h2>Большая идея — как это живёт</h2>
+          <p class="sec-sub">Один глобальный хоткей вызывает панель поверх любого приложения. Записал — исчезло. Всё накапливается в отдельной библиотеке.</p>
+        </div>
+      </div>
+
+      <div class="frame" style="padding:22px 20px;">
+        <div class="flow">
+          <div class="node">
+            <span class="key">⌘ ⇧ Space</span>
+            <div class="nt">Глобальный хоткей</div>
+            <div class="nd">Из любого приложения, не теряя контекст</div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node">
+            <div class="nt">Панель по центру</div>
+            <div class="nd">Поверх всех окон, фокус сразу в поле. Пишем markdown</div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node">
+            <span class="key">⌘ ↵</span>
+            <div class="nt">Сохранить</div>
+            <div class="nd">Галка ✓ ~0.6 c → панель авто-скрывается</div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node">
+            <div class="nt">Заметка в библиотеке</div>
+            <div class="nd">Накапливается, ищется, редактируется позже</div>
+          </div>
+        </div>
+        <div class="flow-branch">
+          <span class="key">esc</span>
+          <span class="arrow">↘</span>
+          <span class="note" style="font-size:18px;">черновик <b>не теряется</b> — авто-сейв каждые пару секунд, восстановится при следующем вызове</span>
+          <span style="flex:1;"></span>
+          <span class="key">⌘ ⌥ L</span>
+          <span class="arrow">↘</span>
+          <span class="note" style="font-size:18px;">или иконка <span class="acc">⚡</span> в меню-баре → открыть <b>окно-библиотеку</b></span>
+        </div>
+      </div>
+      <p class="note anno-row">↑ две поверхности: <b>лёгкий overlay</b> для захвата и <b>полное окно</b> для разбора. Держим их раздельно — захват должен быть мгновенным.</p>
+    </section>
+
+    <!-- ===================== B · 3 VARIANTS ===================== -->
+    <section class="board">
+      <div class="sec-head">
+        <span class="sec-num">B</span>
+        <div>
+          <h2>Панель захвата — 3 варианта</h2>
+          <p class="sec-sub">Одна парадигма (центральная плавающая панель), три раскладки. Что выносим, что прячем, где markdown-тулбар.</p>
+        </div>
+      </div>
+
+      <div class="three">
+
+        <!-- V1 minimal -->
+        <div class="variant">
+          <div class="vh"><span class="vn">V1 · Минимум</span><span class="vtag">тулбар по выделению</span></div>
+          <div class="frame desk">
+            <div class="ghost-app"></div>
+            <span class="ghost-label">любое приложение</span>
+            <div class="overlay">
+              <div class="ov-head">
+                <span class="ov-zap">⚡</span>
+                <span class="ov-ttl">Быстрая заметка</span>
+                <span class="ov-meta"><span>≈ 6 слов</span><span>📌</span></span>
+              </div>
+              <div class="ov-body">
+                <div class="md-h"><span class="hash">#</span> Созвон с командой</div>
+                <div class="bars">
+                  <div class="bar w90"></div>
+                  <div class="bar w70"></div>
+                </div>
+                <div style="margin-top:8px; font-size:13px; color:var(--ink-2);">обсудить дату релиза<span class="caret"></span></div>
+              </div>
+              <div class="ov-foot"><span>markdown · live-preview</span><span class="hint">esc · ⌘↵</span></div>
+            </div>
+          </div>
+          <p class="note">Ничего лишнего. Форматирование всплывает <b>только при выделении</b> текста или по «/». Самый быстрый ввод.</p>
+        </div>
+
+        <!-- V2 persistent toolbar -->
+        <div class="variant">
+          <div class="vh"><span class="vn">V2 · Тулбар снизу</span><span class="vtag">всегда виден</span></div>
+          <div class="frame desk">
+            <div class="ghost-app"></div>
+            <span class="ghost-label">любое приложение</span>
+            <div class="overlay">
+              <div class="ov-head">
+                <span class="ov-zap">⚡</span>
+                <span class="ov-ttl">Быстрая заметка</span>
+                <span class="ov-meta"><span>≈ 6 слов</span><span>📌</span></span>
+              </div>
+              <div class="ov-body" style="min-height:74px;">
+                <div class="md-h"><span class="hash">#</span> Созвон с командой</div>
+                <div class="bars">
+                  <div class="bar w80"></div>
+                  <div class="bar w60"></div>
+                </div>
+              </div>
+              <div class="mdbar">
+                <span class="mdbtn">B</span>
+                <span class="mdbtn" style="font-style:italic;">I</span>
+                <span class="mdbtn mono">H</span>
+                <span class="mdsep"></span>
+                <span class="mdbtn">•</span>
+                <span class="mdbtn">☑</span>
+                <span class="mdbtn">❝</span>
+                <span class="mdsep"></span>
+                <span class="mdbtn mono">&lt;/&gt;</span>
+                <span class="mdbtn mono">🔗</span>
+                <span class="ov-meta" style="margin-left:auto; font-family:ui-monospace,monospace; font-size:11px;">⌘↵</span>
+              </div>
+            </div>
+          </div>
+          <p class="note">Закреплённый markdown-тулбар. Форматирование <b>под рукой</b> — хорошо для тех, кто не помнит синтаксис.</p>
+        </div>
+
+        <!-- V3 split preview -->
+        <div class="variant">
+          <div class="vh"><span class="vn">V3 · Сплит-превью</span><span class="vtag">raw ↔ результат</span></div>
+          <div class="frame desk">
+            <div class="ghost-app"></div>
+            <span class="ghost-label">любое приложение</span>
+            <div class="overlay">
+              <div class="ov-head">
+                <span class="ov-zap">⚡</span>
+                <span class="ov-ttl">Быстрая заметка</span>
+                <span class="ov-meta"><span>≈ 6 слов</span></span>
+              </div>
+              <div class="split">
+                <div class="left">
+                  <div class="lbl">ввод</div>
+                  <div class="raw"># Созвон с командой
+- обсудить дату
+- демо</div>
+                </div>
+                <div class="right">
+                  <div class="lbl">превью</div>
+                  <div class="md-h" style="font-size:14px; margin-bottom:6px;">Созвон с командой</div>
+                  <div style="font-size:12px; color:var(--ink-2); line-height:1.7;">• обсудить дату<br/>• демо</div>
+                </div>
+              </div>
+              <div class="ov-foot"><span>live render</span><span class="hint">esc · ⌘↵</span></div>
+            </div>
+          </div>
+          <p class="note">Сразу видно <b>результат</b>. Дороже по ширине — кандидат скорее для библиотеки, чем для мгновенного захвата.</p>
+        </div>
+
+      </div>
+      <p class="note anno-row">⌖ Моя рекомендация для overlay: <b>V1</b> (скорость) с подсказкой-тулбаром из <b>V2</b> по «/». Сплит из <b>V3</b> переносим в окно-редактор. Обсудим.</p>
+    </section>
+
+    <!-- ===================== C · STATES ===================== -->
+    <section class="board">
+      <div class="sec-head">
+        <span class="sec-num">C</span>
+        <div>
+          <h2>Состояния overlay</h2>
+          <p class="sec-sub">Жизненный цикл одного вызова: пусто → ввод с markdown → подтверждение и авто-скрытие.</p>
+        </div>
+      </div>
+
+      <div class="strip">
+        <!-- 01 -->
+        <div>
+          <div class="stagecap"><span class="num">01</span> Вызвано · пусто</div>
+          <div class="frame" style="padding:14px;">
+            <div class="overlay" style="box-shadow:none;">
+              <div class="ov-head"><span class="ov-zap">⚡</span><span class="ov-ttl">Быстрая заметка</span><span class="ov-meta"><span>сейчас</span></span></div>
+              <div class="ov-body" style="min-height:70px;">
+                <div style="font-size:14px; color:var(--ink-3);">Начни писать…<span class="caret"></span></div>
+              </div>
+              <div class="ov-foot"><span>markdown</span><span class="hint">esc · ⌘↵</span></div>
+            </div>
+          </div>
+          <p class="note">Вызов по <span class="acc">⌘⇧Space</span>. Фокус сразу в поле — без кликов.</p>
+        </div>
+
+        <!-- 02 -->
+        <div>
+          <div class="stagecap"><span class="num">02</span> Ввод · markdown</div>
+          <div class="frame" style="padding:14px;">
+            <div class="overlay" style="box-shadow:none;">
+              <div class="ov-head"><span class="ov-zap">⚡</span><span class="ov-ttl">Быстрая заметка</span><span class="ov-meta"><span>≈ 18 слов</span></span></div>
+              <div class="ov-body" style="min-height:70px;">
+                <div class="md-h"><span class="hash">#</span> Идеи к демо</div>
+                <div style="font-size:13px; color:var(--ink-2); line-height:1.7;">• живой ввод<br/>• <b>жирный</b> и <i>курсив</i><span class="caret"></span></div>
+              </div>
+              <div class="mdbar" style="padding:7px 12px;">
+                <span class="mdbtn">B</span><span class="mdbtn" style="font-style:italic;">I</span><span class="mdbtn mono">H</span><span class="mdsep"></span><span class="mdbtn">•</span><span class="mdbtn">☑</span>
+              </div>
+            </div>
+          </div>
+          <p class="note">Markdown форматируется <b>на лету</b>. Авто-сейв тихо пишет черновик.</p>
+        </div>
+
+        <!-- 03 -->
+        <div>
+          <div class="stagecap"><span class="num">03</span> Сохранено</div>
+          <div class="frame" style="padding:14px;">
+            <div class="overlay" style="box-shadow:none;">
+              <div class="ov-head"><span class="ov-zap">⚡</span><span class="ov-ttl">Быстрая заметка</span><span class="ov-meta"></span></div>
+              <div class="ov-body saved">
+                <div class="check">✓</div>
+                <div class="lab">Сохранено</div>
+              </div>
+            </div>
+          </div>
+          <p class="note">После <span class="acc">⌘↵</span> — подтверждение ~0.6 c, затем панель <b>исчезает</b> сама.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== D · LIBRARY ===================== -->
+    <section class="board">
+      <div class="sec-head">
+        <span class="sec-num">D</span>
+        <div>
+          <h2>Окно-библиотека</h2>
+          <p class="sec-sub">Отдельное нативное окно macOS: traffic lights, поиск, список заметок, редактор. Здесь — просмотр, правка, удаление, теги.</p>
+        </div>
+      </div>
+
+      <div class="frame win" style="overflow:hidden;">
+        <!-- window toolbar -->
+        <div class="winbar">
+          <div class="lights"><i></i><i></i><i></i></div>
+          <div class="search">🔍 <span class="ph">Поиск по заметкам…</span><span style="margin-left:auto; font-family:ui-monospace,monospace; font-size:10px;">⌘F</span></div>
+          <div class="wintools">
+            <span class="toolbtn">＋ Новая <span class="mono" style="font-size:10px; color:var(--ink-3);">⌘N</span></span>
+            <span class="toolbtn">◐ Тема</span>
+          </div>
+        </div>
+
+        <!-- 3-pane -->
+        <div class="libgrid">
+          <!-- sidebar -->
+          <div class="sidebar">
+            <div class="side-h">Библиотека</div>
+            <div class="side-item on"><span class="ic"></span> Все заметки <span class="side-count">128</span></div>
+            <div class="side-item"><span class="ic"></span> Закреплённые <span class="side-count">4</span></div>
+            <div class="side-item"><span class="ic"></span> Черновики <span class="side-count">1</span></div>
+            <div class="side-h">Теги</div>
+            <div class="side-item"><span class="ic"></span> работа</div>
+            <div class="side-item"><span class="ic"></span> идеи</div>
+            <div class="side-item"><span class="ic"></span> личное</div>
+          </div>
+
+          <!-- list -->
+          <div class="notelist">
+            <div class="ncard on">
+              <div class="nct">Архитектура синхронизации <span class="pin">📌</span></div>
+              <div class="bars"><div class="bar w90"></div><div class="bar w70"></div></div>
+              <div class="ncm"><span>2 мин назад</span><span>· ≈320 слов</span></div>
+            </div>
+            <div class="ncard">
+              <div class="nct">Созвон с командой</div>
+              <div class="bars"><div class="bar w80"></div></div>
+              <div class="ncm"><span>вчера</span><span>· работа</span></div>
+            </div>
+            <div class="ncard">
+              <div class="nct">Идеи к демо</div>
+              <div class="bars"><div class="bar w90"></div><div class="bar w45"></div></div>
+              <div class="ncm"><span>2 дня</span><span>· идеи</span></div>
+            </div>
+            <div class="ncard">
+              <div class="nct">Список покупок</div>
+              <div class="bars"><div class="bar w60"></div></div>
+              <div class="ncm"><span>3 дня</span><span>· личное</span></div>
+            </div>
+          </div>
+
+          <!-- editor -->
+          <div class="editor">
+            <div class="ed-meta">
+              <span>📌 закреплено</span><span>· изменено 2 мин назад</span>
+              <span style="margin-left:auto;" class="toolbtn">🗑 Удалить</span>
+            </div>
+            <div class="ed-h"><span class="hash">#</span> Архитектура синхронизации</div>
+            <div class="bars" style="gap:11px;">
+              <div class="bar w90"></div>
+              <div class="bar w80"></div>
+              <div class="bar w60"></div>
+            </div>
+            <div style="margin:16px 0 8px; font-weight:700; font-size:14px;">Что синхронизируем</div>
+            <div style="font-size:13px; color:var(--ink-2); line-height:1.9;">• заголовок и тело заметки<br/>• теги и время изменения</div>
+            <div class="frame" style="margin-top:14px; padding:10px 12px; border-radius:10px; border-width:1.5px;">
+              <span class="mono" style="font-size:11.5px; color:var(--ink-2);">sync() → diff(local, remote) → merge()</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- theme parity -->
+      <div class="theme-mini">
+        <div class="note" style="max-width:200px;">Светлая / тёмная тема — <b>паритет</b> и для overlay, и для окна. Следует системной или ручной переключатель «◐ Тема».</div>
+        <div class="mini">
+          <div class="cap">светлая</div>
+          <div class="mini-win">
+            <div class="mb"><i></i><i></i><i></i></div>
+            <div class="mbody"><div class="bar w80"></div><div class="bar w60"></div><div class="bar w45"></div></div>
+          </div>
+        </div>
+        <div class="mini dark">
+          <div class="cap">тёмная</div>
+          <div class="mini-win">
+            <div class="mb"><i></i><i></i><i></i></div>
+            <div class="mbody"><div class="bar w80"></div><div class="bar w60"></div><div class="bar w45"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== E · DETAILS ===================== -->
+    <section class="board">
+      <div class="sec-head">
+        <span class="sec-num">E</span>
+        <div>
+          <h2>Нативные детали macOS</h2>
+          <p class="sec-sub">Иконка в меню-баре как главная точка входа + словарь горячих клавиш.</p>
+        </div>
+      </div>
+
+      <div class="det">
+        <!-- menu bar -->
+        <div>
+          <p class="note" style="margin:0 0 12px;">Живёт в меню-баре — без иконки в Dock (опционально). Клик по <span class="acc">⚡</span> раскрывает меню:</p>
+          <div class="menubar">
+            <div class="mbar-top">
+              <span class="apple"></span>
+              <span>Finder</span><span>Файл</span><span>Правка</span>
+              <span class="spacer"></span>
+              <span class="zapm">⚡</span><span>🔋</span><span>🔍</span><span class="mono" style="font-size:11px;">9:41</span>
+            </div>
+            <div class="dropdown">
+              <div class="ditem">Новая заметка <span class="sc">⌘⇧Space</span></div>
+              <div class="ditem">Открыть библиотеку <span class="sc">⌘⌥L</span></div>
+              <div class="ditem div"></div>
+              <div class="ditem">Восстановить черновик</div>
+              <div class="ditem">Тема: Системная ▸</div>
+              <div class="ditem div"></div>
+              <div class="ditem">Настройки… <span class="sc">⌘,</span></div>
+              <div class="ditem">Выход <span class="sc">⌘Q</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- hotkeys -->
+        <div>
+          <p class="note" style="margin:0 0 12px;">Всё дотягивается с клавиатуры — мышь не обязательна:</p>
+          <div class="keys">
+            <div class="keyrow"><span class="kbd">⌘ ⇧ Space</span><span class="kd">Вызвать панель захвата (глобально)</span></div>
+            <div class="keyrow"><span class="kbd">⌘ ↵</span><span class="kd">Сохранить и закрыть</span></div>
+            <div class="keyrow"><span class="kbd">esc</span><span class="kd">Скрыть · черновик сохраняется</span></div>
+            <div class="keyrow"><span class="kbd">⌘ ⌥ L</span><span class="kd">Открыть библиотеку</span></div>
+            <div class="keyrow"><span class="kbd">⌘ F</span><span class="kd">Поиск по заметкам</span></div>
+            <div class="keyrow"><span class="kbd">⌘ B / I</span><span class="kd">Жирный · курсив (markdown)</span></div>
+            <div class="keyrow"><span class="kbd">⌘ N</span><span class="kd">Новая заметка в окне</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="li"><span class="sw acc"></span> акцент — действие / фокус</div>
+        <div class="li"><span class="sw"></span> элемент интерфейса</div>
+        <div class="li"><span class="sw gh"></span> подложка / другое приложение</div>
+        <div class="li"><span class="hand" style="font-size:20px; color:var(--ink-2);">рукописное</span> — мои заметки на полях</div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ===================== TWEAKS (React island) ===================== -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <div id="tweaks-root"></div>
+  <script type="text/babel">
+    const TW_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "annotations": true,
+      "sketch": true,
+      "paper": "grid",
+      "accent": "#c2603a"
+    }/*EDITMODE-END*/;
+
+    function TweaksApp(){
+      const [t, setTweak] = useTweaks(TW_DEFAULTS);
+      React.useEffect(() => {
+        const r = document.documentElement;
+        r.setAttribute('data-annotations', t.annotations ? 'on' : 'off');
+        r.setAttribute('data-sketch', t.sketch ? 'on' : 'off');
+        r.setAttribute('data-paper', t.paper);
+        document.body.style.setProperty('--accent', t.accent);
+      }, [t.annotations, t.sketch, t.paper, t.accent]);
+
+      return (
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="Подача" />
+          <TweakToggle label="Заметки на полях" value={t.annotations} onChange={(v) => setTweak('annotations', v)} />
+          <TweakToggle label="Скетч-рамки" value={t.sketch} onChange={(v) => setTweak('sketch', v)} />
+          <TweakRadio label="Фон" value={t.paper} options={['grid','plain']} onChange={(v) => setTweak('paper', v)} />
+          <TweakSection label="Акцент" />
+          <TweakColor label="Цвет" value={t.accent}
+            options={['#d98a3d','#c2603a','#5a7d8c','#7d7a72']}
+            onChange={(v) => setTweak('accent', v)} />
+        </TweaksPanel>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<TweaksApp />);
+  </script>
+</body>
+</html>
