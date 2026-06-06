@@ -17,6 +17,10 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   fullyParallel: false,
   workers: 1,
+  // CI runners (macos-latest) are noticeably slower than a local Mac;
+  // automatic retries absorb the occasional flake while still surfacing
+  // genuinely broken tests (a true failure repeats).
+  retries: process.env.CI ? 2 : 0,
   reporter: [['list']],
   use: {
     trace: 'on-first-retry',

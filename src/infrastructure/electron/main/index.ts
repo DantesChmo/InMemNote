@@ -412,8 +412,8 @@ app.whenReady().then(() => {
 
   // ---------- Global hotkey ----------
   const { hotkeys, warning } = loadHotkeys({
-    defaultsPath: join(app.getAppPath(), 'config/hotkeys.json'),
-    userOverridePath: join(app.getPath('userData'), 'hotkeys.json'),
+    defaultsPath: join(app.getAppPath(), 'config/hotkeys.yaml'),
+    userOverridePath: join(app.getPath('userData'), 'hotkeys.yaml'),
   });
   if (warning) console.warn(warning);
 

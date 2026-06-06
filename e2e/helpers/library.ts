@@ -16,6 +16,7 @@ export class LibraryPage {
   }
 
   public async pressNewShortcut(): Promise<void> {
+    await this.ensureWindowFocused();
     await this.page.keyboard.press('Meta+KeyN');
   }
 
@@ -31,7 +32,22 @@ export class LibraryPage {
   }
 
   public async pressSearchShortcut(): Promise<void> {
+    await this.ensureWindowFocused();
     await this.page.keyboard.press('Meta+KeyF');
+  }
+
+  /**
+   * CI runners don't grant the Library window OS focus on launch, which
+   * means the window-level `keydown` listener never fires. A click on the
+   * empty toolbar area lands the focus inside the page without affecting
+   * input state, after which keyboard shortcuts behave as on a real Mac.
+   */
+  private async ensureWindowFocused(): Promise<void> {
+    // The "Library" sidebar header is a non-interactive label — clicking it
+    // focuses the window without selecting anything.
+    await this.page.locator('aside[aria-label="Library sections"]').click({
+      position: { x: 4, y: 4 },
+    });
   }
 
   // ---------- Sidebar ----------
@@ -89,5 +105,19 @@ export class LibraryPage {
       expected,
       { timeout: 5_000 },
     );
+  }
+
+  /**
+   * Wait until at least one note card surfaces `expected` in its rendered
+   * title. We use this instead of a fixed `waitForTimeout` after typing,
+   * because the title only updates once the 500 ms debounced autosave has
+   * flushed AND main has broadcast `notes:changed` back into the renderer —
+   * a chain whose total cost varies a lot between local and CI machines.
+   */
+  public async waitForCardTitle(expected: string): Promise<void> {
+    await this.cards()
+      .filter({ hasText: expected })
+      .first()
+      .waitFor({ timeout: 5_000 });
   }
 }

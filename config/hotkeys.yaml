@@ -1,0 +1,14 @@
+# Inmemnote hotkeys — defaults shipped with the app.
+#
+# To override locally, copy this file to:
+#   ~/Library/Application Support/Inmemnote/hotkeys.yaml
+# and edit the values there. An invalid override is logged and ignored —
+# we fall back to these defaults so the app always starts.
+#
+# Each binding is either:
+#   - A single key as a string:     openDraft: F1
+#   - A combination as a sequence:  openDraft: [CommandOrControl, Shift, Space]
+#
+# See docs/HOTKEYS.md for the full list of allowed key tokens.
+
+openDraft: [CommandOrControl, Shift, Space]

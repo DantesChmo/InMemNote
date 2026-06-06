@@ -192,7 +192,7 @@ npm run format      # prettier --write
 | Clear search         | `Esc` in search box  | Library  |
 
 The global hotkey can be overridden via
-`~/Library/Application Support/Inmemnote/hotkeys.json`.
+`~/Library/Application Support/Inmemnote/hotkeys.yaml`.
 See `docs/HOTKEYS.md`.
 
 ---

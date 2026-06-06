@@ -1,81 +1,84 @@
-# Inmemnote — конституция проекта
+# Inmemnote — project constitution
 
-> Этот документ — **источник правды** для агента и людей, работающих в репозитории.
-> Любое расхождение «код vs CLAUDE.md» — повод остановиться и обсудить, а не молча
-> поправить документ под код.
-
----
-
-## 1. Что это
-
-**Inmemnote** — настольный сервис быстрых заметок для macOS в духе Spotlight.
-Главный сценарий: пользователь нажимает глобальный хоткей → поверх любого приложения
-появляется панель «Draft» → пишет заметку в Markdown → закрывает / сохраняет / закрепляет.
-
-Никакого облака. Никакого бэкенда. Всё хранится локально.
-
-### Экраны (V1 → дальше)
-- **Draft** — quick-capture оверлей (V1, текущая итерация).
-- **Pin** — компактный «стикер», прибитый поверх окон.
-- **Library** — браузер всех заметок.
-
-### Чего у проекта НЕТ и не будет
-- HTTP-сервера / API / синхронизации через бэкенд.
-- Учёток, авторизации, телеметрии.
+> This document is the **source of truth** for both the agent and humans
+> working in this repository.
+> A discrepancy between code and `CLAUDE.md` is a reason to stop and discuss
+> it, not to silently retrofit the document to whatever the code already does.
 
 ---
 
-## 2. Стек
+## 1. What this is
 
-| Слой               | Технология                                  |
-|--------------------|---------------------------------------------|
-| Язык               | TypeScript (strict)                         |
-| Runtime            | Electron + Node.js                          |
-| Сборка             | Electron Forge с Vite-шаблоном              |
-| UI                 | React 18                                    |
-| Стили              | Tailwind CSS (+ CSS custom properties)      |
-| State              | Redux Toolkit                               |
-| Markdown-редактор  | CodeMirror 6                                |
-| Storage (cold)     | SQLite (`better-sqlite3`)                   |
-| Валидация конфигов | Zod                                         |
-| Тесты unit/comp    | Vitest + React Testing Library              |
-| Тесты E2E          | Playwright (electron driver)                |
-| Линтер             | ESLint (typescript-eslint, react-hooks)     |
-| Форматтер          | Prettier                                    |
-| Pre-commit         | husky + lint-staged                         |
-| Автообновление     | `update-electron-app` (через GitHub Releases или статичный фид) |
+**Inmemnote** is a desktop quick-notes app for macOS in the spirit of
+Spotlight. The main flow: the user presses a global hotkey → a "Draft" panel
+appears on top of any application → they type a note in Markdown →
+close / save / pin.
 
-Любое отклонение от стека — через явное обсуждение и обновление этого раздела.
+No cloud. No backend. Everything is stored locally.
+
+### Surfaces (V1 → onward)
+- **Draft** — quick-capture overlay (V1, current iteration).
+- **Pin** — a compact "sticky" that lives on top of every window.
+- **Library** — a browser for all notes.
+
+### What this project does NOT have and will NOT have
+- HTTP server / API / backend-driven sync.
+- Accounts, auth, telemetry.
 
 ---
 
-## 3. Архитектура — DDD по слоям
+## 2. Stack
+
+| Layer              | Tech                                                  |
+|--------------------|-------------------------------------------------------|
+| Language           | TypeScript (strict)                                   |
+| Runtime            | Electron + Node.js                                    |
+| Bundler            | Electron Forge with the Vite template                 |
+| UI                 | React 18                                              |
+| Styling            | Tailwind CSS (+ CSS custom properties)                |
+| State              | Redux Toolkit                                         |
+| Markdown editor    | CodeMirror 6                                          |
+| Cold storage       | SQLite (`better-sqlite3`)                             |
+| Config validation  | Zod                                                   |
+| Unit / component   | Vitest + React Testing Library                        |
+| E2E                | Playwright (Electron driver)                          |
+| Linter             | ESLint (typescript-eslint, react-hooks)               |
+| Formatter          | Prettier                                              |
+| Pre-commit         | husky + lint-staged                                   |
+| Auto-update        | `update-electron-app` (GitHub Releases / static feed) |
+
+Any deviation from the stack is approved explicitly and then reflected in
+this section.
+
+---
+
+## 3. Architecture — DDD by layers
 
 ```
 src/
-├── domain/            # чистый TS. Никаких импортов из react/electron/sqlite.
+├── domain/            # pure TS. No imports from react/electron/sqlite.
 │   ├── draft/
 │   │   ├── DraftNote.ts          # Entity
 │   │   ├── NoteContent.ts        # Value Object
 │   │   ├── DraftId.ts            # Value Object (branded string)
 │   │   ├── DraftRepository.ts    # interface
-│   │   └── events.ts             # доменные события
-│   └── shared/                   # общие типы, Result/Either, errors
+│   │   └── events.ts             # domain events
+│   └── shared/                   # shared types, Result/Either, errors
 │
-├── application/       # use-cases. Знает domain, не знает фреймворки.
+├── application/       # use-cases. Depends on domain, ignorant of frameworks.
 │   └── draft/
 │       ├── OpenDraftUseCase.ts
 │       ├── SaveDraftUseCase.ts
 │       ├── TogglePinUseCase.ts
 │       └── CloseDraftUseCase.ts
 │
-├── infrastructure/    # реализации: SQLite-репозиторий, Electron-адаптеры, IPC.
+├── infrastructure/    # port implementations: SQLite, Electron adapters, IPC.
 │   ├── persistence/sqlite/
 │   ├── electron/
-│   │   ├── main/                 # entrypoint главного процесса
+│   │   ├── main/                 # main-process entry point
 │   │   ├── preload/              # contextBridge
 │   │   └── hotkey/               # GlobalShortcut wrapper
-│   └── config/                   # загрузка hotkeys.json и user-override
+│   └── config/                   # loaders for hotkeys.yaml + user override
 │
 ├── presentation/      # React + Redux.
 │   ├── draft/
@@ -85,121 +88,139 @@ src/
 │   │   ├── editor/CodeMirrorEditor.tsx
 │   │   └── slice.ts              # Redux Toolkit slice
 │   ├── theme/
-│   └── app/                      # корень React-приложения
+│   └── app/                      # React app root
 │
-└── shared/            # совсем общие утилиты (logger, assert)
+└── shared/            # truly cross-cutting utilities (logger, assert)
 ```
 
-**Правило зависимостей** (ослабление = баг ревью):
+**Dependency rule** (loosening it = a review-blocking bug):
 `presentation → application → domain`
-`infrastructure → application/domain (только реализация интерфейсов)`
-`domain` ни на что не зависит. Никогда.
+`infrastructure → application/domain (port implementations only)`
+`domain` depends on nothing. Ever.
 
 ---
 
-## 4. Принципы
+## 4. Principles
 
 ### SOLID
-- **S** — каждый use-case = один сценарий.
-- **O** — расширяем через новые реализации интерфейсов, не правя существующие.
-- **L** — реализации репозиториев взаимозаменяемы (in-memory для тестов, sqlite в проде).
-- **I** — узкие порт-интерфейсы (`DraftRepository` ≠ «GodRepository»).
-- **D** — application/presentation зависят от интерфейсов из domain.
+- **S** — each use-case = one scenario.
+- **O** — we extend via new interface implementations rather than editing
+  existing ones.
+- **L** — repository implementations are interchangeable (in-memory for
+  tests, SQLite in production).
+- **I** — narrow port interfaces (`DraftRepository` ≠ "GodRepository").
+- **D** — application/presentation depend on interfaces declared in `domain`.
 
-### DRY — но без фанатизма
-Три похожие строки лучше преждевременной абстракции. Дублирование вытаскиваем,
-когда оно зажмёт нас при изменении.
+### DRY — but not fanatical
+Three similar lines beat a premature abstraction. We extract duplication
+only when it would pinch us during a change.
 
 ### DDD
-- Доменный язык в коде = язык макетов и ТЗ (`Draft`, `Pin`, `Library`, `NoteContent`).
-- Domain не знает про SQLite, React, IPC.
-- Use-cases возвращают `Result<T, DomainError>` — никаких throw сквозь слои.
+- The domain vocabulary in code matches the mockups and the brief
+  (`Draft`, `Pin`, `Library`, `NoteContent`).
+- Domain has no knowledge of SQLite, React, or IPC.
+- Use-cases return `Result<T, DomainError>` — no `throw` across layers.
 
 ### TDD (workflow)
-Каждая фича едет по конвейеру:
+Every feature ships through this pipeline:
 
-1. **Интерфейсы и сигнатуры** — типы, абстрактные классы, JSDoc. Без тел.
-2. **Тесты** — красные, описывающие желаемое поведение.
-3. **Реализация** — пока тесты не позеленеют.
-4. **Рефакторинг** под зелёные тесты.
+1. **Interfaces and signatures** — types, abstract classes, JSDoc. No
+   bodies yet.
+2. **Tests** — red, describing the desired behavior.
+3. **Implementation** — until the tests turn green.
+4. **Refactor** while the tests stay green.
 
-Коммитим маленькими шагами: «interfaces», «red tests», «green», «refactor».
-
----
-
-## 5. Код пишет Senior, читает Junior
-
-### Что комментируем
-- **Зачем**, а не «что» (имена уже говорят «что»).
-- Неочевидные инварианты («контент длиннее 1 МБ хранится отдельно, потому что…»).
-- Workaround’ы с причиной («Electron 28 не доставляет shortcut при fullscreen — обходим…»).
-- Доменные правила, которые не выводятся из типов.
-
-### Чего НЕ комментируем
-- «Здесь мы создаём редьюсер» над `createSlice` — это очевидно.
-- «Используется в LibraryScreen» — устаревает мгновенно.
-- TODO без даты и автора.
-
-### Стиль комментариев
-- **Все комментарии в исходниках — на английском** (`//`, `/* */`, JSDoc).
-  Документация (`*.md`, включая этот файл) — на русском.
-- JSDoc для публичных интерфейсов domain/application (он видим в IDE).
-- Многострочные блоки в начале файла-агрегата объясняют **роль файла в системе**.
+Commit in small steps: "interfaces", "red tests", "green", "refactor".
 
 ---
 
-## 6. Хоткеи
+## 5. Code is written by a Senior, read by a Junior
 
-- Файл-источник: `config/hotkeys.json` (в репозитории — дефолты).
-- Пользовательский override: `~/Library/Application Support/Inmemnote/hotkeys.json`.
-- Схема валидируется через Zod при старте; ошибочный пользовательский конфиг → fallback на дефолты + лог.
-- Дефолт `openDraft` = `CommandOrControl+Shift+Space`.
+### What we comment
+- The **why**, not the what — names already cover "what".
+- Non-obvious invariants ("content over 1 MB is stored separately, because…").
+- Workarounds with their reason ("Electron 28 drops the shortcut while
+  fullscreen — we work around it like this…").
+- Domain rules that aren't expressible in the type system.
 
-Подробнее — см. `docs/HOTKEYS.md`.
+### What we do NOT comment
+- "Here we create a reducer" above `createSlice` — that's obvious.
+- "Used by LibraryScreen" — rots instantly.
+- TODOs without a date and an author.
 
----
-
-## 7. Дизайн
-
-- Источник истины — `design/` (HTML-прототипы + скриншоты от заказчика).
-- Палитра, типографика, размеры — извлекаются из `design/Inmemnote - Draft (hi-fi).html`.
-- **Акцентный цвет — `#3f7d6b` (зелёный).** Остальные предложенные цвета в макете игнорируем.
-- Сетка 4px. Все паддинги/размеры — целые кратные 4.
-- Темы: dark (primary) + light.
-
----
-
-## 8. Тестирование
-
-- **Unit (Vitest)** — domain (100% покрытие желательно), application (use-cases) — обязательно.
-- **Component (Vitest + RTL)** — презентационные компоненты с логикой состояния.
-- **E2E (Playwright)** — критичные сценарии: открытие Draft по хоткею, сохранение, pin.
-- Все тесты — рядом с кодом: `Foo.ts` ↔ `Foo.spec.ts`.
+### Comment style
+- **All comments in source files are written in English** (`//`, `/* */`,
+  JSDoc). Markdown documentation (including this file) is written in
+  whatever language the user/team requested for the doc.
+- JSDoc on public domain/application interfaces (it shows up in IDE
+  tooltips).
+- Multi-line block at the top of an aggregate file explains the **role
+  that file plays in the system**.
 
 ---
 
-## 9. Качество кода
+## 6. Hotkeys
 
-- `tsc --noEmit` чисто на pre-commit.
-- ESLint без `warn`-ов в diff’е.
-- Prettier — единственный форматтер.
-- Любая функция с цикломатической сложностью > 10 — повод декомпозировать.
+- Source-of-truth file: `config/hotkeys.yaml` (defaults that ship with the app).
+- User override: `~/Library/Application Support/Inmemnote/hotkeys.yaml`.
+- The schema is Zod-validated at startup; an invalid user file → fall back
+  to defaults + log.
+- Default `openDraft` = `CommandOrControl+Shift+Space`.
+
+Details in `docs/HOTKEYS.md`.
+
+---
+
+## 7. Design
+
+- Source of truth: the `design/` folder (HTML mockups + screenshots from
+  the customer).
+- Palette, typography, and sizing are lifted from
+  `design/Inmemnote - Draft (hi-fi).html`.
+- **Accent color: `#3f7d6b` (green).** The other accent colors offered in
+  the mock are ignored.
+- 4 px grid. Every padding/size is an integer multiple of 4.
+- Themes: dark (primary) + light.
+
+---
+
+## 8. Testing
+
+- **Unit (Vitest)** — domain (100% coverage is desirable), application
+  (use-cases) — mandatory.
+- **Component (Vitest + RTL)** — presentational components with state
+  logic.
+- **E2E (Playwright)** — critical flows: opening Draft via the hotkey,
+  saving, pinning.
+- Every test lives next to the code it covers: `Foo.ts` ↔ `Foo.spec.ts`.
+
+---
+
+## 9. Code quality
+
+- `tsc --noEmit` clean on pre-commit.
+- ESLint with no `warn`s in the diff.
+- Prettier is the only formatter.
+- Any function with cyclomatic complexity > 10 is a candidate for
+  decomposition.
 
 ---
 
 ## 10. Workflow
 
-1. Берём задачу из `docs/TZ.md` (отмечаем `[~]` — в работе).
-2. Делаем по TDD-конвейеру (раздел 4).
-3. По завершении — `[x]` в `docs/TZ.md`, краткая заметка о решениях.
-4. Если в процессе всплывают вопросы — фиксируем в `docs/TZ.md` блок «Открытые вопросы».
+1. Pick a task from `docs/TZ.md` (mark it `[~]` — in progress).
+2. Run it through the TDD pipeline (section 4).
+3. On completion — `[x]` in `docs/TZ.md`, with a short note about the
+   decisions made.
+4. Open questions discovered along the way go into the "Open questions"
+   block of `docs/TZ.md`.
 
 ---
 
-## 11. Контекст и память
+## 11. Context and memory
 
-`docs/TZ.md` — это **state**. Если лимиты контекста кончились, новая сессия должна
-смочь продолжить, прочитав:
-1. `CLAUDE.md` (этот файл — что и как).
-2. `docs/TZ.md` (где мы сейчас).
-3. `design/` (как должно выглядеть).
+`docs/TZ.md` is **state**. If context limits run out, a new session must be
+able to continue by reading:
+1. `CLAUDE.md` (this file — what & how).
+2. `docs/TZ.md` (where we currently are).
+3. `design/` (what it should look like).

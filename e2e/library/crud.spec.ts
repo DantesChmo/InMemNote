@@ -43,15 +43,17 @@ test.describe('Library CRUD', () => {
     try {
       const library = new LibraryPage(handles.library);
 
-      // Note 1
+      // Note 1. We wait for the title to surface in the card instead of a
+      // fixed timeout — that's the observable signal that the autosave has
+      // round-tripped through main and back into Redux.
       await library.pressNewShortcut();
       await library.typeIntoEditor('First note body');
-      await handles.library.waitForTimeout(800);
+      await library.waitForCardTitle('First note body');
 
-      // Note 2
+      // Note 2.
       await library.pressNewShortcut();
       await library.typeIntoEditor('Second note body');
-      await handles.library.waitForTimeout(800);
+      await library.waitForCardTitle('Second note body');
 
       await expect(library.cards()).toHaveCount(2);
 
