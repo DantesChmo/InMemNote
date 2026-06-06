@@ -1,0 +1,15 @@
+{
+  "name": "@inmemnote/window-events",
+  "version": "0.1.0",
+  "description": "Native AppKit hooks for Inmemnote — exposes a synchronous left-mouse-up signal so the renderer can react to drag-end the moment the user releases the button, without polling or 60 Hz debouncing.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "private": true,
+  "gypfile": true,
+  "scripts": {
+    "rebuild": "node-gyp rebuild"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.5.0"
+  }
+}

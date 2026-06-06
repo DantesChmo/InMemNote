@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 
 import { DraftFooter } from './DraftFooter';
@@ -19,23 +19,25 @@ import { draftActions } from './slice';
  *     BrowserWindow's always-on-top flag.
  *   - A ResizeObserver on the panel root drives `window.inmemnote.draft.resize`
  *     so the BrowserWindow shrinks/grows with the content.
- *   - Pin/unpin triggers a FLIP morph (capture rect → swap layout → animate
- *     transform back to identity).
+ *
+ * Pin/unpin transition:
+ *   The native macOS resize animation runs at the BrowserWindow level (main
+ *   calls `setBounds(..., true)`). Inside the renderer we only animate the
+ *   things AppKit can't reach — the panel's CSS sizing tweaks (corner
+ *   radius, max-height of the body). A custom `cubic-bezier(.22,.7,.3,1)`
+ *   ease-out curve keeps that motion feeling continuous with the AppKit
+ *   resize. We deliberately do NOT run a renderer-side FLIP morph — it
+ *   would race the OS animation and produce the jittery look the user
+ *   reported.
  */
 export function DraftPanel(): JSX.Element {
   const dispatch = useAppDispatch();
   const draft = useAppSelector((s) => s.draft);
   const saveTimer = useRef<number | null>(null);
-
-  // DOM handle for ResizeObserver + FLIP.
   const panelRef = useRef<HTMLDivElement | null>(null);
-  // Cached "before" rect from the click that toggled pin; consumed once.
-  const flipFromRect = useRef<DOMRect | null>(null);
-  // Suspended while an animation is in flight: we don't want ResizeObserver
-  // mid-morph to fight the running window resize.
-  const morphInFlight = useRef(false);
-  // Echo state of `pinned` so layout-effect knows whether the swap happened.
-  const lastPinned = useRef<boolean>(draft.pinned);
+  // Whether the user is currently dragging the pinned window by its header.
+  // Drives the translucent drag overlay rendered over the panel.
+  const [isDragging, setIsDragging] = useState(false);
 
   const openFresh = useCallback(async () => {
     dispatch(draftActions.setLoading(true));
@@ -55,8 +57,6 @@ export function DraftPanel(): JSX.Element {
         const dto = await window.inmemnote.draft.save(id, content);
         dispatch(draftActions.setDraft(dto));
       } catch (e) {
-        // Soft-fail: a save error is recoverable on next edit. Logged for
-        // diagnostics; in production we'd surface a subtle UI hint.
         console.error('Draft save failed', e);
       }
     },
@@ -77,16 +77,11 @@ export function DraftPanel(): JSX.Element {
 
   const onSubmit = useCallback(async () => {
     if (!draft.id) return;
-    // Cancel any pending autosave — `promote` consumes the scratch slot and
-    // a debounced save firing afterwards would `SaveDraft` against a now-
-    // missing draft id, producing a noisy IPC error.
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
     try {
-      // Persist the very latest keystrokes (debounce may not have fired yet)
-      // and then move them into the library as a new Note.
       await window.inmemnote.draft.save(draft.id, draft.content);
       await window.inmemnote.draft.promote(draft.id);
     } catch (e) {
@@ -101,8 +96,6 @@ export function DraftPanel(): JSX.Element {
       await window.inmemnote.draft.hide();
       return;
     }
-    // Drop the throttled save and persist the latest text before hiding —
-    // otherwise the last keystrokes before Esc would be lost.
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     await flushSave(draft.id, draft.content);
     await window.inmemnote.draft.close(draft.id);
@@ -111,21 +104,55 @@ export function DraftPanel(): JSX.Element {
 
   const onTogglePin = useCallback(async () => {
     if (!draft.id) return;
-    // FLIP — step 1 ("First"): capture the rect BEFORE the layout swap so we
-    // can interpolate from there in the layout-effect after the rerender.
-    if (panelRef.current) {
-      flipFromRect.current = panelRef.current.getBoundingClientRect();
-      morphInFlight.current = true;
+    // Flush the pending autosave first. Without this, main's TogglePin
+    // use-case loads whatever the repo last persisted — which may be empty
+    // if the user hit pin while the 500 ms debounce was still ticking — and
+    // then sends that stale (empty) content back as the new draft DTO,
+    // wiping the in-flight text on screen.
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
     }
-    const dto = await window.inmemnote.draft.togglePin(draft.id);
-    dispatch(draftActions.setDraft(dto));
-  }, [dispatch, draft.id]);
+    try {
+      await window.inmemnote.draft.save(draft.id, draft.content);
+    } catch (e) {
+      console.error('Draft save before pin failed', e);
+    }
 
-  // Window-level keymap fallback. The CodeMirror keymap covers ⌘↵/Esc as long
-  // as the editable surface holds the caret, but a stray click on the panel
-  // chrome can move focus to the BrowserWindow body, where CM bindings don't
-  // fire. Listening on `document` ensures the shortcut always works while the
-  // overlay is visible.
+    // Optimistically flip the local pinned flag and freeze the ResizeObserver
+    // so the body relayouts to its new (pinned vs. full) constraints WITHOUT
+    // bouncing height updates back to main. Then we measure the real final
+    // panel height ourselves and pass it to main as the animation target —
+    // that's what stops the two-step "land short, then re-snap" wobble.
+    animatingRef.current = true;
+    dispatch(
+      draftActions.setDraft({
+        id: draft.id,
+        content: draft.content,
+        pinned: !draft.pinned,
+        updatedAt: draft.updatedAt ?? new Date().toISOString(),
+      }),
+    );
+
+    // Wait two animation frames so React has committed and the browser has
+    // finished a fresh layout pass on the new pinned-mode CSS.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+
+    const targetHeight = Math.ceil(
+      panelRef.current?.getBoundingClientRect().height ?? 0,
+    );
+
+    try {
+      const dto = await window.inmemnote.draft.togglePin(draft.id, targetHeight);
+      dispatch(draftActions.setDraft(dto));
+    } catch (e) {
+      console.error('Draft togglePin failed', e);
+    }
+  }, [dispatch, draft.id, draft.content, draft.pinned, draft.updatedAt]);
+
+  // Window-level keymap fallback for ⌘↵/Esc.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -140,51 +167,23 @@ export function DraftPanel(): JSX.Element {
     return () => document.removeEventListener('keydown', onKey);
   }, [onSubmit, onCancel]);
 
-  // FLIP — steps 2-4 ("Last" / "Invert" / "Play"). Runs after React has
-  // committed the new layout (pinned → full or vice versa).
-  useLayoutEffect(() => {
-    if (draft.pinned === lastPinned.current) return; // nothing to morph
-    lastPinned.current = draft.pinned;
+  // Ref-flag toggled by `draft:animationStart` / `draft:animationDone`
+  // broadcasts from main. While `true`, the ResizeObserver loop skips IPC —
+  // those frames are owned by AppKit's animation pipeline and any extra
+  // `setBounds` request from us would just fight it.
+  const animatingRef = useRef(false);
 
-    const node = panelRef.current;
-    const from = flipFromRect.current;
-    flipFromRect.current = null;
-    if (!node || !from) return;
-
-    const to = node.getBoundingClientRect();
-    if (to.width === 0 || to.height === 0) return;
-
-    const dx = from.left - to.left;
-    const dy = from.top - to.top;
-    const sx = from.width / to.width;
-    const sy = from.height / to.height;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) {
-      morphInFlight.current = false;
-      return;
-    }
-
-    const anim = node.animate(
-      [{ transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transform: 'none' }],
-      { duration: 360, easing: 'cubic-bezier(.22,.7,.3,1)', fill: 'both' },
-    );
-    anim.onfinish = () => {
-      morphInFlight.current = false;
-    };
-  }, [draft.pinned]);
-
-  // ResizeObserver: keep the Electron window snug around the panel. We only
-  // fire when not morphing — mid-animation the panel transitions through
-  // intermediate sizes that should NOT propagate to the OS window.
+  // ResizeObserver: report the panel's outer height up to main so the
+  // BrowserWindow snaps tight around the content. Coalesce bursts into a
+  // single rAF tick — otherwise rapid layout shifts produce a storm of IPC.
   useEffect(() => {
     const node = panelRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     let frame: number | null = null;
     const ro = new ResizeObserver((entries) => {
-      if (morphInFlight.current) return;
+      if (animatingRef.current) return;
       const entry = entries[0];
       if (!entry) return;
-      // Coalesce bursts of measurements into one IPC call per animation frame —
-      // ResizeObserver can fire many times during list-item growth.
       if (frame !== null) cancelAnimationFrame(frame);
       const height = Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
       frame = requestAnimationFrame(() => {
@@ -199,23 +198,92 @@ export function DraftPanel(): JSX.Element {
     };
   }, []);
 
+  // Drag lifecycle from main. We don't drive the move itself — AppKit owns
+  // that via the header's `-webkit-app-region: drag`. We only mirror the
+  // start/end into local state so the overlay can fade in and out.
+  useEffect(() => {
+    const off1 = window.inmemnote.draft.onDragStart(() => setIsDragging(true));
+    const off2 = window.inmemnote.draft.onDragEnd(() => setIsDragging(false));
+    return () => {
+      off1();
+      off2();
+    };
+  }, []);
+
+  // Animation lifecycle handoff with main.
+  useEffect(() => {
+    const off1 = window.inmemnote.draft.onAnimationStart(() => {
+      animatingRef.current = true;
+    });
+    const off2 = window.inmemnote.draft.onAnimationDone(() => {
+      animatingRef.current = false;
+      // The window just landed at the animation target, which is a visual
+      // approximation — push the real content-fit height now that the panel
+      // has reflowed.
+      const node = panelRef.current;
+      if (!node) return;
+      void window.inmemnote.draft.resize(Math.ceil(node.getBoundingClientRect().height));
+    });
+    return () => {
+      off1();
+      off2();
+    };
+  }, []);
+
   const pinned = draft.pinned;
+
+  // Body layout values — split out so the constraints stay legible.
+  //
+  // Top/bottom paddings are deliberately IDENTICAL between modes: that's
+  // what makes the editor content stay anchored relative to the body
+  // boundary when the user pins/unpins. Horizontal padding shrinks a touch
+  // in pinned mode to match the design's compact look.
+  //
+  // `minHeight` / `maxHeight` bracket the body. The wrapper panel itself
+  // doesn't get a height — the renderer reports its actual size to main,
+  // main clamps the OS window to a per-mode max, and `overflow-y: auto`
+  // on the body kicks in once the content outgrows that cap.
+  // Horizontal and vertical body paddings are identical in both modes —
+  // changing only one of them would visually slide the content sideways
+  // when the user pins/unpins. Mode differences live in width and
+  // min/max-height only.
+  const BODY_PAD_X = 24;
+  const BODY_PAD_Y = 16;
+  const bodyMinHeight = pinned ? 80 : 96;
+  const bodyMaxHeight = pinned ? 240 : 'min(60vh, 560px)';
 
   return (
     <div className="flex h-full w-full items-start justify-center pt-0">
       <div
         ref={panelRef}
-        className={`bg-panel border border-line shadow-panel transform-gpu ${
-          pinned ? 'w-pin-panel rounded-pin' : 'w-draft-panel rounded-panel'
-        }`}
-        style={{ transformOrigin: 'top left' }}
+        className="bg-panel border border-line shadow-panel overflow-hidden w-full flex flex-col relative"
+        style={{ borderRadius: pinned ? 14 : 16 }}
       >
+        {/* Drag overlay — covers the entire pinned panel while AppKit moves
+            the window. Click events fall through to the dragged window (no
+            interactive content underneath) thanks to `pointer-events: none`.
+            Fades in/out so the appearance doesn't snap. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none transition-opacity duration-150"
+          style={{
+            opacity: isDragging ? 1 : 0,
+            background: 'var(--accent-tint)',
+            zIndex: 50,
+          }}
+        />
         <DraftHeader pinned={pinned} onTogglePin={onTogglePin} />
         <div className="h-px bg-line" />
         <div
-          className={`draft-no-drag ${
-            pinned ? 'px-[14px] pt-[10px] pb-[14px] max-h-[180px]' : 'px-6 pt-5 pb-6 min-h-[96px]'
-          } overflow-y-auto`}
+          className="draft-no-drag overflow-y-auto"
+          style={{
+            paddingTop: BODY_PAD_Y,
+            paddingBottom: BODY_PAD_Y,
+            paddingLeft: BODY_PAD_X,
+            paddingRight: BODY_PAD_X,
+            minHeight: bodyMinHeight,
+            maxHeight: bodyMaxHeight,
+          }}
         >
           <CodeMirrorEditor
             value={draft.content}
@@ -226,7 +294,10 @@ export function DraftPanel(): JSX.Element {
             autoFocus
           />
         </div>
-        {!pinned && <DraftFooter />}
+        {/* Footer stays in BOTH modes. Dropping it in pinned mode used to
+            change the vertical structure mid-animation, which read as the
+            content "jumping" while the window resized. */}
+        <DraftFooter />
       </div>
     </div>
   );

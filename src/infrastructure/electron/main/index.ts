@@ -26,6 +26,7 @@ import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNote
 import { SqliteDraftRepository } from '@infrastructure/persistence/sqlite/SqliteDraftRepository';
 import { SqliteNoteRepository } from '@infrastructure/persistence/sqlite/SqliteNoteRepository';
 import { SystemClock } from '@infrastructure/SystemClock';
+import * as windowEvents from '@inmemnote/window-events';
 import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 
 import type { DraftNote } from '@domain/draft/DraftNote';
@@ -51,6 +52,11 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 let draftWin: BrowserWindow | null = null;
+// Whether the Draft window is currently in pinned (compact) mode. Main needs
+// to know this to apply the right `setBounds` height clamp on every
+// `draft:resize` IPC — pinned mode caps at the compact sticky size, while
+// the full mode allows the panel to grow up to 60 % of the display.
+let draftPinned = false;
 let libraryWin: BrowserWindow | null = null;
 
 const clock = new SystemClock();
@@ -187,41 +193,225 @@ function createDraftWindow(): BrowserWindow {
     if (w.isVisible() && !w.isAlwaysOnTop()) w.hide();
   });
 
+  // --- Drag detection (pinned mode only) ---
+  //
+  // The frameless window has `-webkit-app-region: drag` on its header, so
+  // AppKit owns the actual move. We need two signals around it:
+  //
+  //   • "user grabbed the window": first `move` event whose size matches the
+  //     previous bounds. A real drag never changes width/height; programmatic
+  //     resize/animation always does, so the size-equality check is a clean
+  //     filter that's independent of any time threshold.
+  //
+  //   • "user released the button": delivered by the AppKit native addon
+  //     `@inmemnote/window-events`, which installs an `NSEvent` global +
+  //     local monitor for `NSEventMaskLeftMouseUp`. That catches the release
+  //     instantly — including releases over other apps that BrowserWindow
+  //     never sees — so the snap animation starts on the same run-loop tick
+  //     as the actual button release, no debounce, no idle timer.
+  let dragging = false;
+  let lastBoundsForDrag = w.getBounds();
+
+  w.on('move', () => {
+    if (!draftPinned) return;
+    const b = w.getBounds();
+    const sizeChanged =
+      b.width !== lastBoundsForDrag.width || b.height !== lastBoundsForDrag.height;
+    lastBoundsForDrag = b;
+    if (sizeChanged) return;
+    if (!dragging) {
+      dragging = true;
+      w.webContents.send('draft:dragStart');
+    }
+  });
+
+  windowEvents.subscribeToMouseUp(() => {
+    if (!dragging) return;
+    dragging = false;
+    if (w.isDestroyed()) return;
+    w.webContents.send('draft:dragEnd');
+    snapToCorner(w, cornerForWindow(w), { animate: true });
+  });
+
+  // Tear down the AppKit observers when the window goes away — otherwise
+  // the addon would hold a JS callback alive past the window's lifetime.
+  w.on('closed', () => {
+    windowEvents.unsubscribe();
+  });
+
   return w;
 }
 
 // The two layout modes are spec'd in design/Inmemnote - Draft (hi-fi).html.
-// Width is fixed per mode (560 unpinned, 320 pinned). Height starts from the
-// default and then gets nudged by the renderer's ResizeObserver.
+// Width is fixed per mode (560 unpinned, 320 pinned). Height is content-driven
+// — the renderer's ResizeObserver pushes it via the `draft:resize` IPC after
+// any layout transition has settled.
 const DRAFT_DEFAULT_WIDTH = 560;
 const PIN_WIDTH = 320;
 const PIN_INSET = 24;
 
-function centerOnCursorDisplay(w: BrowserWindow): void {
+// AppKit's animated `setFrame:animate:` is driven by the same WindowServer
+// pipeline that draws every other macOS window, so it lands on the display's
+// native refresh rate (60 Hz on most panels, ProMotion when supported).
+// Built-in curve is a smooth ease-out — exactly the "iOS-feel" we want.
+//
+// We previously hand-rolled a JS 60 Hz loop calling `setBounds(_, false)`
+// every 16 ms, but on a frameless + transparent window each call costs an
+// expensive compositor pass: the effective frame rate degraded to ~30 fps
+// and the motion looked choppy. Pushing the work to AppKit gives us actual
+// 60 fps for free.
+//
+// We model the animation duration with a constant so we can re-enable the
+// renderer's ResizeObserver and broadcast `animationDone` at the right
+// moment — Electron's `setBounds` is fire-and-forget on the API level and
+// doesn't expose a completion handler.
+const PIN_ANIM_DURATION_MS = 280;
+
+interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+let pinAnimating = false;
+let pinAnimationTimer: NodeJS.Timeout | null = null;
+
+function setBoundsImmediate(w: BrowserWindow, target: Bounds): void {
+  w.setBounds(target, false);
+}
+
+/**
+ * Animate the window to `target` using AppKit's native curve.
+ *
+ * Strictly used for pin/unpin transitions — first-paint summon takes the
+ * `setBoundsImmediate` path so the overlay doesn't "fly in" from its
+ * previous position when the user hits the global hotkey.
+ */
+function animateBounds(w: BrowserWindow, target: Bounds): void {
+  if (pinAnimationTimer) {
+    clearTimeout(pinAnimationTimer);
+    pinAnimationTimer = null;
+  }
+  const start = w.getBounds();
+  if (
+    start.x === target.x &&
+    start.y === target.y &&
+    start.width === target.width &&
+    start.height === target.height
+  ) {
+    w.webContents.send('draft:animationDone');
+    return;
+  }
+
+  pinAnimating = true;
+  // Tell the renderer to mute its ResizeObserver — otherwise every
+  // intermediate frame AppKit produces would round-trip an IPC resize
+  // request that competes with the running native animation.
+  w.webContents.send('draft:animationStart');
+  w.setBounds(target, true);
+
+  pinAnimationTimer = setTimeout(() => {
+    pinAnimating = false;
+    pinAnimationTimer = null;
+    // Hand control back to the renderer — it now remeasures the panel and
+    // pushes the real content-fit height.
+    w.webContents.send('draft:animationDone');
+  }, PIN_ANIM_DURATION_MS);
+}
+
+interface LayoutOpts {
+  /** When `true`, the move/resize is animated. */
+  animate: boolean;
+  /**
+   * Final window height, in CSS px, that the renderer has predicted from
+   * the post-toggle layout. We honor it as the exact animation target so
+   * the window only animates ONCE — without it, main would animate to a
+   * guessed value and then immediately re-snap to the real content height,
+   * which the user sees as a two-step jump.
+   *
+   * Falls back to the window's current height when the renderer doesn't
+   * supply one (e.g. test harness, very old renderer build).
+   */
+  targetHeight?: number;
+}
+
+function centerOnCursorDisplay(w: BrowserWindow, opts: LayoutOpts): void {
   const cursor = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursor);
-  const height = w.getBounds().height || 220;
-  w.setBounds({
-    x: Math.round(
-      display.workArea.x + (display.workArea.width - DRAFT_DEFAULT_WIDTH) / 2,
-    ),
+  const height = opts.targetHeight ?? w.getBounds().height ?? 220;
+  const target: Bounds = {
+    x: Math.round(display.workArea.x + (display.workArea.width - DRAFT_DEFAULT_WIDTH) / 2),
     y: Math.round(display.workArea.y + (display.workArea.height - height) / 2),
     width: DRAFT_DEFAULT_WIDTH,
     height,
-  });
+  };
+  if (opts.animate) animateBounds(w, target);
+  else setBoundsImmediate(w, target);
 }
 
-function snapToTopRight(w: BrowserWindow): void {
-  const display = screen.getDisplayMatching(w.getBounds());
-  // Pinned mode also caps the body height to the spec's max of 180; we leave a
-  // little extra (~40px) for the header.
-  const height = Math.min(w.getBounds().height || 220, 220);
-  w.setBounds({
-    x: display.workArea.x + display.workArea.width - PIN_WIDTH - PIN_INSET,
-    y: display.workArea.y + PIN_INSET,
+/**
+ * The four corner slots the pinned overlay can occupy. We track the last
+ * one the user chose so that repinning brings the panel back to where they
+ * left it, not always to the design-default top-right.
+ */
+type Corner = 'tl' | 'tr' | 'bl' | 'br';
+let lastPinnedCorner: Corner = 'tr';
+
+function cornerBounds(
+  display: Electron.Display,
+  corner: Corner,
+  height: number,
+): Bounds {
+  const wa = display.workArea;
+  return {
+    x:
+      corner === 'tr' || corner === 'br'
+        ? wa.x + wa.width - PIN_WIDTH - PIN_INSET
+        : wa.x + PIN_INSET,
+    y:
+      corner === 'bl' || corner === 'br'
+        ? wa.y + wa.height - height - PIN_INSET
+        : wa.y + PIN_INSET,
     width: PIN_WIDTH,
     height,
-  });
+  };
+}
+
+/**
+ * Park the window in `corner` of the current display.
+ *
+ * Used both for the initial pin transition (with the corner the user last
+ * picked) and for the drag-and-snap flow (with the corner the user just
+ * dropped the window into).
+ */
+function snapToCorner(w: BrowserWindow, corner: Corner, opts: LayoutOpts): void {
+  const display = screen.getDisplayMatching(w.getBounds());
+  const height = opts.targetHeight ?? w.getBounds().height ?? 220;
+  const target = cornerBounds(display, corner, height);
+  lastPinnedCorner = corner;
+  if (opts.animate) animateBounds(w, target);
+  else setBoundsImmediate(w, target);
+}
+
+/**
+ * Decide which corner the window center is closest to. Splits the display
+ * work area into 4 quadrants of the same size; the corner whose quadrant
+ * contains the window center wins.
+ */
+function cornerForWindow(w: BrowserWindow): Corner {
+  const display = screen.getDisplayMatching(w.getBounds());
+  const b = w.getBounds();
+  const centerX = b.x + b.width / 2;
+  const centerY = b.y + b.height / 2;
+  const dispMidX = display.workArea.x + display.workArea.width / 2;
+  const dispMidY = display.workArea.y + display.workArea.height / 2;
+  const right = centerX >= dispMidX;
+  const bottom = centerY >= dispMidY;
+  if (right && bottom) return 'br';
+  if (right && !bottom) return 'tr';
+  if (!right && bottom) return 'bl';
+  return 'tl';
 }
 
 function toggleDraftWindow(): void {
@@ -230,7 +420,10 @@ function toggleDraftWindow(): void {
     draftWin.hide();
     return;
   }
-  centerOnCursorDisplay(draftWin);
+  // Summon: the window appears at the cursor's display center. No animation
+  // — the user hit a hotkey, not a UI control, and a "fly-in" effect would
+  // feel wrong (Spotlight doesn't animate either).
+  centerOnCursorDisplay(draftWin, { animate: false });
   draftWin.show();
   draftWin.focus();
   draftWin.webContents.send('draft:hotkey');
@@ -323,19 +516,23 @@ app.whenReady().then(() => {
     await closeDraftUC.execute(idResult.value);
   });
 
-  ipcMain.handle(IPC.DraftTogglePin, async (_e, id: string): Promise<DraftDTO> => {
-    const idResult = DraftId.create(id);
-    if (!idResult.ok) throw new Error(idResult.error.message);
-    const r = await togglePinDraftUC.execute(idResult.value);
-    if (!r.ok) throw new Error(r.error.message);
-    if (draftWin) {
-      draftWin.setAlwaysOnTop(r.value.pinned, 'floating');
-      draftWin.setVisibleOnAllWorkspaces(r.value.pinned, { visibleOnFullScreen: true });
-      if (r.value.pinned) snapToTopRight(draftWin);
-      else centerOnCursorDisplay(draftWin);
-    }
-    return draftToDTO(r.value);
-  });
+  ipcMain.handle(
+    IPC.DraftTogglePin,
+    async (_e, id: string, targetHeight?: number): Promise<DraftDTO> => {
+      const idResult = DraftId.create(id);
+      if (!idResult.ok) throw new Error(idResult.error.message);
+      const r = await togglePinDraftUC.execute(idResult.value);
+      if (!r.ok) throw new Error(r.error.message);
+      draftPinned = r.value.pinned;
+      if (draftWin) {
+        draftWin.setAlwaysOnTop(r.value.pinned, 'floating');
+        draftWin.setVisibleOnAllWorkspaces(r.value.pinned, { visibleOnFullScreen: true });
+        if (r.value.pinned) snapToCorner(draftWin, lastPinnedCorner, { animate: true, targetHeight });
+        else centerOnCursorDisplay(draftWin, { animate: true, targetHeight });
+      }
+      return draftToDTO(r.value);
+    },
+  );
 
   ipcMain.handle(IPC.DraftHide, async (): Promise<void> => {
     if (draftWin && draftWin.isVisible() && !draftWin.isAlwaysOnTop()) draftWin.hide();
@@ -343,12 +540,29 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC.DraftResize, async (_e, rawHeight: number): Promise<void> => {
     if (!draftWin) return;
+    // Skip while a pin/unpin animation is owning setBounds — otherwise each
+    // intermediate AppKit frame would race with a renderer-driven height
+    // update and you'd see the window twitch.
+    if (pinAnimating) return;
     const display = screen.getDisplayMatching(draftWin.getBounds());
-    const maxH = Math.round(display.workArea.height * 0.6);
-    const next = Math.max(96, Math.min(Math.round(rawHeight), maxH));
+    // Per-mode height bracket. Pinned mode caps at a compact sticky size; the
+    // full mode allows the panel to grow up to 60 % of the work area. The
+    // renderer-side body has its own matching `max-height`, so once the
+    // window hits the cap, content stays inside the body's scrollable area.
+    // Mins/maxes account for the chrome that's always present (header 60,
+    // divider 1, footer 46 — kept in both pinned and full modes to avoid
+    // the structural jump described above).
+    const minH = draftPinned ? 180 : 200;
+    const maxH = draftPinned ? 360 : Math.round(display.workArea.height * 0.6);
+    const next = Math.max(minH, Math.min(Math.round(rawHeight), maxH));
+    const bounds = draftWin.getBounds();
+    // No-op if we're already there. Without this, every `setBounds` call
+    // triggers a renderer reflow that fires the ResizeObserver, which then
+    // posts another `draft:resize` — an infinite ping-pong even with no
+    // user input. A 2 px deadband absorbs sub-pixel oscillations.
+    if (Math.abs(next - bounds.height) < 2) return;
     const [w] = draftWin.getSize();
     const width = w ?? 560;
-    const bounds = draftWin.getBounds();
     draftWin.setBounds({ x: bounds.x, y: bounds.y, width, height: next });
   });
 

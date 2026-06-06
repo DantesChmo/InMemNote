@@ -28,7 +28,12 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
  * Walk the closure manually instead of pulling in `flora-colossus` — three
  * tiny packages don't justify another dev dependency.
  */
-const NATIVE_DEP_CLOSURE = ['better-sqlite3', 'bindings', 'file-uri-to-path'];
+const NATIVE_DEP_CLOSURE = [
+  'better-sqlite3',
+  'bindings',
+  'file-uri-to-path',
+  '@inmemnote/window-events',
+];
 
 const config: ForgeConfig = {
   packagerConfig: {

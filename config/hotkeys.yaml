@@ -11,4 +11,4 @@
 #
 # See docs/HOTKEYS.md for the full list of allowed key tokens.
 
-openDraft: [CommandOrControl, Shift, Space]
+openDraft: '1'

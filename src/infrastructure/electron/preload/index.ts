@@ -16,7 +16,8 @@ const api = {
     save: (id: string, content: string): Promise<DraftDTO> =>
       ipcRenderer.invoke(IPC.DraftSave, id, content),
     close: (id: string): Promise<void> => ipcRenderer.invoke(IPC.DraftClose, id),
-    togglePin: (id: string): Promise<DraftDTO> => ipcRenderer.invoke(IPC.DraftTogglePin, id),
+    togglePin: (id: string, targetHeight?: number): Promise<DraftDTO> =>
+      ipcRenderer.invoke(IPC.DraftTogglePin, id, targetHeight),
     hide: (): Promise<void> => ipcRenderer.invoke(IPC.DraftHide),
     /**
      * Ask main to resize the BrowserWindow so its content area matches the
@@ -38,6 +39,44 @@ const api = {
       const listener = () => handler();
       ipcRenderer.on('draft:hotkey', listener);
       return () => ipcRenderer.removeListener('draft:hotkey', listener);
+    },
+    /**
+     * Subscribe to "the pin/unpin animation just finished" broadcasts.
+     * Main drives the OS window animation itself; when it lands, the
+     * renderer is expected to remeasure the panel and push the real,
+     * content-fit height via `resize`.
+     */
+    onAnimationDone: (handler: () => void): (() => void) => {
+      const listener = () => handler();
+      ipcRenderer.on('draft:animationDone', listener);
+      return () => ipcRenderer.removeListener('draft:animationDone', listener);
+    },
+    /**
+     * Counterpart to `onAnimationDone`: lets the renderer freeze the
+     * `ResizeObserver`-driven height updates while AppKit is animating.
+     * Without this, every intermediate frame becomes an IPC roundtrip and
+     * the resize-handler races the animation itself.
+     */
+    onAnimationStart: (handler: () => void): (() => void) => {
+      const listener = () => handler();
+      ipcRenderer.on('draft:animationStart', listener);
+      return () => ipcRenderer.removeListener('draft:animationStart', listener);
+    },
+    /**
+     * "User started dragging the pinned window by its header" — main
+     * detects this via the `move` event on the BrowserWindow. The renderer
+     * uses it to surface a tint overlay so the user sees their gesture is
+     * being tracked.
+     */
+    onDragStart: (handler: () => void): (() => void) => {
+      const listener = () => handler();
+      ipcRenderer.on('draft:dragStart', listener);
+      return () => ipcRenderer.removeListener('draft:dragStart', listener);
+    },
+    onDragEnd: (handler: () => void): (() => void) => {
+      const listener = () => handler();
+      ipcRenderer.on('draft:dragEnd', listener);
+      return () => ipcRenderer.removeListener('draft:dragEnd', listener);
     },
   },
   notes: {

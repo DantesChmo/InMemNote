@@ -17,8 +17,9 @@ export default defineConfig({
       // Force the output filename so `package.json#main` (`.vite/build/main.js`)
       // resolves; by default Vite names the bundle after the entry file.
       output: { entryFileNames: 'main.js' },
-      // `better-sqlite3` is a native module — must not be bundled by Rollup.
-      external: ['electron', 'better-sqlite3'],
+      // Native modules — must not be bundled by Rollup; they're loaded at
+      // runtime from `node_modules` inside the packaged app.
+      external: ['electron', 'better-sqlite3', '@inmemnote/window-events'],
     },
   },
 });
