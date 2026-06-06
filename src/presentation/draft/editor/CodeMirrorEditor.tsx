@@ -125,6 +125,23 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
               color: 'var(--text-2)',
               fontStyle: 'italic',
             },
+            // Pretty bullet replacement for `-` / `*` / `+` lines. The widget
+            // is rendered inline by CodeMirror; we just style its container.
+            '.cm-inmem-bullet': {
+              display: 'inline-block',
+              width: '18px',
+              color: 'var(--accent)',
+              fontWeight: '700',
+            },
+            // Ordered-list marker keeps the original number but renders it in
+            // the muted text shade so it doesn't compete with the body.
+            '.cm-inmem-ol': {
+              display: 'inline-block',
+              minWidth: '20px',
+              marginRight: '4px',
+              color: 'var(--text-3)',
+              fontVariantNumeric: 'tabular-nums',
+            },
             // Heading lines. HighlightStyle alone only styles the `#` marker
             // token; the heading TEXT after it stays at body size, so we have
             // to scale the whole `.cm-line` instead. A small `margin-top`

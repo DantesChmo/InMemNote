@@ -190,31 +190,36 @@ function createDraftWindow(): BrowserWindow {
   return w;
 }
 
+// The two layout modes are spec'd in design/Inmemnote - Draft (hi-fi).html.
+// Width is fixed per mode (560 unpinned, 320 pinned). Height starts from the
+// default and then gets nudged by the renderer's ResizeObserver.
+const DRAFT_DEFAULT_WIDTH = 560;
+const PIN_WIDTH = 320;
+const PIN_INSET = 24;
+
 function centerOnCursorDisplay(w: BrowserWindow): void {
   const cursor = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursor);
-  const size = w.getSize();
-  const width = size[0] ?? 560;
-  const height = size[1] ?? 220;
+  const height = w.getBounds().height || 220;
   w.setBounds({
-    x: Math.round(display.workArea.x + (display.workArea.width - width) / 2),
+    x: Math.round(
+      display.workArea.x + (display.workArea.width - DRAFT_DEFAULT_WIDTH) / 2,
+    ),
     y: Math.round(display.workArea.y + (display.workArea.height - height) / 2),
-    width,
+    width: DRAFT_DEFAULT_WIDTH,
     height,
   });
 }
 
-const PIN_INSET = 24;
-
 function snapToTopRight(w: BrowserWindow): void {
   const display = screen.getDisplayMatching(w.getBounds());
-  const size = w.getSize();
-  const width = size[0] ?? 320;
-  const height = size[1] ?? 180;
+  // Pinned mode also caps the body height to the spec's max of 180; we leave a
+  // little extra (~40px) for the header.
+  const height = Math.min(w.getBounds().height || 220, 220);
   w.setBounds({
-    x: display.workArea.x + display.workArea.width - width - PIN_INSET,
+    x: display.workArea.x + display.workArea.width - PIN_WIDTH - PIN_INSET,
     y: display.workArea.y + PIN_INSET,
-    width,
+    width: PIN_WIDTH,
     height,
   });
 }

@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e:prepare": "electron-forge package",
+    "e2e:prepare": "rm -rf .vite out node_modules/.vite && electron-forge package",
     "e2e": "playwright test",
     "prepare": "husky"
   },

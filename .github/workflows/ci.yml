@@ -1,0 +1,116 @@
+# Continuous integration for Inmemnote.
+#
+# Three jobs run in parallel where possible:
+#
+#   1. `quality`   — typecheck, lint, unit tests on Linux (fast, cheap).
+#   2. `e2e`       — Playwright + Electron suite on macOS (we ship macOS-only,
+#                    so there's no point exercising E2E elsewhere).
+#   3. `build`     — DMG package on macOS, gated on the two checks above.
+#
+# Node 22 is the LTS we target; CI pins to it explicitly so we don't drift if
+# the runner default moves.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-flight runs of the same ref. PR pushes shouldn't queue up minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # `--ignore-scripts` skips the postinstall step that builds native
+      # modules (better-sqlite3) for the host platform — we don't need them
+      # for typecheck/lint/unit tests, and on Linux the build pulls extra
+      # toolchain dependencies that slow the job down.
+      - run: npm ci --ignore-scripts
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test
+
+  e2e:
+    name: E2E (Playwright + Electron)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Rebuild native modules against the Electron ABI. `npm ci` builds them
+      # for the host Node, which has a different NODE_MODULE_VERSION; without
+      # this step `better-sqlite3` would refuse to load inside Electron.
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -w better-sqlite3
+
+      - name: Forge package
+        run: npm run e2e:prepare
+
+      - name: Playwright run
+        run: npm run e2e
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build:
+    name: Build DMG
+    runs-on: macos-latest
+    needs: [quality, e2e]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -w better-sqlite3
+
+      # `make` produces the distributable bundles for every maker registered
+      # in `forge.config.ts` — for us that's DMG + ZIP.
+      - name: Forge make
+        run: npm run make
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Inmemnote-macos-dmg
+          path: out/make/**/*.dmg
+          if-no-files-found: error
+          retention-days: 14
