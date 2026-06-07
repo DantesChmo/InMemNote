@@ -58,6 +58,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Fixed width **560 px**. Height is content-driven via a renderer-side
   `ResizeObserver` + `draft:resize` IPC, clamped to `[96, 60vh]` in main.
 - [x] Drag the panel by the header (drag region on the header).
+- [x] Hidden from screen-capture (Zoom / Meet / QuickTime / ScreenCaptureKit)
+  via macOS `NSWindowSharingNone` (Electron's `setContentProtection(true)`).
+  Applied unconditionally — both pinned and un-pinned — because the scratch
+  buffer can hold sensitive text at any moment.
 
 ### 2.3 Pin
 - [x] Pin button in the top-right of the header.

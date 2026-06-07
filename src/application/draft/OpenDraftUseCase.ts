@@ -24,6 +24,12 @@ export class OpenDraftUseCase {
   public async execute(): Promise<DraftNote> {
     const latest = await this.repo.findLatest();
     if (latest && !latest.content.isEmpty()) {
+      // Pin is a runtime UI affordance, not a persistence concern. The
+      // overlay always comes up un-pinned (Spotlight-like) so the user
+      // doesn't see a stale pin indicator the moment they hit ⌘⇧Space.
+      // The text content is what we want to resume — pin/unpin is a
+      // gesture they'll repeat if they care.
+      latest.unpin(this.clock.now());
       return latest;
     }
     return DraftNote.create(this.clock.now());

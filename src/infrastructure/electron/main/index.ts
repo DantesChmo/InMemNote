@@ -169,7 +169,11 @@ function createDraftWindow(): BrowserWindow {
     frame: false,
     transparent: true,
     resizable: false,
-    movable: true,
+    // Un-pinned overlay must behave like Spotlight / Raycast: fixed at the
+    // cursor display's center, not draggable. We start with `movable: false`
+    // and toggle it on whenever the user pins the panel (see
+    // `IPC.DraftTogglePin`).
+    movable: false,
     show: false,
     alwaysOnTop: false,
     skipTaskbar: true,
@@ -186,6 +190,15 @@ function createDraftWindow(): BrowserWindow {
     },
   });
 
+  // macOS `NSWindowSharingNone` via Electron's content-protection bridge.
+  // The overlay stays fully visible to the local user but is omitted from
+  // every screen-capture API (ScreenCaptureKit, CGWindowList, AVFoundation),
+  // so Zoom / Meet / QuickTime viewers don't see whatever the user is
+  // capturing in their scratch buffer. We enable this unconditionally for
+  // the Draft window — the buffer can hold sensitive text in BOTH pinned
+  // and un-pinned states, and the cost is one constructor-time call.
+  w.setContentProtection(true);
+
   loadRenderer(w, 'draft');
 
   // Hide on blur unless pinned — pinned drafts should stay put.
@@ -195,42 +208,102 @@ function createDraftWindow(): BrowserWindow {
 
   // --- Drag detection (pinned mode only) ---
   //
-  // The frameless window has `-webkit-app-region: drag` on its header, so
-  // AppKit owns the actual move. We need two signals around it:
+  // The frameless window has `-webkit-app-region: drag` on its header in
+  // pinned mode, so AppKit owns the actual window move. We track two
+  // signals around it:
   //
-  //   • "user grabbed the window": first `move` event whose size matches the
-  //     previous bounds. A real drag never changes width/height; programmatic
-  //     resize/animation always does, so the size-equality check is a clean
-  //     filter that's independent of any time threshold.
+  //   • "user is currently dragging": the `move` event fires for every
+  //     frame of the AppKit move. A real drag never changes the window's
+  //     size, only its x/y — programmatic resizes/animations always touch
+  //     the size, so the size-equality check filters them out cleanly
+  //     without needing a timing heuristic.
   //
   //   • "user released the button": delivered by the AppKit native addon
   //     `@inmemnote/window-events`, which installs an `NSEvent` global +
-  //     local monitor for `NSEventMaskLeftMouseUp`. That catches the release
-  //     instantly — including releases over other apps that BrowserWindow
-  //     never sees — so the snap animation starts on the same run-loop tick
-  //     as the actual button release, no debounce, no idle timer.
+  //     local monitor for `NSEventMaskLeftMouseUp`. That catches the
+  //     release instantly — including releases over other apps that
+  //     BrowserWindow never sees — so the snap animation starts on the
+  //     same run-loop tick as the actual button release, no debounce, no
+  //     idle timer.
+  //
+  // Why main owns the "drag started" signal: AppKit fully swallows
+  // `mousedown` over a `-webkit-app-region: drag` element, so the renderer
+  // never sees the event — neither a React handler nor a document-level
+  // capture-phase listener fires. The earliest reliable thing we DO get is
+  // AppKit's first `move` callback, which arrives the same tick the drag
+  // actually begins. We broadcast `draft:dragStart` from there.
   let dragging = false;
-  let lastBoundsForDrag = w.getBounds();
 
-  w.on('move', () => {
-    if (!draftPinned) return;
+  // Header geometry. The drag region matches the panel header, which is 60
+  // px tall (see `DraftHeader.tsx`). The pin button sits in the right
+  // 20–52 px strip and uses `draft-no-drag`, so a press there must NOT
+  // trigger the drag overlay — otherwise clicking pin to toggle it would
+  // briefly flash the blur.
+  const HEADER_HEIGHT = 60;
+  const PIN_BUTTON_RIGHT_INSET = 20;
+  const PIN_BUTTON_WIDTH = 32;
+
+  const cursorOverDragHeader = (): boolean => {
+    if (w.isDestroyed()) return false;
     const b = w.getBounds();
-    const sizeChanged =
-      b.width !== lastBoundsForDrag.width || b.height !== lastBoundsForDrag.height;
-    lastBoundsForDrag = b;
-    if (sizeChanged) return;
-    if (!dragging) {
-      dragging = true;
-      w.webContents.send('draft:dragStart');
-    }
+    const c = screen.getCursorScreenPoint();
+    const inWindow = c.x >= b.x && c.x < b.x + b.width && c.y >= b.y && c.y < b.y + b.height;
+    if (!inWindow) return false;
+    const inHeader = c.y < b.y + HEADER_HEIGHT;
+    if (!inHeader) return false;
+    const pinX1 = b.x + b.width - PIN_BUTTON_RIGHT_INSET - PIN_BUTTON_WIDTH;
+    const overPinButton = c.x >= pinX1;
+    return !overPinButton;
+  };
+
+  // The native addon delivers a synchronous mousedown callback for every
+  // left-button press anywhere on the system (1–2 ms after the event).
+  // We use it to flip the drag overlay ON the instant the user grabs the
+  // header — no need to wait for AppKit's first `move` event. The same
+  // path was infeasible from the renderer because `-webkit-app-region: drag`
+  // makes AppKit consume DOM `mousedown` before any listener can see it.
+  // Watch every `move`/`resize` callback while an animation is in flight;
+  // emit `animationDone` the moment the window reaches the target pixel
+  // coordinates. This is what unblocks the drag overlay to fade out at the
+  // exact frame the snap lands, instead of a fixed ~280 ms timer later.
+  w.on('move', () => {
+    maybeFinishAnimation(w);
+  });
+  w.on('resize', () => {
+    maybeFinishAnimation(w);
+  });
+
+  windowEvents.subscribeToMouseDown(() => {
+    if (!draftPinned) return;
+    if (pinAnimating) return;
+    if (!cursorOverDragHeader()) return;
+    if (dragging) return;
+    dragging = true;
+    if (!w.isDestroyed()) w.webContents.send('draft:dragStart');
   });
 
   windowEvents.subscribeToMouseUp(() => {
     if (!dragging) return;
     dragging = false;
     if (w.isDestroyed()) return;
-    w.webContents.send('draft:dragEnd');
-    snapToCorner(w, cornerForWindow(w), { animate: true });
+    // Decide whether the user actually carried the window somewhere new.
+    // A click-without-drag (press on the title that isn't followed by
+    // motion) leaves the window in its current resting corner — there's
+    // no snap to do, so we drop the blur overlay immediately.
+    const b = w.getBounds();
+    const display = screen.getDisplayMatching(b);
+    const home = cornerBounds(display, lastPinnedCorner, b.height);
+    const moved = b.x !== home.x || b.y !== home.y;
+    if (moved) {
+      // Hold the overlay through the snap animation — the renderer drops
+      // it when `draft:animationDone` lands at the resting corner. This
+      // matches the user's mental model: blur stays on while the window
+      // is still in motion, regardless of whether the motion is the
+      // user's hand or our easing curve completing it.
+      snapToCorner(w, cornerForWindow(w), { animate: true });
+    } else {
+      w.webContents.send('draft:dragEnd');
+    }
   });
 
   // Tear down the AppKit observers when the window goes away — otherwise
@@ -261,11 +334,11 @@ const PIN_INSET = 24;
 // and the motion looked choppy. Pushing the work to AppKit gives us actual
 // 60 fps for free.
 //
-// We model the animation duration with a constant so we can re-enable the
-// renderer's ResizeObserver and broadcast `animationDone` at the right
-// moment — Electron's `setBounds` is fire-and-forget on the API level and
-// doesn't expose a completion handler.
-const PIN_ANIM_DURATION_MS = 280;
+// Safety net: AppKit's default NSAnimation runs ~250 ms. If we never see
+// the window arrive at the target — e.g. because of pixel-rounding mismatch
+// between the bounds we asked for and what AppKit actually committed —
+// release the animation lock anyway after this duration.
+const PIN_ANIM_FALLBACK_MS = 400;
 
 interface Bounds {
   x: number;
@@ -275,10 +348,28 @@ interface Bounds {
 }
 
 let pinAnimating = false;
-let pinAnimationTimer: NodeJS.Timeout | null = null;
+let pinAnimationFallback: NodeJS.Timeout | null = null;
+// Target the current pin/unpin animation is interpolating toward. We watch
+// `move`/`resize` events and emit `animationDone` the moment AppKit settles
+// the window onto these exact pixel coordinates — that's the true "the
+// animation has finished" signal, not the constant duration we used to
+// hard-code. Without this, the drag overlay would visibly linger past the
+// real landing for ~30 ms.
+let pinAnimationTarget: Bounds | null = null;
 
 function setBoundsImmediate(w: BrowserWindow, target: Bounds): void {
   w.setBounds(target, false);
+}
+
+function finishAnimation(w: BrowserWindow): void {
+  if (!pinAnimating) return;
+  pinAnimating = false;
+  pinAnimationTarget = null;
+  if (pinAnimationFallback) {
+    clearTimeout(pinAnimationFallback);
+    pinAnimationFallback = null;
+  }
+  if (!w.isDestroyed()) w.webContents.send('draft:animationDone');
 }
 
 /**
@@ -289,9 +380,9 @@ function setBoundsImmediate(w: BrowserWindow, target: Bounds): void {
  * previous position when the user hits the global hotkey.
  */
 function animateBounds(w: BrowserWindow, target: Bounds): void {
-  if (pinAnimationTimer) {
-    clearTimeout(pinAnimationTimer);
-    pinAnimationTimer = null;
+  if (pinAnimationFallback) {
+    clearTimeout(pinAnimationFallback);
+    pinAnimationFallback = null;
   }
   const start = w.getBounds();
   if (
@@ -305,19 +396,30 @@ function animateBounds(w: BrowserWindow, target: Bounds): void {
   }
 
   pinAnimating = true;
+  pinAnimationTarget = target;
   // Tell the renderer to mute its ResizeObserver — otherwise every
   // intermediate frame AppKit produces would round-trip an IPC resize
   // request that competes with the running native animation.
   w.webContents.send('draft:animationStart');
   w.setBounds(target, true);
 
-  pinAnimationTimer = setTimeout(() => {
-    pinAnimating = false;
-    pinAnimationTimer = null;
-    // Hand control back to the renderer — it now remeasures the panel and
-    // pushes the real content-fit height.
-    w.webContents.send('draft:animationDone');
-  }, PIN_ANIM_DURATION_MS);
+  // Fallback only — primary completion path is the bounds-equality check
+  // in the `move`/`resize` handlers below.
+  pinAnimationFallback = setTimeout(() => finishAnimation(w), PIN_ANIM_FALLBACK_MS);
+}
+
+/**
+ * Called on every AppKit `move` / `resize` callback while an animation
+ * is in flight. If the window has reached the target pixel coordinates,
+ * settle the animation immediately — no waiting for a timer.
+ */
+function maybeFinishAnimation(w: BrowserWindow): void {
+  if (!pinAnimating || !pinAnimationTarget) return;
+  const b = w.getBounds();
+  const t = pinAnimationTarget;
+  if (b.x === t.x && b.y === t.y && b.width === t.width && b.height === t.height) {
+    finishAnimation(w);
+  }
 }
 
 interface LayoutOpts {
@@ -527,6 +629,11 @@ app.whenReady().then(() => {
       if (draftWin) {
         draftWin.setAlwaysOnTop(r.value.pinned, 'floating');
         draftWin.setVisibleOnAllWorkspaces(r.value.pinned, { visibleOnFullScreen: true });
+        // Pinned overlay can be dragged between corners; un-pinned is
+        // immovable (Spotlight-style). `setMovable` works in tandem with
+        // the `draft-drag` CSS class on the header: both have to allow the
+        // move for AppKit to actually translate the window.
+        draftWin.setMovable(r.value.pinned);
         if (r.value.pinned) snapToCorner(draftWin, lastPinnedCorner, { animate: true, targetHeight });
         else centerOnCursorDisplay(draftWin, { animate: true, targetHeight });
       }

@@ -6,13 +6,23 @@ interface DraftHeaderProps {
 /**
  * Header strip — icon, title, pin toggle.
  *
- * Whole strip is a window drag region (`-webkit-app-region: drag`) except the
- * pin button, which opts back out via `draft-no-drag`. That way the user can
- * grab the panel anywhere on the header without "accidentally pinning".
+ * In pinned mode the strip is a window drag region (`-webkit-app-region: drag`)
+ * so AppKit can carry the window with the cursor. In un-pinned mode there is
+ * NO drag region: the overlay should behave like Spotlight / Raycast — fixed
+ * at the cursor display's center, immovable. We pair this with
+ * `setMovable(false)` on the BrowserWindow in main.
+ *
+ * The pin button always opts back out via `draft-no-drag` so clicks on it
+ * never get swallowed by the drag region.
  */
 export function DraftHeader({ pinned, onTogglePin }: DraftHeaderProps): JSX.Element {
+  // The header carries the `draft-drag` class — DraftPanel listens for
+  // `mousedown` on the document in the capture phase and looks up by that
+  // class to flip the drag overlay synchronously. Doing it from a React
+  // `onMouseDown` here doesn't work: AppKit grabs the event before bubbling
+  // reaches React when `-webkit-app-region: drag` is active.
   return (
-    <div className="draft-drag flex items-center h-[60px] px-5">
+    <div className={`${pinned ? 'draft-drag' : ''} flex items-center h-[60px] px-5`}>
       <div className="w-7 h-7 rounded-icon bg-accent text-accent-ink flex items-center justify-center text-[15px] leading-none">
         ⚡
       </div>

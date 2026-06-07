@@ -10,6 +10,15 @@ module.exports = {
    * more than once — subsequent calls before `unsubscribe()` are no-ops.
    */
   subscribeToMouseUp: binding.subscribeToMouseUp,
-  /** Tear down the AppKit observers and release the JS callback handle. */
+  /**
+   * Start receiving left-mouse-down notifications. Same semantics as
+   * `subscribeToMouseUp`: idempotent, fires for every press anywhere on
+   * the system.
+   */
+  subscribeToMouseDown: binding.subscribeToMouseDown,
+  /**
+   * Remove every AppKit observer this module has installed and release the
+   * associated JS callback handles.
+   */
   unsubscribe: binding.unsubscribe,
 };

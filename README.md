@@ -6,6 +6,8 @@ A local quick-notes app for macOS. Two surfaces:
   (default `⌘⇧Space`). Floats over any app, frameless, no Dock icon.
   `⌘↵` promotes the buffer into the Library, `Esc` keeps it in the scratch
   slot, the pin button keeps the overlay on top of every other window.
+  Hidden from screen-capture (Zoom, Meet, QuickTime) via macOS
+  `NSWindowSharingNone` — you see the overlay, your audience doesn't.
 - **Library** — the main app window. Opens from Launchpad / Dock. Three
   panes: sidebar (All / Pinned), card list with search, Markdown editor.
 

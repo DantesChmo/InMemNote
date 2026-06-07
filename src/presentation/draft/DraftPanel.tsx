@@ -198,15 +198,20 @@ export function DraftPanel(): JSX.Element {
     };
   }, []);
 
-  // Drag lifecycle from main. We don't drive the move itself — AppKit owns
-  // that via the header's `-webkit-app-region: drag`. We only mirror the
-  // start/end into local state so the overlay can fade in and out.
+  // Drag overlay state.
+  //
+  // The renderer can't observe `mousedown` on the header at all: with
+  // `-webkit-app-region: drag` AppKit consumes the event before it reaches
+  // any DOM listener (capture or bubble). The earliest reliable signal we
+  // get is AppKit's first `move` callback, which main forwards to us as
+  // `draft:dragStart` the same tick the drag actually begins. End signal
+  // comes from the AppKit native mouse-up monitor.
   useEffect(() => {
-    const off1 = window.inmemnote.draft.onDragStart(() => setIsDragging(true));
-    const off2 = window.inmemnote.draft.onDragEnd(() => setIsDragging(false));
+    const offStart = window.inmemnote.draft.onDragStart(() => setIsDragging(true));
+    const offEnd = window.inmemnote.draft.onDragEnd(() => setIsDragging(false));
     return () => {
-      off1();
-      off2();
+      offStart();
+      offEnd();
     };
   }, []);
 
@@ -217,6 +222,12 @@ export function DraftPanel(): JSX.Element {
     });
     const off2 = window.inmemnote.draft.onAnimationDone(() => {
       animatingRef.current = false;
+      // Snap-after-drag and pin/unpin animations both terminate here.
+      // Clearing `isDragging` keeps the blur overlay up through the entire
+      // motion — from the moment the user grabs the header, through the
+      // manual drag, through the snap easing — and removes it only once
+      // the window has come to rest. Idempotent in the non-drag case.
+      setIsDragging(false);
       // The window just landed at the animation target, which is a visual
       // approximation — push the real content-fit height now that the panel
       // has reflowed.
@@ -254,24 +265,38 @@ export function DraftPanel(): JSX.Element {
 
   return (
     <div className="flex h-full w-full items-start justify-center pt-0">
+      {/* No border + no border-radius on purpose. The frameless macOS window
+          renders its own subtle edge / shadow; layering a CSS border with a
+          fixed radius on top produced a visible "double frame" — the two
+          curves were computed by different formulas and didn't line up at
+          the corners. A plain rectangle composes cleanly with whatever the
+          OS draws. */}
       <div
         ref={panelRef}
-        className="bg-panel border border-line shadow-panel overflow-hidden w-full flex flex-col relative"
-        style={{ borderRadius: pinned ? 14 : 16 }}
+        className="bg-panel overflow-hidden w-full flex flex-col relative"
       >
         {/* Drag overlay — covers the entire pinned panel while AppKit moves
-            the window. Click events fall through to the dragged window (no
-            interactive content underneath) thanks to `pointer-events: none`.
-            Fades in/out so the appearance doesn't snap. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 pointer-events-none transition-opacity duration-150"
-          style={{
-            opacity: isDragging ? 1 : 0,
-            background: 'var(--accent-tint)',
-            zIndex: 50,
-          }}
-        />
+            the window. Blurs the underlying content so the user gets a clear
+            "I'm carrying this around" cue without obscuring the panel
+            entirely. Rendered conditionally (no CSS transition) so the
+            effect snaps on and off in lockstep with the mouse gesture.
+            `pointer-events: none` lets the underlying drag region keep
+            receiving the AppKit move stream. */}
+        {isDragging && (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              // Subtle hint of motion — just enough to read as "I picked
+              // this up" without obscuring the panel content. Heavy blur
+              // (14px+) felt overwhelming during a quick drag.
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              background: 'rgba(0, 0, 0, 0.02)',
+              zIndex: 50,
+            }}
+          />
+        )}
         <DraftHeader pinned={pinned} onTogglePin={onTogglePin} />
         <div className="h-px bg-line" />
         <div
