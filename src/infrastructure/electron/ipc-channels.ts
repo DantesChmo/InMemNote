@@ -14,6 +14,24 @@ export const IPC = {
   DraftHide: 'draft:hide',
   DraftResize: 'draft:resize',
   DraftPromote: 'draft:promote',
+  /** Renderer-driven manual resize of the pinned overlay (width + height). */
+  DraftSetPinSize: 'draft:setPinSize',
+  /** Restore the pinned overlay to its default width/height. */
+  DraftResetPinSize: 'draft:resetPinSize',
+  /** Renderer asks main "which corner is the pin currently anchored to?" */
+  DraftGetCorner: 'draft:getCorner',
+  /**
+   * Tell main "the user just grabbed the resize handle". Main captures the
+   * current cursor position + window bounds and starts following the
+   * AppKit-level mouse-drag stream until the next mouse-up.
+   */
+  DraftBeginResize: 'draft:beginResize',
+  /**
+   * Main broadcast: "the panel is now sized by the user, not by content".
+   * Renderer flips the body layout from fit-content (with max-height) to
+   * `flex: 1` so the editor fills whatever bounds main hands the window.
+   */
+  DraftCustomSizeChanged: 'draft:customSizeChanged',
 
   // Library (main app)
   NotesList: 'notes:list',

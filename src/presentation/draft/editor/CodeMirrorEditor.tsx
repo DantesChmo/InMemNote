@@ -110,11 +110,24 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
               fontFamily: 'var(--f-ui)',
               fontSize: '15px',
               lineHeight: '24px',
+              // Fill the parent's height. By default CM 6 sizes the editor
+              // to its content, so a roomy panel ends up with a small
+              // input area floating at the top. Forcing `height: 100%` on
+              // the editor + `flex: 1` / `min-height: 0` upstream lets the
+              // user click anywhere in the body to position the caret.
+              height: '100%',
             },
-            '.cm-content': { padding: '0', caretColor: 'var(--accent)' },
+            '.cm-content': {
+              padding: '0',
+              caretColor: 'var(--accent)',
+              // Push the content area to fill at least the visible height,
+              // so blank lines at the bottom of the panel still respond to
+              // clicks (they place the cursor at end-of-doc).
+              minHeight: '100%',
+            },
             '.cm-cursor': { borderLeftColor: 'var(--accent)' },
             '.cm-line': { padding: '0' },
-            '.cm-scroller': { fontFamily: 'var(--f-ui)' },
+            '.cm-scroller': { fontFamily: 'var(--f-ui)', overflow: 'auto' },
             '&.cm-focused': { outline: 'none' },
             // Blockquote stripe: 2px left border in the accent color + matching
             // muted text shade. Padding offsets the border so the text itself
@@ -198,5 +211,7 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
     });
   }, [props.value]);
 
-  return <div ref={hostRef} className="draft-no-drag w-full" />;
+  // `h-full` so the CodeMirror EditorView, which sets `height: 100%` on
+  // itself, has a definite parent to measure against.
+  return <div ref={hostRef} className="draft-no-drag w-full h-full" />;
 }

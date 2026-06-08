@@ -62,7 +62,9 @@ export class DraftPage {
   }
 
   public async clickPin(): Promise<void> {
-    await this.page.getByRole('button', { name: /Закрепить/ }).click();
+    // Stable selector — aria-label flips between Закрепить/Открепить with
+    // the pinned state, but `data-testid` does not.
+    await this.page.getByTestId('draft-pin-btn').click();
   }
 
   public async isVisible(): Promise<boolean> {

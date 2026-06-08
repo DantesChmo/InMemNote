@@ -234,15 +234,27 @@ function createDraftWindow(): BrowserWindow {
   // actually begins. We broadcast `draft:dragStart` from there.
   let dragging = false;
 
-  // Header geometry. The drag region matches the panel header, which is 60
-  // px tall (see `DraftHeader.tsx`). The pin button sits in the right
-  // 20–52 px strip and uses `draft-no-drag`, so a press there must NOT
-  // trigger the drag overlay — otherwise clicking pin to toggle it would
-  // briefly flash the blur.
+  // Header / button / resize-handle geometry, mirrored from the renderer.
+  // Whenever any of these constants change in CSS, update them here too.
   const HEADER_HEIGHT = 60;
   const PIN_BUTTON_RIGHT_INSET = 20;
   const PIN_BUTTON_WIDTH = 32;
+  const RESIZE_HANDLE_SIZE = 18;
 
+  /**
+   * True when the global cursor is currently over a region of our window
+   * where a mousedown should start an AppKit window-drag — i.e. the
+   * header strip EXCLUDING:
+   *
+   *   - the pin button (Tailwind: `draft-no-drag` in the renderer);
+   *   - the resize handle that lives in the corner diagonally opposite
+   *     the current pin anchor. This is the critical fix for "pin at
+   *     bottom" cases: when the pin is in `bl` or `br`, the handle sits
+   *     in the TOP corner of the panel, i.e. INSIDE the drag region, and
+   *     the renderer-side `mousedown` arrives later than this native
+   *     detector. Excluding the handle's 18×18 square here is the only
+   *     reliable way to keep AppKit's drag from starting.
+   */
   const cursorOverDragHeader = (): boolean => {
     if (w.isDestroyed()) return false;
     const b = w.getBounds();
@@ -253,7 +265,22 @@ function createDraftWindow(): BrowserWindow {
     if (!inHeader) return false;
     const pinX1 = b.x + b.width - PIN_BUTTON_RIGHT_INSET - PIN_BUTTON_WIDTH;
     const overPinButton = c.x >= pinX1;
-    return !overPinButton;
+    if (overPinButton) return false;
+    // Resize handle hit-test. The handle sits on the OPPOSITE corner of
+    // the pin anchor; we only need to consider top-row corners here
+    // because non-top corners aren't inside the header strip.
+    const handleAt = oppositeCorner(lastPinnedCorner);
+    if (handleAt === 'tl' && c.x < b.x + RESIZE_HANDLE_SIZE && c.y < b.y + RESIZE_HANDLE_SIZE) {
+      return false;
+    }
+    if (
+      handleAt === 'tr' &&
+      c.x >= b.x + b.width - RESIZE_HANDLE_SIZE &&
+      c.y < b.y + RESIZE_HANDLE_SIZE
+    ) {
+      return false;
+    }
+    return true;
   };
 
   // The native addon delivers a synchronous mousedown callback for every
@@ -276,6 +303,9 @@ function createDraftWindow(): BrowserWindow {
   windowEvents.subscribeToMouseDown(() => {
     if (!draftPinned) return;
     if (pinAnimating) return;
+    // A resize gesture started elsewhere (via `DraftBeginResize`). It owns
+    // the cursor stream until mouse-up; the header drag must NOT compete.
+    if (resizeState) return;
     if (!cursorOverDragHeader()) return;
     if (dragging) return;
     dragging = true;
@@ -283,27 +313,54 @@ function createDraftWindow(): BrowserWindow {
   });
 
   windowEvents.subscribeToMouseUp(() => {
+    // First: end resize if one is in flight. Resize doesn't trigger a
+    // drag-snap because the user explicitly set the window to a custom
+    // size — the position was anchored to the pin corner all along.
+    if (resizeState) {
+      resizeState = null;
+      // Re-enable AppKit window dragging. We turn it off in `beginResize`
+      // so the system doesn't try to follow the cursor with the whole
+      // window while we're driving manual `setBounds` calls.
+      if (!w.isDestroyed()) w.setMovable(true);
+      return;
+    }
     if (!dragging) return;
     dragging = false;
     if (w.isDestroyed()) return;
-    // Decide whether the user actually carried the window somewhere new.
-    // A click-without-drag (press on the title that isn't followed by
-    // motion) leaves the window in its current resting corner — there's
-    // no snap to do, so we drop the blur overlay immediately.
     const b = w.getBounds();
     const display = screen.getDisplayMatching(b);
-    const home = cornerBounds(display, lastPinnedCorner, b.height);
+    const home = cornerBounds(display, lastPinnedCorner, { width: b.width, height: b.height });
     const moved = b.x !== home.x || b.y !== home.y;
     if (moved) {
-      // Hold the overlay through the snap animation — the renderer drops
-      // it when `draft:animationDone` lands at the resting corner. This
-      // matches the user's mental model: blur stays on while the window
-      // is still in motion, regardless of whether the motion is the
-      // user's hand or our easing curve completing it.
       snapToCorner(w, cornerForWindow(w), { animate: true });
     } else {
       w.webContents.send('draft:dragEnd');
     }
+  });
+
+  // Resize stream. While `resizeState` is non-null, every native
+  // mouse-drag callback re-applies the new size relative to the cursor
+  // delta and the captured starting bounds. Anchor stays at the pin
+  // corner so the corner the user is NOT dragging never moves.
+  windowEvents.subscribeToMouseDrag(() => {
+    if (!resizeState || !draftWin || draftWin.isDestroyed()) return;
+    const cursor = screen.getCursorScreenPoint();
+    const dx = cursor.x - resizeState.startCursor.x;
+    const dy = cursor.y - resizeState.startCursor.y;
+    // `draggedCorner` is the diagonal opposite of the pin's anchor — the
+    // corner whose handle the user is holding. Its sign tells us which
+    // direction increases the size.
+    const widthSign = resizeState.draggedCorner === 'tl' || resizeState.draggedCorner === 'bl' ? -1 : 1;
+    const heightSign = resizeState.draggedCorner === 'tl' || resizeState.draggedCorner === 'tr' ? -1 : 1;
+    const display = screen.getDisplayMatching(resizeState.startBounds);
+    const raw = {
+      width: resizeState.startBounds.width + widthSign * dx,
+      height: resizeState.startBounds.height + heightSign * dy,
+    };
+    const size = clampPinSize(display, raw);
+    setCustomPinSize(size);
+    const target = cornerBounds(display, lastPinnedCorner, size);
+    setBoundsImmediate(w, target);
   });
 
   // Tear down the AppKit observers when the window goes away — otherwise
@@ -322,6 +379,7 @@ function createDraftWindow(): BrowserWindow {
 const DRAFT_DEFAULT_WIDTH = 560;
 const PIN_WIDTH = 320;
 const PIN_INSET = 24;
+const PIN_DEFAULT_HEIGHT = 220;
 
 // AppKit's animated `setFrame:animate:` is driven by the same WindowServer
 // pipeline that draws every other macOS window, so it lands on the display's
@@ -349,6 +407,17 @@ interface Bounds {
 
 let pinAnimating = false;
 let pinAnimationFallback: NodeJS.Timeout | null = null;
+
+/**
+ * In-flight resize: when the user is dragging the corner handle, main
+ * intercepts the AppKit `LeftMouseDragged` stream and rewrites `setBounds`
+ * on every event. `null` while idle.
+ */
+let resizeState: {
+  startCursor: { x: number; y: number };
+  startBounds: Bounds;
+  draggedCorner: Corner;
+} | null = null;
 // Target the current pin/unpin animation is interpolating toward. We watch
 // `move`/`resize` events and emit `animationDone` the moment AppKit settles
 // the window onto these exact pixel coordinates — that's the true "the
@@ -460,24 +529,99 @@ function centerOnCursorDisplay(w: BrowserWindow, opts: LayoutOpts): void {
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
 let lastPinnedCorner: Corner = 'tr';
 
+function oppositeCorner(corner: Corner): Corner {
+  switch (corner) {
+    case 'tr':
+      return 'bl';
+    case 'tl':
+      return 'br';
+    case 'br':
+      return 'tl';
+    case 'bl':
+      return 'tr';
+  }
+}
+
+/**
+ * User-customized pin width/height set via resize handles. `null` means
+ * "follow the default": width = PIN_WIDTH, height = content-driven via the
+ * renderer's ResizeObserver. Reset by the header's reset button.
+ */
+let customPinSize: { width: number; height: number } | null = null;
+
+function setCustomPinSize(
+  next: { width: number; height: number } | null,
+): void {
+  const wasActive = customPinSize !== null;
+  customPinSize = next;
+  const isActive = next !== null;
+  if (wasActive !== isActive && draftWin && !draftWin.isDestroyed()) {
+    draftWin.webContents.send(IPC.DraftCustomSizeChanged, isActive);
+  }
+}
+
+/**
+ * Max pin dimensions: 90 % of one quarter of the work area along each
+ * axis. Caps the resize so the panel can't sprawl across most of the
+ * screen — a "pin" is meant to stay small.
+ */
+function pinSizeLimits(display: Electron.Display): {
+  minW: number;
+  maxW: number;
+  minH: number;
+  maxH: number;
+} {
+  const wa = display.workArea;
+  return {
+    minW: PIN_WIDTH,
+    maxW: Math.round(wa.width * 0.45),
+    minH: 180,
+    maxH: Math.round(wa.height * 0.45),
+  };
+}
+
+function clampPinSize(
+  display: Electron.Display,
+  size: { width: number; height: number },
+): { width: number; height: number } {
+  const { minW, maxW, minH, maxH } = pinSizeLimits(display);
+  return {
+    width: Math.max(minW, Math.min(Math.round(size.width), maxW)),
+    height: Math.max(minH, Math.min(Math.round(size.height), maxH)),
+  };
+}
+
 function cornerBounds(
   display: Electron.Display,
   corner: Corner,
-  height: number,
+  size: { width: number; height: number },
 ): Bounds {
   const wa = display.workArea;
   return {
     x:
       corner === 'tr' || corner === 'br'
-        ? wa.x + wa.width - PIN_WIDTH - PIN_INSET
+        ? wa.x + wa.width - size.width - PIN_INSET
         : wa.x + PIN_INSET,
     y:
       corner === 'bl' || corner === 'br'
-        ? wa.y + wa.height - height - PIN_INSET
+        ? wa.y + wa.height - size.height - PIN_INSET
         : wa.y + PIN_INSET,
-    width: PIN_WIDTH,
-    height,
+    width: size.width,
+    height: size.height,
   };
+}
+
+/**
+ * Pin size used by `snapToCorner` callers that don't supply an explicit
+ * `targetHeight`. Honors the user's custom size when present, otherwise
+ * falls back to the design default width and a sensible default height.
+ */
+function effectivePinSize(
+  w: BrowserWindow,
+  targetHeight?: number,
+): { width: number; height: number } {
+  if (customPinSize) return customPinSize;
+  return { width: PIN_WIDTH, height: targetHeight ?? w.getBounds().height ?? 220 };
 }
 
 /**
@@ -489,9 +633,12 @@ function cornerBounds(
  */
 function snapToCorner(w: BrowserWindow, corner: Corner, opts: LayoutOpts): void {
   const display = screen.getDisplayMatching(w.getBounds());
-  const height = opts.targetHeight ?? w.getBounds().height ?? 220;
-  const target = cornerBounds(display, corner, height);
-  lastPinnedCorner = corner;
+  const size = effectivePinSize(w, opts.targetHeight);
+  const target = cornerBounds(display, corner, size);
+  if (corner !== lastPinnedCorner) {
+    lastPinnedCorner = corner;
+    if (!w.isDestroyed()) w.webContents.send('draft:cornerChanged', corner);
+  }
   if (opts.animate) animateBounds(w, target);
   else setBoundsImmediate(w, target);
 }
@@ -651,26 +798,83 @@ app.whenReady().then(() => {
     // intermediate AppKit frame would race with a renderer-driven height
     // update and you'd see the window twitch.
     if (pinAnimating) return;
+    // Once the user has manually resized the pinned panel, ResizeObserver
+    // updates stop driving the height — the custom size is the authoritative
+    // dimension until reset.
+    if (draftPinned && customPinSize) return;
     const display = screen.getDisplayMatching(draftWin.getBounds());
-    // Per-mode height bracket. Pinned mode caps at a compact sticky size; the
-    // full mode allows the panel to grow up to 60 % of the work area. The
-    // renderer-side body has its own matching `max-height`, so once the
-    // window hits the cap, content stays inside the body's scrollable area.
-    // Mins/maxes account for the chrome that's always present (header 60,
-    // divider 1, footer 46 — kept in both pinned and full modes to avoid
-    // the structural jump described above).
     const minH = draftPinned ? 180 : 200;
     const maxH = draftPinned ? 360 : Math.round(display.workArea.height * 0.6);
     const next = Math.max(minH, Math.min(Math.round(rawHeight), maxH));
     const bounds = draftWin.getBounds();
-    // No-op if we're already there. Without this, every `setBounds` call
-    // triggers a renderer reflow that fires the ResizeObserver, which then
-    // posts another `draft:resize` — an infinite ping-pong even with no
-    // user input. A 2 px deadband absorbs sub-pixel oscillations.
     if (Math.abs(next - bounds.height) < 2) return;
     const [w] = draftWin.getSize();
     const width = w ?? 560;
     draftWin.setBounds({ x: bounds.x, y: bounds.y, width, height: next });
+  });
+
+  // Manual resize from the renderer (drag of the corner handle). The
+  // renderer ships a target width/height; main clamps to the pin's allowed
+  // bracket and recomputes x/y so the anchor (= last pinned corner) stays
+  // pixel-pinned. This means the corner the user is NOT dragging never
+  // moves — exactly the expectation for "resize from the opposite corner".
+  ipcMain.handle(
+    IPC.DraftSetPinSize,
+    async (_e, raw: { width: number; height: number }): Promise<void> => {
+      if (!draftWin) return;
+      if (!draftPinned) return;
+      if (pinAnimating) return;
+      const display = screen.getDisplayMatching(draftWin.getBounds());
+      const size = clampPinSize(display, raw);
+      setCustomPinSize(size);
+      const target = cornerBounds(display, lastPinnedCorner, size);
+      const cur = draftWin.getBounds();
+      if (
+        Math.abs(cur.width - target.width) < 1 &&
+        Math.abs(cur.height - target.height) < 1 &&
+        Math.abs(cur.x - target.x) < 1 &&
+        Math.abs(cur.y - target.y) < 1
+      ) {
+        return;
+      }
+      setBoundsImmediate(draftWin, target);
+    },
+  );
+
+  ipcMain.handle(IPC.DraftGetCorner, async (): Promise<Corner> => lastPinnedCorner);
+
+  ipcMain.handle(IPC.DraftBeginResize, async (): Promise<void> => {
+    if (!draftWin || !draftPinned) return;
+    if (pinAnimating) return;
+    resizeState = {
+      startCursor: screen.getCursorScreenPoint(),
+      startBounds: draftWin.getBounds(),
+      // The user grabbed the corner opposite the pin's anchor.
+      draggedCorner: oppositeCorner(lastPinnedCorner),
+    };
+    // Turn off AppKit's "drag this window around" gesture while we own
+    // the cursor stream. Without this, dragging the resize handle near
+    // the top of the panel can race AppKit into starting a window move
+    // — particularly visible when the pin is in a bottom corner and the
+    // resize handle ends up over the header strip.
+    draftWin.setMovable(false);
+  });
+
+  ipcMain.handle(IPC.DraftResetPinSize, async (): Promise<void> => {
+    if (!draftWin) return;
+    if (!draftPinned) return;
+    setCustomPinSize(null);
+    const display = screen.getDisplayMatching(draftWin.getBounds());
+    // Animate back to the design-default width AND a default pinned
+    // height. The renderer will switch back to its content-fit layout
+    // (because `customSizeChanged` just fired with `false`) and the
+    // ResizeObserver will tighten the height further to fit the body
+    // once the animation settles.
+    const target = cornerBounds(display, lastPinnedCorner, {
+      width: PIN_WIDTH,
+      height: PIN_DEFAULT_HEIGHT,
+    });
+    animateBounds(draftWin, target);
   });
 
   ipcMain.handle(IPC.DraftPromote, async (_e, id: string): Promise<NoteDTO | null> => {

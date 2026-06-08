@@ -35,6 +35,7 @@ struct Subscription {
 
 Subscription g_mouseUp;
 Subscription g_mouseDown;
+Subscription g_mouseDrag;
 
 void TearDown(Subscription& sub) {
   if (sub.globalMonitor != nil) {
@@ -98,9 +99,30 @@ Napi::Value SubscribeToMouseDown(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+Napi::Value SubscribeToMouseDrag(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "subscribeToMouseDrag(callback) requires a function")
+      .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (g_mouseDrag.globalMonitor != nil || g_mouseDrag.localMonitor != nil) {
+    return env.Undefined();
+  }
+  Napi::Function callback = info[0].As<Napi::Function>();
+  g_mouseDrag.tsfn = Napi::ThreadSafeFunction::New(
+    env, callback, "InmemnoteMouseDrag", 0, 1);
+  // `NSEventMaskLeftMouseDragged` only fires while the left button is held
+  // down — exactly the window we want for "drive a custom resize from the
+  // global cursor stream", with no events polluting the idle case.
+  InstallMonitors(g_mouseDrag, NSEventMaskLeftMouseDragged);
+  return env.Undefined();
+}
+
 Napi::Value Unsubscribe(const Napi::CallbackInfo& info) {
   TearDown(g_mouseUp);
   TearDown(g_mouseDown);
+  TearDown(g_mouseDrag);
   return info.Env().Undefined();
 }
 
@@ -108,6 +130,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("subscribeToMouseUp", Napi::Function::New(env, SubscribeToMouseUp));
   exports.Set("subscribeToMouseDown",
               Napi::Function::New(env, SubscribeToMouseDown));
+  exports.Set("subscribeToMouseDrag",
+              Napi::Function::New(env, SubscribeToMouseDrag));
   exports.Set("unsubscribe", Napi::Function::New(env, Unsubscribe));
   return exports;
 }

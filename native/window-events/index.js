@@ -4,21 +4,14 @@
 const binding = require('./build/Release/window_events.node');
 
 module.exports = {
-  /**
-   * Start receiving left-mouse-up notifications. `callback` fires on every
-   * release (both inside and outside the app's own windows). Safe to call
-   * more than once — subsequent calls before `unsubscribe()` are no-ops.
-   */
   subscribeToMouseUp: binding.subscribeToMouseUp,
-  /**
-   * Start receiving left-mouse-down notifications. Same semantics as
-   * `subscribeToMouseUp`: idempotent, fires for every press anywhere on
-   * the system.
-   */
   subscribeToMouseDown: binding.subscribeToMouseDown,
   /**
-   * Remove every AppKit observer this module has installed and release the
-   * associated JS callback handles.
+   * Fires while the left mouse button is HELD and the cursor moves
+   * (`NSEventMaskLeftMouseDragged`). No events emit while the button is
+   * up — keeps the idle path zero-cost. Coordinates are NOT delivered;
+   * read them via `screen.getCursorScreenPoint()` inside the callback.
    */
+  subscribeToMouseDrag: binding.subscribeToMouseDrag,
   unsubscribe: binding.unsubscribe,
 };

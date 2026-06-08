@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DraftFooter } from './DraftFooter';
 import { DraftHeader } from './DraftHeader';
 import { CodeMirrorEditor } from './editor/CodeMirrorEditor';
+import { ResizeHandle } from './ResizeHandle';
 import { draftActions } from './slice';
+
+type Corner = 'tl' | 'tr' | 'bl' | 'br';
 
 /**
  * Top-level Draft panel.
@@ -38,6 +41,14 @@ export function DraftPanel(): JSX.Element {
   // Whether the user is currently dragging the pinned window by its header.
   // Drives the translucent drag overlay rendered over the panel.
   const [isDragging, setIsDragging] = useState(false);
+  // The corner the pinned panel currently rests in. Drives ResizeHandle
+  // placement: the handle goes on the diagonally OPPOSITE corner so the
+  // user can only resize "away from the wall" the pin is anchored to.
+  const [pinnedCorner, setPinnedCorner] = useState<Corner>('tr');
+  // Main flips this to `true` while the user has dragged the corner
+  // handle to a custom size. Body layout reacts: fill-the-window in
+  // custom mode, content-fit with max-height in default mode.
+  const [customSized, setCustomSized] = useState(false);
 
   const openFresh = useCallback(async () => {
     dispatch(draftActions.setLoading(true));
@@ -198,6 +209,27 @@ export function DraftPanel(): JSX.Element {
     };
   }, []);
 
+  // Sync the pin corner from main: ask once for the current value, then
+  // listen for changes so the ResizeHandle relocates after a drag-snap.
+  useEffect(() => {
+    void window.inmemnote.draft.getCorner().then(setPinnedCorner);
+    return window.inmemnote.draft.onCornerChanged(setPinnedCorner);
+  }, []);
+
+  // Sync the "custom-sized" flag from main: drives body layout (fill the
+  // window vs. fit content). Reset on unpin so the next pin starts in
+  // auto mode regardless of what the previous session ended in.
+  useEffect(() => {
+    return window.inmemnote.draft.onCustomSizeChanged(setCustomSized);
+  }, []);
+  useEffect(() => {
+    if (!draft.pinned) setCustomSized(false);
+  }, [draft.pinned]);
+
+  const onResetPinSize = useCallback(() => {
+    void window.inmemnote.draft.resetPinSize();
+  }, []);
+
   // Drag overlay state.
   //
   // The renderer can't observe `mousedown` on the header at all: with
@@ -260,20 +292,43 @@ export function DraftPanel(): JSX.Element {
   // min/max-height only.
   const BODY_PAD_X = 24;
   const BODY_PAD_Y = 16;
-  const bodyMinHeight = pinned ? 80 : 96;
-  const bodyMaxHeight = pinned ? 240 : 'min(60vh, 560px)';
+  // Body layout splits along two axes:
+  //
+  //   1. un-pinned   — Spotlight-style: fit content, cap at `min(60vh, 560)`.
+  //   2. pinned auto — same fit-content path, but no cap. The renderer's
+  //                    ResizeObserver pushes the height up to main, which
+  //                    in turn drives the BrowserWindow.
+  //   3. pinned custom — body fills the window vertically. The window
+  //                    height is locked to whatever the user dragged the
+  //                    resize handle to; the editor expands to match.
+  const usesFlexFill = pinned && customSized;
+  const bodyMinHeight = usesFlexFill ? 0 : 96;
+  const bodyMaxHeight = pinned ? undefined : 'min(60vh, 560px)';
 
   return (
-    <div className="flex h-full w-full items-start justify-center pt-0">
-      {/* No border + no border-radius on purpose. The frameless macOS window
-          renders its own subtle edge / shadow; layering a CSS border with a
-          fixed radius on top produced a visible "double frame" — the two
-          curves were computed by different formulas and didn't line up at
-          the corners. A plain rectangle composes cleanly with whatever the
-          OS draws. */}
+    <div className="flex h-full w-full justify-center pt-0">
+      {/* Panel fills the BrowserWindow it lives in. We used to anchor the
+          panel at the top via `items-start`, but that left it sized to its
+          content even when the OS window had been resized larger — the
+          rest of the area below was empty. A simple `h-full` lets the
+          panel match the window 1:1, and the body inside grows via
+          `flex: 1` while the header and footer keep their natural sizes.
+
+          No border / border-radius on purpose: layering CSS rounded corners
+          on top of the frameless macOS window produced a visible double
+          frame because the two corner radii were computed by different
+          formulas. */}
+      {/* `h-full` only in custom-sized mode: when the user has explicitly
+          stretched the panel via the resize handle, the panel needs to
+          fill the OS window so the body can grow with `flex: 1`. In every
+          other state — un-pinned, or pinned without manual resize — the
+          panel sizes to its content so the BrowserWindow can shrink-wrap
+          via ResizeObserver. */}
       <div
         ref={panelRef}
-        className="bg-panel overflow-hidden w-full flex flex-col relative"
+        className={`bg-panel overflow-hidden w-full flex flex-col relative ${
+          usesFlexFill ? 'h-full' : ''
+        }`}
       >
         {/* Drag overlay — covers the entire pinned panel while AppKit moves
             the window. Blurs the underlying content so the user gets a clear
@@ -297,7 +352,12 @@ export function DraftPanel(): JSX.Element {
             }}
           />
         )}
-        <DraftHeader pinned={pinned} onTogglePin={onTogglePin} />
+        <DraftHeader
+          pinned={pinned}
+          onTogglePin={onTogglePin}
+          onResetPinSize={onResetPinSize}
+        />
+        {pinned && <ResizeHandle pinnedCorner={pinnedCorner} />}
         <div className="h-px bg-line" />
         <div
           className="draft-no-drag overflow-y-auto"
@@ -306,6 +366,7 @@ export function DraftPanel(): JSX.Element {
             paddingBottom: BODY_PAD_Y,
             paddingLeft: BODY_PAD_X,
             paddingRight: BODY_PAD_X,
+            flex: usesFlexFill ? 1 : undefined,
             minHeight: bodyMinHeight,
             maxHeight: bodyMaxHeight,
           }}

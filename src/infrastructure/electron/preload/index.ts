@@ -78,6 +78,46 @@ const api = {
       ipcRenderer.on('draft:dragEnd', listener);
       return () => ipcRenderer.removeListener('draft:dragEnd', listener);
     },
+    /**
+     * Manually resize the pinned panel. Main clamps to the pin's
+     * width/height bracket and re-anchors the window so the corner the
+     * user is *not* dragging stays still.
+     */
+    setPinSize: (size: { width: number; height: number }): Promise<void> =>
+      ipcRenderer.invoke(IPC.DraftSetPinSize, size),
+    /** Drop any user-set custom size and animate back to the default. */
+    resetPinSize: (): Promise<void> => ipcRenderer.invoke(IPC.DraftResetPinSize),
+    /** Synchronously fetch the current pin corner ('tl' | 'tr' | 'bl' | 'br'). */
+    getCorner: (): Promise<'tl' | 'tr' | 'bl' | 'br'> =>
+      ipcRenderer.invoke(IPC.DraftGetCorner),
+    /**
+     * Subscribe to "user-customized-size" flag changes. `true` means the
+     * pinned overlay should fill the window; `false` means content drives
+     * height via the ResizeObserver path.
+     */
+    onCustomSizeChanged: (handler: (active: boolean) => void): (() => void) => {
+      const listener = (_e: unknown, active: boolean): void => handler(active);
+      ipcRenderer.on(IPC.DraftCustomSizeChanged, listener);
+      return () => ipcRenderer.removeListener(IPC.DraftCustomSizeChanged, listener);
+    },
+    /**
+     * Start tracking a resize drag. Main records the current cursor and
+     * window state, then drives `setBounds` directly off the native AppKit
+     * mouse-drag stream until the mouse is released. The renderer doesn't
+     * need a `mousemove` listener at all.
+     */
+    beginResize: (): Promise<void> => ipcRenderer.invoke(IPC.DraftBeginResize),
+    /**
+     * Main broadcasts this every time the active pin corner changes
+     * (drag-to-corner snap). Renderer uses it to position the resize
+     * handle on the diagonally-opposite corner.
+     */
+    onCornerChanged: (handler: (corner: 'tl' | 'tr' | 'bl' | 'br') => void): (() => void) => {
+      const listener = (_e: unknown, corner: 'tl' | 'tr' | 'bl' | 'br'): void =>
+        handler(corner);
+      ipcRenderer.on('draft:cornerChanged', listener);
+      return () => ipcRenderer.removeListener('draft:cornerChanged', listener);
+    },
   },
   notes: {
     list: (filter: NoteListFilterDTO): Promise<NoteDTO[]> =>
