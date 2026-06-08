@@ -33,6 +33,13 @@ export function ResizeHandle({ pinnedCorner }: ResizeHandleProps): JSX.Element {
     <div
       data-testid="draft-resize-handle"
       onMouseDown={onMouseDown}
+      // `draft-no-drag` opts out of the header's `-webkit-app-region: drag`.
+      // Without it, when the pin sits in a bottom corner the handle lands
+      // inside the top-edge header strip; AppKit's drag region swallows the
+      // mousedown before any DOM listener runs (z-index is irrelevant to
+      // drag-region hit-testing), so the user sees a window drag instead of
+      // a resize.
+      className="draft-no-drag"
       style={{
         position: 'absolute',
         ...positionFor(opposite),

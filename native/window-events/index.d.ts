@@ -22,5 +22,28 @@ export function subscribeToMouseDown(callback: () => void): void;
  */
 export function subscribeToMouseDrag(callback: () => void): void;
 
+/**
+ * Attach an `NSTrackingArea` to a sensor subview pinned over the top
+ * `headerHeight` strip of the given window's content view. Fires the
+ * callback with `true` when the cursor enters the strip and `false` when
+ * it leaves. Costs nothing while the cursor is idle — AppKit only signals
+ * the two boundary crossings, not every pixel of movement.
+ *
+ * Idempotent: a second call before `removeHeaderHoverTracker` is a no-op.
+ *
+ * @param windowHandle   `BrowserWindow.getNativeWindowHandle()` Buffer
+ *                       (on macOS this contains the content view pointer).
+ * @param headerHeight   Height of the strip to observe, in points.
+ * @param callback       `(entered: boolean) => void`
+ */
+export function installHeaderHoverTracker(
+  windowHandle: Buffer,
+  headerHeight: number,
+  callback: (entered: boolean) => void,
+): void;
+
+/** Remove the header hover sensor installed by `installHeaderHoverTracker`. */
+export function removeHeaderHoverTracker(): void;
+
 /** Remove every AppKit observer this module installed. */
 export function unsubscribe(): void;

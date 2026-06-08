@@ -363,6 +363,21 @@ function createDraftWindow(): BrowserWindow {
     setBoundsImmediate(w, target);
   });
 
+  // Header hover sensor. Pinned mode only — we filter here rather than
+  // installing/removing on every pin toggle so the AppKit subview stays
+  // attached for the window's whole lifetime (cheaper, and avoids any
+  // mid-pin race where the user is already hovering at the moment of
+  // toggle). Forwarded as `draft:headerHover` with a boolean payload.
+  windowEvents.installHeaderHoverTracker(
+    w.getNativeWindowHandle(),
+    HEADER_HEIGHT,
+    (hovering: boolean) => {
+      if (w.isDestroyed()) return;
+      if (!draftPinned) return;
+      w.webContents.send(IPC.DraftHeaderHover, hovering);
+    },
+  );
+
   // Tear down the AppKit observers when the window goes away — otherwise
   // the addon would hold a JS callback alive past the window's lifetime.
   w.on('closed', () => {

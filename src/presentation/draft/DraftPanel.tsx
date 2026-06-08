@@ -340,7 +340,10 @@ export function DraftPanel(): JSX.Element {
         {isDragging && (
           <div
             aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
+            // Starts BELOW the 60px header + 1px divider so the header stays
+            // crisp during a drag — it's the thing the user is grabbing, so
+            // muting it would visually contradict the gesture.
+            className="absolute left-0 right-0 bottom-0 top-[61px] pointer-events-none"
             style={{
               // Subtle hint of motion — just enough to read as "I picked
               // this up" without obscuring the panel content. Heavy blur
@@ -355,7 +358,7 @@ export function DraftPanel(): JSX.Element {
         <DraftHeader
           pinned={pinned}
           onTogglePin={onTogglePin}
-          onResetPinSize={onResetPinSize}
+          onResetPinSize={customSized ? onResetPinSize : undefined}
         />
         {pinned && <ResizeHandle pinnedCorner={pinnedCorner} />}
         <div className="h-px bg-line" />

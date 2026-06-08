@@ -13,5 +13,7 @@ module.exports = {
    * read them via `screen.getCursorScreenPoint()` inside the callback.
    */
   subscribeToMouseDrag: binding.subscribeToMouseDrag,
+  installHeaderHoverTracker: binding.installHeaderHoverTracker,
+  removeHeaderHoverTracker: binding.removeHeaderHoverTracker,
   unsubscribe: binding.unsubscribe,
 };

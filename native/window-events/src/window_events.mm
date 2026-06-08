@@ -16,7 +16,15 @@
 //     the cursor outside our window's bounds, no DOM `mouseup` ever
 //     reaches the renderer.
 //
-// Both subscriptions install a pair of `NSEvent` monitors — global +
+//   - `installHeaderHoverTracker` — attaches an `NSTrackingArea` to a
+//     subview pinned over the top header strip of the Draft window so we
+//     get `mouseEntered`/`mouseExited` callbacks without a global cursor
+//     monitor. CSS `:hover` does not fire on `-webkit-app-region: drag`
+//     elements, so this is the only way to observe hover over the header.
+//     Subview returns `nil` from `hitTest:` so it never consumes a real
+//     mouse event — it's pure sensor.
+//
+// All event subscriptions install a pair of `NSEvent` monitors — global +
 // local — and bridge their callbacks back to JS through a
 // `ThreadSafeFunction`. The local monitor MUST return the event unchanged
 // so AppKit keeps routing it to its original target (buttons, text
@@ -36,6 +44,7 @@ struct Subscription {
 Subscription g_mouseUp;
 Subscription g_mouseDown;
 Subscription g_mouseDrag;
+Subscription g_headerHover;
 
 void TearDown(Subscription& sub) {
   if (sub.globalMonitor != nil) {
@@ -64,6 +73,78 @@ void InstallMonitors(Subscription& sub, NSEventMask mask) {
                                    return event;
                                  }];
 }
+
+}  // namespace
+
+// Forward decl so the @interface can use it.
+static void FireHeaderHover(bool entered);
+
+@interface InmemnoteHoverView : NSView
+@end
+
+@implementation InmemnoteHoverView {
+  NSTrackingArea* _trackingArea;
+}
+
+// Called by AppKit whenever the view's geometry changes (which, with our
+// `autoresizingMask`, happens automatically when the window resizes). We
+// drop the old tracking area and install a fresh one covering the current
+// bounds — `NSTrackingInVisibleRect` keeps the rect in sync without
+// further intervention, but rebuilding here is the idiomatic AppKit
+// pattern.
+- (void)updateTrackingAreas {
+  [super updateTrackingAreas];
+  if (_trackingArea != nil) {
+    [self removeTrackingArea:_trackingArea];
+    _trackingArea = nil;
+  }
+  _trackingArea = [[NSTrackingArea alloc]
+      initWithRect:self.bounds
+           options:(NSTrackingMouseEnteredAndExited |
+                    NSTrackingActiveAlways |
+                    NSTrackingInVisibleRect)
+             owner:self
+          userInfo:nil];
+  [self addTrackingArea:_trackingArea];
+}
+
+- (void)mouseEntered:(NSEvent*)event {
+  FireHeaderHover(true);
+}
+
+- (void)mouseExited:(NSEvent*)event {
+  FireHeaderHover(false);
+}
+
+// Crucial: this view exists ONLY to host the tracking area. Returning nil
+// from hit-testing makes it transparent to mouse events, so the real
+// targets (window drag region, pin button, resize handle, …) still
+// receive their clicks. Without this, the view would swallow every
+// mousedown over the header.
+- (NSView*)hitTest:(NSPoint)point {
+  return nil;
+}
+
+@end
+
+namespace {
+// ARC keeps the view alive through this strong reference. We null it out
+// in RemoveHeaderHoverTracker after `removeFromSuperview`.
+InmemnoteHoverView* g_hoverView = nil;
+}  // namespace
+
+static void FireHeaderHover(bool entered) {
+  if (!g_headerHover.tsfn) return;
+  bool* payload = new bool(entered);
+  g_headerHover.tsfn.NonBlockingCall(
+      payload,
+      [](Napi::Env env, Napi::Function jsCallback, bool* data) {
+        jsCallback.Call({Napi::Boolean::New(env, *data)});
+        delete data;
+      });
+}
+
+namespace {
 
 Napi::Value SubscribeToMouseUp(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
@@ -119,10 +200,86 @@ Napi::Value SubscribeToMouseDrag(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+Napi::Value InstallHeaderHoverTracker(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsBuffer() || !info[1].IsNumber() ||
+      !info[2].IsFunction()) {
+    Napi::TypeError::New(
+        env,
+        "installHeaderHoverTracker(windowHandle, headerHeight, callback)")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (g_hoverView != nil) {
+    // Idempotent: a second call before remove is a no-op.
+    return env.Undefined();
+  }
+
+  Napi::Buffer<unsigned char> handleBuf =
+      info[0].As<Napi::Buffer<unsigned char>>();
+  if (handleBuf.Length() < sizeof(void*)) {
+    Napi::Error::New(env, "windowHandle buffer too small")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  // Electron's `BrowserWindow.getNativeWindowHandle()` returns a Buffer
+  // containing a pointer to the NSView that backs the window's content
+  // area. That's exactly the view we want to host the tracking subview on.
+  // Bridge from the raw C pointer Electron handed us into an ARC-managed
+  // NSView reference. We `__bridge` because the view is owned by Electron's
+  // window — ARC must NOT take ownership of it.
+  void* raw = *reinterpret_cast<void**>(handleBuf.Data());
+  NSView* contentView = (__bridge NSView*)raw;
+  if (contentView == nil) return env.Undefined();
+
+  CGFloat headerHeight = info[1].As<Napi::Number>().DoubleValue();
+  Napi::Function cb = info[2].As<Napi::Function>();
+
+  g_headerHover.tsfn = Napi::ThreadSafeFunction::New(
+      env, cb, "InmemnoteHeaderHover", 0, 1);
+
+  // Position the sensor over the top strip of the content view. We branch
+  // on `isFlipped` because the autoresizing mask depends on the parent's
+  // coordinate orientation: a flipped parent has the origin at the top, so
+  // we anchor via `MaxYMargin`; the standard AppKit orientation has it at
+  // the bottom, so we anchor via `MinYMargin`. Either way the result is
+  // "stay glued to the top edge, stretch horizontally with the window".
+  CGFloat parentW = contentView.bounds.size.width;
+  CGFloat parentH = contentView.bounds.size.height;
+  NSRect frame;
+  NSAutoresizingMaskOptions mask = NSViewWidthSizable;
+  if (contentView.isFlipped) {
+    frame = NSMakeRect(0, 0, parentW, headerHeight);
+    mask |= NSViewMaxYMargin;
+  } else {
+    frame = NSMakeRect(0, parentH - headerHeight, parentW, headerHeight);
+    mask |= NSViewMinYMargin;
+  }
+
+  g_hoverView = [[InmemnoteHoverView alloc] initWithFrame:frame];
+  g_hoverView.autoresizingMask = mask;
+  [contentView addSubview:g_hoverView];
+  return env.Undefined();
+}
+
+Napi::Value RemoveHeaderHoverTracker(const Napi::CallbackInfo& info) {
+  if (g_hoverView != nil) {
+    [g_hoverView removeFromSuperview];
+    g_hoverView = nil;
+  }
+  TearDown(g_headerHover);
+  return info.Env().Undefined();
+}
+
 Napi::Value Unsubscribe(const Napi::CallbackInfo& info) {
   TearDown(g_mouseUp);
   TearDown(g_mouseDown);
   TearDown(g_mouseDrag);
+  if (g_hoverView != nil) {
+    [g_hoverView removeFromSuperview];
+    g_hoverView = nil;
+  }
+  TearDown(g_headerHover);
   return info.Env().Undefined();
 }
 
@@ -132,6 +289,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
               Napi::Function::New(env, SubscribeToMouseDown));
   exports.Set("subscribeToMouseDrag",
               Napi::Function::New(env, SubscribeToMouseDrag));
+  exports.Set("installHeaderHoverTracker",
+              Napi::Function::New(env, InstallHeaderHoverTracker));
+  exports.Set("removeHeaderHoverTracker",
+              Napi::Function::New(env, RemoveHeaderHoverTracker));
   exports.Set("unsubscribe", Napi::Function::New(env, Unsubscribe));
   return exports;
 }

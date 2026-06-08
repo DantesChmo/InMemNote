@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 interface DraftHeaderProps {
   pinned: boolean;
   onTogglePin: () => void;
@@ -16,14 +18,44 @@ interface DraftHeaderProps {
  *
  * Both buttons opt out of the drag region via `draft-no-drag` so clicks on
  * them never get swallowed by AppKit's drag handling.
+ *
+ * Hover affordance: CSS `:hover` never fires on a `-webkit-app-region: drag`
+ * element — AppKit takes the area over before Chromium can match the
+ * pseudoclass. So we get the hover signal from main, where a native
+ * `NSTrackingArea` watches the top strip of the window's content view and
+ * emits enter/exit callbacks (only on boundary crossings, so the idle path
+ * is free of event traffic).
  */
 export function DraftHeader({
   pinned,
   onTogglePin,
   onResetPinSize,
 }: DraftHeaderProps): JSX.Element {
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    return window.inmemnote.draft.onHeaderHover(setHovered);
+  }, []);
+
+  // Main only emits hover events while pinned, but the user could un-pin
+  // while their cursor was over the header — without an explicit reset the
+  // last `entered=true` we received would visually stick.
+  useEffect(() => {
+    if (!pinned) setHovered(false);
+  }, [pinned]);
+
   return (
-    <div className={`${pinned ? 'draft-drag' : ''} flex items-center h-[60px] px-5`}>
+    <div
+      className={`${pinned ? 'draft-drag' : ''} flex items-center h-[60px] px-5 transition-colors`}
+      style={{
+        ...(pinned ? { cursor: 'grab' } : undefined),
+        // Subtle hover tint — uses `--text` mixed at 4 % so the same value
+        // reads correctly in both dark and light themes.
+        ...(pinned && hovered
+          ? { background: 'color-mix(in oklch, var(--text) 4%, transparent)' }
+          : undefined),
+      }}
+    >
       <div className="w-7 h-7 rounded-icon bg-accent text-accent-ink flex items-center justify-center text-[15px] leading-none">
         ⚡
       </div>
@@ -57,7 +89,7 @@ export function DraftHeader({
         onClick={onTogglePin}
         aria-label={pinned ? 'Открепить' : 'Закрепить'}
         data-testid="draft-pin-btn"
-        className={`draft-no-drag ${pinned ? 'ml-2' : 'ml-auto'} w-8 h-8 rounded-icon flex items-center justify-center transition-colors ${
+        className={`draft-no-drag ${pinned && onResetPinSize ? 'ml-2' : 'ml-auto'} w-8 h-8 rounded-icon flex items-center justify-center transition-colors ${
           pinned
             ? 'bg-accent text-accent-ink'
             : 'text-text-3 hover:bg-[var(--hl)] hover:text-text-2'

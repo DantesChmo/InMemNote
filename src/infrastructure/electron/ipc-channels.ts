@@ -32,6 +32,13 @@ export const IPC = {
    * `flex: 1` so the editor fills whatever bounds main hands the window.
    */
   DraftCustomSizeChanged: 'draft:customSizeChanged',
+  /**
+   * Main pushes hover state for the pinned-window header strip. Detected
+   * natively via `NSTrackingArea` because CSS `:hover` doesn't fire on
+   * elements with `-webkit-app-region: drag`. Only emitted while the
+   * window is pinned — un-pinned mode never highlights.
+   */
+  DraftHeaderHover: 'draft:headerHover',
 
   // Library (main app)
   NotesList: 'notes:list',

@@ -118,6 +118,17 @@ const api = {
       ipcRenderer.on('draft:cornerChanged', listener);
       return () => ipcRenderer.removeListener('draft:cornerChanged', listener);
     },
+    /**
+     * Hover state for the pinned header. Source is `NSTrackingArea` on a
+     * sensor subview in main, not CSS — `:hover` doesn't fire on
+     * `-webkit-app-region: drag` zones, so this is the only way to know
+     * the cursor is over the drag strip.
+     */
+    onHeaderHover: (handler: (hovering: boolean) => void): (() => void) => {
+      const listener = (_e: unknown, hovering: boolean): void => handler(hovering);
+      ipcRenderer.on(IPC.DraftHeaderHover, listener);
+      return () => ipcRenderer.removeListener(IPC.DraftHeaderHover, listener);
+    },
   },
   notes: {
     list: (filter: NoteListFilterDTO): Promise<NoteDTO[]> =>
