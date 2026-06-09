@@ -46,7 +46,12 @@ export async function launchApp(
   }
 
   const app = await electron.launch({
-    args: [process.cwd()],
+    // `--lang=ru` pins navigator.language so the i18n layer renders the
+    // Russian dictionary regardless of the host runner's OS locale. Tests
+    // assert on user-visible strings ("Быстрая заметка", "не закреплено",
+    // "Закреплённые", …) — a CI runner in en-US would otherwise see the
+    // English dictionary and fail.
+    args: ['--lang=ru', process.cwd()],
     env: {
       ...process.env,
       INMEMNOTE_E2E: '1',
