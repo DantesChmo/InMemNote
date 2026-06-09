@@ -131,9 +131,45 @@ DTO для подстановок: `emptyDraftDTO()`, `noteDTO()`, `settingsDTO(
 
 - Реальный CodeMirror, реальный Redux, реальный IPC — это уровень
   интеграционных / E2E тестов (Playwright, `e2e/`).
-- Поведение редьюсеров slice'а — отдельный unit-тест на сам slice без UI.
+- Поведение редьюсеров slice'а — отдельный unit-тест на сам slice без UI
+  (см. раздел 8a).
 - Доменные правила (например, валидация `Hotkey`) — тесты в `src/domain/`.
 - Визуальные регрессии (Tailwind, цвета) — это область design QA / E2E.
+
+## 8a. Тесты на slice (отдельно от UI)
+
+Каждый slice в `presentation/` имеет собственный файл `slice.spec.ts`
+рядом с `slice.ts`. UI-тесты на компоненты slice **не импортируют** — там
+slice замокан (см. раздел 2). Здесь, наоборот, slice — единственный
+объект изучения, и React-уровня нет вовсе (`.spec.ts`, не `.spec.tsx`).
+
+Структура файла:
+
+1. **Чистые редьюсеры.** Прямой вызов `reducer(state, action)`, ассерты на
+   возвращённый next-state. Никакого `configureStore`, никакого dispatch.
+2. **Async-thunks.** Поднимаем локальный `configureStore({ reducer: {
+   <name>: <name>Reducer } })`. `window.inmemnote` ставим через
+   `installInmemnoteApiMock()` (см. `src/test/mockInmemnoteApi.ts`).
+   Конкретные методы IPC переопределяем точечно:
+   `(api.notes.list as ReturnType<typeof vi.fn>).mockResolvedValueOnce(...)`.
+
+Правила:
+
+- Не импортируем `@presentation/app/store` (корневой композит). Юнит — это
+  slice, а не вся форма состояния. Локальный `makeStore()` мутит только
+  свой кусок.
+- Не рендерим React и не импортируем хелперов из RTL.
+- Для веток вида `action.error.message ?? 'Failed to ...'` рекомендуется
+  бросать «голый» объект (`throw {};`) — `miniSerializeError` оставит
+  `message` пустым, и сработает фолбэк. `throw new Error('...')` ветку
+  фолбэка не проверяет.
+- Если редьюсер ожидает заполненный `LibraryState`/`SettingsState`/…,
+  используем хелпер `stateWith(overrides)` — он сливает overrides поверх
+  `initialState`. Это не даёт тесту молча развалиться, когда slice
+  обрастёт новым полем.
+
+Покрытие slice'ов целится на ~100%: редьюсеры маленькие, ветки явные,
+любая непокрытая ветка — это либо мёртвый код, либо забытый тест.
 
 ## 9. Запуск и покрытие
 
