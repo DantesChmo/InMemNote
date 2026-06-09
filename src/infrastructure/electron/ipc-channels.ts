@@ -52,6 +52,16 @@ export const IPC = {
   // Cross-window: main pushes "the library changed" so the Library window can
   // refresh its list when notes are mutated elsewhere (e.g. promoted from Draft).
   NotesChanged: 'notes:changed',
+
+  // Settings
+  SettingsLoad: 'settings:load',
+  SettingsSave: 'settings:save',
+  /**
+   * Broadcast from main after a successful save: every renderer window
+   * (Library + Draft) refreshes its local settings cache and re-applies the
+   * theme/palette to the DOM.
+   */
+  SettingsChanged: 'settings:changed',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -82,3 +92,19 @@ export interface NoteDTO {
 }
 
 export type NoteListFilterDTO = 'all' | 'pinned';
+
+/**
+ * Settings DTO — the plain transport shape of `AppSettings`.
+ *
+ * The renderer sends partial payloads (only the fields the user touched) on
+ * save; main re-validates through the domain parser before persisting. The
+ * `palette` map is sparse: missing keys mean "use the theme default".
+ */
+export interface AppSettingsDTO {
+  themeMode: 'system' | 'dark' | 'light';
+  language: 'system' | 'en' | 'ru';
+  palette: Readonly<Record<string, string>>;
+  openDraftHotkey: string;
+}
+
+export type AppSettingsPatchDTO = Partial<AppSettingsDTO>;

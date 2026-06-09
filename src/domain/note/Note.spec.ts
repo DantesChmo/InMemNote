@@ -29,9 +29,9 @@ describe('Note.title', () => {
     expect(make('\n\nfinally').title()).toBe('finally');
   });
 
-  it('falls back when the body is blank', () => {
-    expect(make('').title()).toBe('Без заголовка');
-    expect(make('   \n\t').title()).toBe('Без заголовка');
+  it('returns an empty string when the body is blank — presentation substitutes a localized fallback', () => {
+    expect(make('').title()).toBe('');
+    expect(make('   \n\t').title()).toBe('');
   });
 });
 

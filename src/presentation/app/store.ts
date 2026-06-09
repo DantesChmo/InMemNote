@@ -1,5 +1,6 @@
 import { draftReducer } from '@presentation/draft/slice';
 import { libraryReducer } from '@presentation/library/slice';
+import { settingsReducer } from '@presentation/settings/slice';
 import { configureStore } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, type TypedUseSelectorHook } from 'react-redux';
 
@@ -10,6 +11,7 @@ export const store = configureStore({
   reducer: {
     draft: draftReducer,
     library: libraryReducer,
+    settings: settingsReducer,
   },
 });
 

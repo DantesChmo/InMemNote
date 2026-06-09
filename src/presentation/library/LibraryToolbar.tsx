@@ -1,4 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
+import { useTranslation } from '@presentation/i18n/useTranslation';
+import { settingsActions } from '@presentation/settings/slice';
 import { useEffect, useRef } from 'react';
 
 
@@ -15,6 +17,7 @@ export function LibraryToolbar(): JSX.Element {
   const dispatch = useAppDispatch();
   const query = useAppSelector((s) => s.library.query);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,7 +54,7 @@ export function LibraryToolbar(): JSX.Element {
           type="text"
           spellCheck={false}
           value={query}
-          placeholder="Поиск по заметкам…"
+          placeholder={t('library.searchPlaceholder')}
           onChange={(e) => {
             dispatch(libraryActions.setQuery(e.target.value));
             void dispatch(fetchNotes());
@@ -81,13 +84,25 @@ export function LibraryToolbar(): JSX.Element {
       <div className="flex-1" />
       <button
         type="button"
+        onClick={() => dispatch(settingsActions.openPopup())}
+        className="lib-no-drag flex items-center justify-center w-8 h-8 rounded-icon border border-line text-text-2 hover:bg-[var(--hl)] hover:text-text"
+        aria-label={t('settings.title')}
+        title={t('settings.title')}
+      >
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </button>
+      <button
+        type="button"
         onClick={() => void dispatch(createNote())}
         className="lib-no-drag flex items-center gap-2 h-8 px-3 bg-accent border border-accent rounded-icon text-accent-ink text-[13px] hover:brightness-110"
       >
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
           <path d="M8 3v10M3 8h10" />
         </svg>
-        Новая
+        {t('library.newNote')}
         <span className="font-mono text-[10px] opacity-70">⌘N</span>
       </button>
     </div>

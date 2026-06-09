@@ -12,19 +12,26 @@ import { PromoteDraftToNoteUseCase } from '@application/note/PromoteDraftToNoteU
 import { SearchNotesUseCase } from '@application/note/SearchNotesUseCase';
 import { ToggleNotePinUseCase } from '@application/note/ToggleNotePinUseCase';
 import { UpdateNoteContentUseCase } from '@application/note/UpdateNoteContentUseCase';
+import { LoadSettingsUseCase } from '@application/settings/LoadSettingsUseCase';
+import { UpdateSettingsUseCase } from '@application/settings/UpdateSettingsUseCase';
 import { DraftId } from '@domain/draft/DraftId';
 import { NoteId } from '@domain/note/NoteId';
+import { AppSettingsParse, type AppSettings } from '@domain/settings/AppSettings';
 import { loadHotkeys } from '@infrastructure/config/HotkeysConfig';
 import {
   IPC,
+  type AppSettingsDTO,
+  type AppSettingsPatchDTO,
   type DraftDTO,
   type NoteDTO,
   type NoteListFilterDTO,
 } from '@infrastructure/electron/ipc-channels';
 import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
 import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
+import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
 import { SqliteDraftRepository } from '@infrastructure/persistence/sqlite/SqliteDraftRepository';
 import { SqliteNoteRepository } from '@infrastructure/persistence/sqlite/SqliteNoteRepository';
+import { SqliteSettingsRepository } from '@infrastructure/persistence/sqlite/SqliteSettingsRepository';
 import { SystemClock } from '@infrastructure/SystemClock';
 import * as windowEvents from '@inmemnote/window-events';
 import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
@@ -33,6 +40,7 @@ import type { DraftNote } from '@domain/draft/DraftNote';
 import type { DraftRepository } from '@domain/draft/DraftRepository';
 import type { Note } from '@domain/note/Note';
 import type { NoteListFilter, NoteRepository } from '@domain/note/NoteRepository';
+import type { SettingsRepository } from '@domain/settings/SettingsRepository';
 
 /**
  * Electron main process entry point.
@@ -99,6 +107,15 @@ function buildNoteRepo(): NoteRepository {
   }
 }
 
+function buildSettingsRepo(): SettingsRepository {
+  try {
+    return new SqliteSettingsRepository(join(app.getPath('userData'), 'inmemnote.db'));
+  } catch (e) {
+    console.warn('SQLite (settings) init failed; falling back to in-memory.', e);
+    return new InMemorySettingsRepository();
+  }
+}
+
 // ---------- DTO mappers ----------
 
 function draftToDTO(d: DraftNote): DraftDTO {
@@ -119,6 +136,16 @@ function noteToDTO(n: Note): NoteDTO {
     pinned: n.pinned,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
+  };
+}
+
+function settingsToDTO(s: AppSettings): AppSettingsDTO {
+  const plain = AppSettingsParse.toPlain(s);
+  return {
+    themeMode: plain.themeMode as AppSettingsDTO['themeMode'],
+    language: plain.language as AppSettingsDTO['language'],
+    palette: plain.palette,
+    openDraftHotkey: plain.openDraftHotkey,
   };
 }
 
@@ -738,9 +765,10 @@ function emitNotesChanged(): void {
 
 // ---------- App lifecycle ----------
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const drafts = buildDraftRepo();
   const notes = buildNoteRepo();
+  const settings = buildSettingsRepo();
 
   const openDraftUC = new OpenDraftUseCase(drafts, clock);
   const saveDraftUC = new SaveDraftUseCase(drafts, clock);
@@ -755,6 +783,21 @@ app.whenReady().then(() => {
   const togglePinNoteUC = new ToggleNotePinUseCase(notes, clock);
   const deleteNoteUC = new DeleteNoteUseCase(notes);
   const searchNotesUC = new SearchNotesUseCase(notes);
+
+  const loadSettingsUC = new LoadSettingsUseCase(settings);
+  const updateSettingsUC = new UpdateSettingsUseCase(settings);
+
+  // Resolve the effective accelerator BEFORE creating windows so the
+  // global-hotkey registration below uses the persisted user choice (DB
+  // wins) and falls back to the YAML defaults only when nothing was saved.
+  //
+  // We probe the repo directly so we can tell "user explicitly chose the
+  // default" apart from "row was never written" — both surface as the same
+  // `AppSettings.default()` through the use-case, but only the latter should
+  // defer to YAML.
+  const storedSettings = await settings.load();
+  let currentSettings = storedSettings ?? (await loadSettingsUC.execute());
+  const settingsRowExists = storedSettings !== null;
 
   draftWin = createDraftWindow();
   openOrFocusLibrary();
@@ -951,15 +994,97 @@ app.whenReady().then(() => {
   });
 
   // ---------- Global hotkey ----------
-  const { hotkeys, warning } = loadHotkeys({
+  //
+  // Precedence (highest first):
+  //   1. AppSettings row in SQLite (set via the Settings popup).
+  //   2. User YAML override at `userData/hotkeys.yaml`.
+  //   3. Packaged defaults at `config/hotkeys.yaml`.
+  //   4. Hard-coded fallback.
+  //
+  // The DB lives on top because the settings popup is the documented user
+  // workflow; YAML stays as the power-user / scripted-deploy escape hatch.
+  const { hotkeys: yamlHotkeys, warning } = loadHotkeys({
     defaultsPath: join(app.getAppPath(), 'config/hotkeys.yaml'),
     userOverridePath: join(app.getPath('userData'), 'hotkeys.yaml'),
   });
   if (warning) console.warn(warning);
 
-  const ok = globalShortcut.register(hotkeys.openDraft, toggleDraftWindow);
-  if (!ok) {
-    console.warn(`Could not register hotkey ${hotkeys.openDraft} — likely already taken.`);
+  let registeredHotkey: string | null = null;
+
+  const registerOpenDraftHotkey = (accelerator: string): void => {
+    if (registeredHotkey) {
+      globalShortcut.unregister(registeredHotkey);
+      registeredHotkey = null;
+    }
+    const registered = globalShortcut.register(accelerator, toggleDraftWindow);
+    if (!registered) {
+      console.warn(`Could not register hotkey ${accelerator} — likely already taken.`);
+      return;
+    }
+    registeredHotkey = accelerator;
+  };
+
+  // DB > YAML: a persisted settings row wins outright, even if the user
+  // explicitly picked the default combo in the popup. On first launch
+  // (no row) the YAML chain takes over so the existing user-override file
+  // and packaged defaults keep working without a migration.
+  registerOpenDraftHotkey(
+    settingsRowExists
+      ? currentSettings.openDraftHotkey.accelerator
+      : yamlHotkeys.openDraft,
+  );
+
+  // ---------- Settings IPC ----------
+  ipcMain.handle(IPC.SettingsLoad, async (): Promise<AppSettingsDTO> => {
+    return settingsToDTO(currentSettings);
+  });
+
+  ipcMain.handle(
+    IPC.SettingsSave,
+    async (_e, patch: AppSettingsPatchDTO): Promise<AppSettingsDTO> => {
+      // Merge the patch with the current aggregate so the popup can send only
+      // the field(s) the user touched. The use-case re-validates the result
+      // through the domain parser — never trust the renderer's shape.
+      const merged = {
+        themeMode: patch.themeMode ?? currentSettings.themeMode,
+        language: patch.language ?? currentSettings.language,
+        palette: patch.palette ?? currentSettings.palette.toJSON(),
+        openDraftHotkey:
+          patch.openDraftHotkey ?? currentSettings.openDraftHotkey.accelerator,
+      };
+      const result = await updateSettingsUC.execute(merged);
+      if (!result.ok) throw new Error(result.error.message);
+
+      const prevHotkey = currentSettings.openDraftHotkey.accelerator;
+      currentSettings = result.value;
+
+      // Hotkey changed — re-register the global shortcut. We do this AFTER
+      // the persistence step so a registration failure (e.g. another app
+      // grabbed the combo) doesn't leave the DB out of sync with reality.
+      const nextHotkey = currentSettings.openDraftHotkey.accelerator;
+      if (nextHotkey !== prevHotkey) registerOpenDraftHotkey(nextHotkey);
+
+      const dto = settingsToDTO(currentSettings);
+      for (const w of BrowserWindow.getAllWindows()) {
+        w.webContents.send(IPC.SettingsChanged, dto);
+      }
+      return dto;
+    },
+  );
+
+  // Push the loaded settings into both windows once they're done loading.
+  // The renderer applies palette + theme as soon as it receives the message;
+  // a hard reload still works because the renderer also calls settings.load
+  // on mount.
+  const pushInitialSettings = (w: BrowserWindow): void => {
+    if (w.isDestroyed()) return;
+    w.webContents.send(IPC.SettingsChanged, settingsToDTO(currentSettings));
+  };
+  if (draftWin) {
+    draftWin.webContents.once('did-finish-load', () => pushInitialSettings(draftWin!));
+  }
+  if (libraryWin) {
+    libraryWin.webContents.once('did-finish-load', () => pushInitialSettings(libraryWin!));
   }
 
   // ---------- E2E-only affordances ----------

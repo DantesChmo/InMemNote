@@ -1,4 +1,6 @@
 import { useAppDispatch } from '@presentation/app/store';
+import { SettingsPopup } from '@presentation/settings/SettingsPopup';
+import { fetchSettings } from '@presentation/settings/slice';
 import { useEffect } from 'react';
 
 
@@ -22,6 +24,10 @@ export function LibraryWindow(): JSX.Element {
 
   useEffect(() => {
     void dispatch(fetchNotes());
+    // Settings are loaded once at mount so the Settings popup opens
+    // instantly; subsequent saves and cross-window broadcasts keep the
+    // Redux cache fresh (see `wireSettings` in `app/main.tsx`).
+    void dispatch(fetchSettings());
     const unsub = window.inmemnote.notes.onChanged(() => void dispatch(fetchNotes()));
     return unsub;
   }, [dispatch]);
@@ -37,6 +43,7 @@ export function LibraryWindow(): JSX.Element {
         <LibraryNoteList />
         <LibraryEditor />
       </div>
+      <SettingsPopup />
     </div>
   );
 }

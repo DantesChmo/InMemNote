@@ -1,4 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
+import { useTranslation, type Translator } from '@presentation/i18n/useTranslation';
 
 import { highlightHTML } from './highlight';
 import { previewOf } from './preview';
@@ -14,24 +15,25 @@ import { libraryActions } from './slice';
 export function LibraryNoteList(): JSX.Element {
   const dispatch = useAppDispatch();
   const { notes, query, selectedId, filter } = useAppSelector((s) => s.library);
+  const { t } = useTranslation();
 
   const listTitle = query
-    ? 'Результаты'
+    ? t('library.results')
     : filter === 'pinned'
-      ? 'Закреплённые'
-      : 'Все заметки';
+      ? t('library.pinned')
+      : t('library.allNotes');
 
   return (
     <section className="border-r border-line flex flex-col min-h-0 bg-panel">
       <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
         <span className="text-[14px] font-semibold">{listTitle}</span>
-        <span className="text-[11px] text-text-3">По дате</span>
+        <span className="text-[11px] text-text-3">{t('library.sortByDate')}</span>
       </div>
       {notes.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2.5 px-8 text-center text-text-3">
-          <div className="text-[13px] text-text-2">Ничего не найдено</div>
+          <div className="text-[13px] text-text-2">{t('library.nothingFound')}</div>
           <div className="text-[12px]">
-            {query ? `Запрос «${query}» ничего не нашёл` : 'В этом разделе пусто'}
+            {query ? t('library.queryNoMatch', { q: query }) : t('library.emptySection')}
           </div>
         </div>
       ) : (
@@ -60,7 +62,9 @@ export function LibraryNoteList(): JSX.Element {
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     className="text-[13.5px] font-semibold flex-1 truncate"
-                    dangerouslySetInnerHTML={{ __html: highlightHTML(n.title, query) }}
+                    dangerouslySetInnerHTML={{
+                      __html: highlightHTML(n.title || t('library.untitled'), query),
+                    }}
                   />
                   {n.pinned && (
                     <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" className="text-accent">
@@ -73,7 +77,7 @@ export function LibraryNoteList(): JSX.Element {
                   dangerouslySetInnerHTML={{ __html: highlightHTML(previewOf(n.content), query) }}
                 />
                 <div className="flex items-center gap-1.5 mt-2 text-[11px] text-text-3">
-                  <RelativeUpdated iso={n.updatedAt} />
+                  <RelativeUpdated iso={n.updatedAt} t={t} />
                 </div>
               </button>
             );
@@ -84,17 +88,24 @@ export function LibraryNoteList(): JSX.Element {
   );
 }
 
-/** Compact relative time. Avoids importing an i18n lib for one label. */
-function RelativeUpdated({ iso }: { iso: string }): JSX.Element {
+/**
+ * Compact relative-time label.
+ *
+ * Localized via the shared dictionary so the pluralization style matches the
+ * rest of the UI ("12 min ago" vs "12 мин назад"). We pass `t` in explicitly
+ * because calling `useTranslation` from a child rerendered every minute
+ * by the parent would be redundant work.
+ */
+function RelativeUpdated({ iso, t }: { iso: string; t: Translator['t'] }): JSX.Element {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const min = 60_000;
   const hour = 60 * min;
   const day = 24 * hour;
   let label: string;
-  if (diff < min) label = 'только что';
-  else if (diff < hour) label = `${Math.floor(diff / min)} мин назад`;
-  else if (diff < day) label = `${Math.floor(diff / hour)} ч назад`;
-  else label = `${Math.floor(diff / day)} д назад`;
+  if (diff < min) label = t('time.justNow');
+  else if (diff < hour) label = t('time.minutesAgo', { n: Math.floor(diff / min) });
+  else if (diff < day) label = t('time.hoursAgo', { n: Math.floor(diff / hour) });
+  else label = t('time.daysAgo', { n: Math.floor(diff / day) });
   return <span>{label}</span>;
 }

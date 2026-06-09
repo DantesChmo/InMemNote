@@ -18,6 +18,12 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] **V2 — Library.** Main application window (Dock + Launchpad). Sidebar
   (All / Pinned), card list with search, editor; promote-on-⌘↵ moves the
   scratch draft into the library. Tags are out of scope for V2.
+- [x] **V2.1 — Settings.** Modal popup launched from a gear icon in the
+  Library toolbar. Persists in SQLite (`settings` table). Configures the
+  palette (theme + per-token color picker) and the global hotkey.
+- [x] **V2.2 — i18n.** English + Russian dictionaries, system-locale
+  default, language picker in Settings. Typed `MessageKey` union enforces
+  full coverage at compile time.
 - [ ] **E2E.** Full coverage of user-facing flows with Playwright + Electron.
 - [ ] **Later — Auto-update.** Wire up `update-electron-app` (requires a
   GitHub Releases feed + macOS code signing/notarization).
@@ -200,6 +206,92 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   failures exist.
 - [x] IPC: `notes:*` + `draft:promote` + `notes:changed` broadcast.
 
+## 4b. Settings — functional requirements (V2.1)
+
+### 4b.1 Entry and surface
+- [x] Gear button in the Library toolbar (right of the search input).
+- [x] Opens as a modal popup over the Library window (NOT a new BrowserWindow).
+- [x] Dim layer click and `Escape` close the popup (and revert any
+  unsaved live preview).
+- [x] Two-pane layout inside the modal: section nav on the left
+  (Палитра / Хоткеи) + content panel on the right.
+
+### 4b.2 Палитра section
+- [x] Theme switcher: `system` (default) / `dark` / `light`.
+- [x] Color picker per token in `PALETTE_TOKEN_KEYS` (9 tokens: accent,
+  accent-ink, panel, panel-2, sink, text, text-2, text-3, bar).
+- [x] Each token row has a "Сброс" button that drops the override and
+  returns the token to its theme default.
+- [x] Live preview while the popup is open — palette and theme are applied
+  to the DOM as the user drags the picker. Cancel rolls back to the last
+  persisted state.
+
+### 4b.3 Хоткеи section
+- [x] V2.1 ships one binding: `openDraft`. The capture input listens to
+  the next keystroke and validates the resulting accelerator through the
+  domain `Hotkey.fromTokens` factory (same vocabulary as the YAML loader).
+- [x] DB-stored hotkey wins over `config/hotkeys.yaml` and the user
+  YAML override. YAML stays as a scripted-deploy escape hatch when no
+  settings row exists yet.
+
+### 4b.4 Persistence and IPC
+- [x] New `settings(key TEXT PK, value TEXT NOT NULL)` table in
+  `userData/inmemnote.db`. Each `AppSettings` field is one row; the value
+  is JSON-encoded so adding a new preference doesn't require an `ALTER`.
+- [x] `SqliteSettingsRepository` with `load()` / `save()`. Falls back to
+  `InMemorySettingsRepository` if the SQLite table can't be created.
+- [x] IPC: `settings:load`, `settings:save`, `settings:changed`
+  (broadcast). The `save` path re-registers the global shortcut when the
+  accelerator changed and emits `settings:changed` to every open window.
+- [x] The popup sends a partial patch; main merges it with the current
+  aggregate before re-validating through `AppSettingsParse.fromPlain` —
+  no partial writes.
+
+### 4b.5 Architecture
+- [x] Domain: `AppSettings` aggregate + value objects (`ThemeMode`,
+  `Hotkey`, `PaletteOverrides`). `Hotkey` owns the canonical accelerator
+  vocabulary that the YAML loader, the UI capture component, and the
+  IPC handler all share (`ALLOWED_KEY_TOKENS`).
+- [x] Application: `LoadSettingsUseCase`, `UpdateSettingsUseCase`. The
+  latter returns `Result<AppSettings, AppSettingsParseError>`.
+- [x] Presentation: `presentation/settings/` (slice, `SettingsPopup`,
+  `PaletteEditor`, `HotkeyInput`, `applyTheme`).
+- [x] 36 unit tests covering the domain + use-cases.
+
+---
+
+## 4c. i18n — functional requirements (V2.2)
+
+### 4c.1 Scope
+- [x] Two locales: `en`, `ru`. Adding more is a `translations.<code>.ts`
+  file + a one-line append to `LanguageMode`.
+- [x] System locale resolution via `navigator.language` (renderer); when
+  the system locale isn't supported, fall back to `en`.
+
+### 4c.2 Storage & UI
+- [x] New `language: 'system' | 'en' | 'ru'` field in `AppSettings`
+  (persisted via the same key-value `settings` table as everything else).
+- [x] Language picker as a third section in the Settings popup
+  (Палитра / Хоткеи / Язык).
+- [x] `<html lang="...">` is kept in sync with the resolved locale for
+  a11y / spellcheck / `:lang()` CSS hooks.
+
+### 4c.3 Implementation
+- [x] All strings live in `src/presentation/i18n/messages.ts` as a typed
+  `MessageKey` union. `translations.en.ts` and `translations.ru.ts` both
+  satisfy the `Messages` type — TS forces every locale to provide a value
+  for every key.
+- [x] `useTranslation()` returns `{ t, locale }`; placeholder syntax is
+  `{name}` (replaced positionally). No plural rules — for pluralization
+  the calling code picks the key.
+- [x] Domain `Note.title()` now returns `''` for blank notes; the
+  presentation layer substitutes `library.untitled`. Domain stays
+  language-agnostic.
+- [x] 4 unit tests cover the hook (locale resolution, interpolation,
+  missing-placeholder behavior, system fallback).
+
+---
+
 ## 5. Decision log
 
 - **2026-06-05** — Stack confirmed: Electron Forge + Vite, Redux Toolkit,
@@ -226,3 +318,15 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - **2026-06-06** — All Markdown docs (README, CLAUDE.md, docs/TZ.md,
   docs/HOTKEYS.md) translated to English. New top-level docs default to
   English now.
+- **2026-06-09** — V2.1 (Settings) closed. Modal popup in the Library
+  window, key-value `settings` SQLite table, theme + per-token color
+  picker palette, global hotkey configurable from the UI. Database row
+  takes precedence over YAML hotkey config so the popup is the
+  documented user workflow. Mattermost-style JSON import deferred —
+  the storage layer already serializes through JSON, so dropping it in
+  later is a UI-only change.
+- **2026-06-09** — V2.2 (i18n) closed. Tiny home-grown layer instead of
+  react-i18next (one hook + two dictionaries, ~50 keys). Decision drivers:
+  no new runtime dep, TS-enforced full coverage of the message catalog,
+  trivial review surface. Plural rules and ICU formatting are
+  deliberately out of scope — when we need them, we add the library.

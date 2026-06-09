@@ -1,4 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
+import { useTranslation } from '@presentation/i18n/useTranslation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 
@@ -36,6 +37,7 @@ type Corner = 'tl' | 'tr' | 'bl' | 'br';
 export function DraftPanel(): JSX.Element {
   const dispatch = useAppDispatch();
   const draft = useAppSelector((s) => s.draft);
+  const { t } = useTranslation();
   const saveTimer = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   // Whether the user is currently dragging the pinned window by its header.
@@ -376,7 +378,7 @@ export function DraftPanel(): JSX.Element {
         >
           <CodeMirrorEditor
             value={draft.content}
-            placeholder="Начни писать…"
+            placeholder={t('draft.placeholder')}
             onChange={onChange}
             onSubmit={onSubmit}
             onCancel={onCancel}

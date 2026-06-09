@@ -61,11 +61,11 @@ export class Note {
   /**
    * Derive a one-line title from the body.
    *
-   * The library list shows a title even before the user types anything
-   * resembling a heading. We strip the most common markdown leaders (`#`,
-   * `>`, list bullets, ordered prefixes) before taking the first non-empty
-   * line. If everything is blank, fall back to a stable placeholder so the
-   * list never shows a row with no label at all.
+   * Strips the most common markdown leaders (`#`, `>`, list bullets, ordered
+   * prefixes) before taking the first non-empty line. Returns an empty string
+   * when the body is blank — the presentation layer substitutes a localized
+   * "Untitled" placeholder. Keeping the fallback OUT of the domain is what
+   * lets the same `Note` ship in any UI language.
    */
   public title(): string {
     const lines = this._content.value.split('\n');
@@ -78,7 +78,7 @@ export class Note {
         .trim();
       if (stripped) return stripped;
     }
-    return 'Без заголовка';
+    return '';
   }
 
   // ---------- Commands ----------

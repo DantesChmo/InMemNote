@@ -1,4 +1,11 @@
-import { IPC, type DraftDTO, type NoteDTO, type NoteListFilterDTO } from '@infrastructure/electron/ipc-channels';
+import {
+  IPC,
+  type AppSettingsDTO,
+  type AppSettingsPatchDTO,
+  type DraftDTO,
+  type NoteDTO,
+  type NoteListFilterDTO,
+} from '@infrastructure/electron/ipc-channels';
 import { contextBridge, ipcRenderer } from 'electron';
 
 /**
@@ -148,6 +155,26 @@ const api = {
       const listener = () => handler();
       ipcRenderer.on(IPC.NotesChanged, listener);
       return () => ipcRenderer.removeListener(IPC.NotesChanged, listener);
+    },
+  },
+  settings: {
+    /** Load the merged AppSettings (defaults + persisted overrides). */
+    load: (): Promise<AppSettingsDTO> => ipcRenderer.invoke(IPC.SettingsLoad),
+    /**
+     * Persist a partial patch (only the fields the popup touched). Main
+     * re-validates through the domain layer; an `Err` becomes a rejected
+     * Promise so the popup can surface a toast.
+     */
+    save: (patch: AppSettingsPatchDTO): Promise<AppSettingsDTO> =>
+      ipcRenderer.invoke(IPC.SettingsSave, patch),
+    /**
+     * Subscribe to "settings changed elsewhere" — main broadcasts after every
+     * successful save so the second open window can re-apply the theme.
+     */
+    onChanged: (handler: (next: AppSettingsDTO) => void): (() => void) => {
+      const listener = (_e: unknown, next: AppSettingsDTO): void => handler(next);
+      ipcRenderer.on(IPC.SettingsChanged, listener);
+      return () => ipcRenderer.removeListener(IPC.SettingsChanged, listener);
     },
   },
 };

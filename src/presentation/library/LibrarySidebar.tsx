@@ -1,4 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
+import { useTranslation } from '@presentation/i18n/useTranslation';
 import { useMemo } from 'react';
 
 
@@ -14,6 +15,7 @@ import { fetchNotes, libraryActions } from './slice';
 export function LibrarySidebar(): JSX.Element {
   const dispatch = useAppDispatch();
   const { notes, filter, query } = useAppSelector((s) => s.library);
+  const { t } = useTranslation();
 
   // Counts shown next to each row. We compute them from the cached list to
   // stay reactive on add/delete without an extra IPC round-trip.
@@ -35,10 +37,10 @@ export function LibrarySidebar(): JSX.Element {
       className="border-r border-line bg-[var(--panel-2)] py-3.5 px-2.5 overflow-y-auto"
       aria-label="Library sections"
     >
-      <SectionLabel>Библиотека</SectionLabel>
+      <SectionLabel>{t('library.title')}</SectionLabel>
       <SidebarItem
         active={filter === 'all' && !query}
-        label="Все заметки"
+        label={t('library.allNotes')}
         count={counts.all}
         onClick={() => select('all')}
         icon={
@@ -49,7 +51,7 @@ export function LibrarySidebar(): JSX.Element {
       />
       <SidebarItem
         active={filter === 'pinned' && !query}
-        label="Закреплённые"
+        label={t('library.pinned')}
         count={counts.pinned}
         onClick={() => select('pinned')}
         icon={

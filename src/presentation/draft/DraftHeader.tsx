@@ -1,3 +1,4 @@
+import { useTranslation } from '@presentation/i18n/useTranslation';
 import { useEffect, useState } from 'react';
 
 interface DraftHeaderProps {
@@ -32,6 +33,7 @@ export function DraftHeader({
   onResetPinSize,
 }: DraftHeaderProps): JSX.Element {
   const [hovered, setHovered] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     return window.inmemnote.draft.onHeaderHover(setHovered);
@@ -59,15 +61,15 @@ export function DraftHeader({
       <div className="w-7 h-7 rounded-icon bg-accent text-accent-ink flex items-center justify-center text-[15px] leading-none">
         ⚡
       </div>
-      <div className="ml-3 text-[15px] font-semibold">Быстрая заметка</div>
+      <div className="ml-3 text-[15px] font-semibold">{t('draft.title')}</div>
       {pinned && onResetPinSize && (
         <button
           type="button"
           onClick={onResetPinSize}
-          aria-label="Reset pin size"
+          aria-label={t('draft.resetSize')}
           data-testid="draft-reset-size-btn"
           className="draft-no-drag ml-auto w-8 h-8 rounded-icon flex items-center justify-center text-text-3 hover:bg-[var(--hl)] hover:text-text-2 transition-colors"
-          title="Сбросить размер"
+          title={t('draft.resetSize')}
         >
           <svg
             viewBox="0 0 16 16"
@@ -87,14 +89,14 @@ export function DraftHeader({
       <button
         type="button"
         onClick={onTogglePin}
-        aria-label={pinned ? 'Открепить' : 'Закрепить'}
+        aria-label={pinned ? t('draft.unpin') : t('draft.pin')}
         data-testid="draft-pin-btn"
         className={`draft-no-drag ${pinned && onResetPinSize ? 'ml-2' : 'ml-auto'} w-8 h-8 rounded-icon flex items-center justify-center transition-colors ${
           pinned
             ? 'bg-accent text-accent-ink'
             : 'text-text-3 hover:bg-[var(--hl)] hover:text-text-2'
         }`}
-        title="Закрепить поверх окон"
+        title={t('draft.pinTitle')}
       >
         <svg
           viewBox="0 0 16 16"

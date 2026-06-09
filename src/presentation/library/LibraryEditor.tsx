@@ -1,6 +1,7 @@
 
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { CodeMirrorEditor } from '@presentation/draft/editor/CodeMirrorEditor';
+import { useTranslation, type Translator } from '@presentation/i18n/useTranslation';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { deleteNote, libraryActions, saveNote, toggleNotePin } from './slice';
@@ -19,6 +20,7 @@ export function LibraryEditor(): JSX.Element {
   const dispatch = useAppDispatch();
   const { notes, selectedId } = useAppSelector((s) => s.library);
   const note = useMemo(() => notes.find((n) => n.id === selectedId) ?? null, [notes, selectedId]);
+  const { t } = useTranslation();
 
   const saveTimer = useRef<number | null>(null);
 
@@ -64,9 +66,9 @@ export function LibraryEditor(): JSX.Element {
             <path d="M8.5 13h7M8.5 16.5h5" />
           </svg>
         </div>
-        <div className="text-[14px] text-text-2">Заметка не выбрана</div>
+        <div className="text-[14px] text-text-2">{t('editor.empty.title')}</div>
         <div className="text-[12.5px] max-w-[240px] leading-[1.5]">
-          Выбери заметку слева или создай новую — ⌘N
+          {t('editor.empty.hint')}
         </div>
       </section>
     );
@@ -78,15 +80,15 @@ export function LibraryEditor(): JSX.Element {
     <section className="flex-1 flex flex-col min-h-0 bg-panel">
       <div className="flex items-center gap-3 h-[46px] px-[18px] border-b border-[var(--line-2)] text-[11.5px] text-text-3">
         <span className={`flex items-center gap-1.5 ${note.pinned ? 'text-accent' : ''}`}>
-          {note.pinned ? 'закреплено' : 'не закреплено'}
+          {note.pinned ? t('editor.pinned') : t('editor.notPinned')}
         </span>
         <span className="opacity-50">·</span>
-        <span>изменено <RelativeUpdated iso={note.updatedAt} /></span>
+        <span>{t('editor.modified')} <RelativeUpdated iso={note.updatedAt} t={t} /></span>
         <span className="ml-auto flex items-center gap-1">
           <button
             type="button"
             onClick={() => void dispatch(toggleNotePin(note.id))}
-            aria-label="Toggle pin"
+            aria-label={t('editor.pinAria')}
             data-testid="lib-pin-btn"
             className={`w-[30px] h-[30px] rounded-icon flex items-center justify-center transition-colors ${
               note.pinned ? 'bg-accent text-accent-ink' : 'text-text-3 hover:bg-[var(--hl)] hover:text-text-2'
@@ -99,7 +101,7 @@ export function LibraryEditor(): JSX.Element {
           <button
             type="button"
             onClick={() => void dispatch(deleteNote(note.id))}
-            aria-label="Delete note"
+            aria-label={t('editor.deleteAria')}
             data-testid="lib-delete-btn"
             className="w-[30px] h-[30px] rounded-icon flex items-center justify-center text-text-3 transition-colors hover:bg-[color-mix(in_oklch,#ec6a5e_22%,transparent)] hover:text-[#ec6a5e]"
           >
@@ -116,7 +118,7 @@ export function LibraryEditor(): JSX.Element {
           <CodeMirrorEditor
             key={note.id}
             value={note.content}
-            placeholder="Начни писать…"
+            placeholder={t('editor.placeholder')}
             onChange={onChange}
             onSubmit={onSubmit}
             autoFocus
@@ -124,9 +126,9 @@ export function LibraryEditor(): JSX.Element {
         </div>
       </div>
       <div className="flex items-center h-10 px-[18px] border-t border-[var(--line-2)] text-[11.5px] text-text-3">
-        <span>{wordCount} слов</span>
+        <span>{t('editor.wordCount', { n: wordCount })}</span>
         <span className="ml-auto flex items-center gap-2">
-          <span>Markdown — на лету</span>
+          <span>{t('editor.markdownHint')}</span>
           <span>·</span>
           <Kbd>⌘ ↵</Kbd>
         </span>
@@ -143,16 +145,16 @@ function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   );
 }
 
-function RelativeUpdated({ iso }: { iso: string }): JSX.Element {
+function RelativeUpdated({ iso, t }: { iso: string; t: Translator['t'] }): JSX.Element {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const min = 60_000;
   const hour = 60 * min;
   const day = 24 * hour;
   let label: string;
-  if (diff < min) label = 'только что';
-  else if (diff < hour) label = `${Math.floor(diff / min)} мин назад`;
-  else if (diff < day) label = `${Math.floor(diff / hour)} ч назад`;
-  else label = `${Math.floor(diff / day)} д назад`;
+  if (diff < min) label = t('time.justNow');
+  else if (diff < hour) label = t('time.minutesAgo', { n: Math.floor(diff / min) });
+  else if (diff < day) label = t('time.hoursAgo', { n: Math.floor(diff / hour) });
+  else label = t('time.daysAgo', { n: Math.floor(diff / day) });
   return <span>{label}</span>;
 }

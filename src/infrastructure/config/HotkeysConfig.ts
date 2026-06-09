@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { ALLOWED_KEY_TOKENS } from '@domain/settings/Hotkey';
 import { load as parseYaml, YAMLException } from 'js-yaml';
 import { z } from 'zod';
 
@@ -26,96 +27,14 @@ import { z } from 'zod';
 
 // ---------- Allowed key tokens ----------
 //
-// We keep one flat allow-list of every token we accept in YAML. The list
-// mirrors Electron's accelerator vocabulary; the doc table in
-// `docs/HOTKEYS.md` is the user-facing copy of the same set.
-
-const MODIFIER_KEYS = [
-  'Command',
-  'Cmd',
-  'Control',
-  'Ctrl',
-  'CommandOrControl',
-  'CmdOrCtrl',
-  'Alt',
-  'Option',
-  'AltGr',
-  'Shift',
-  'Super',
-  'Meta',
-] as const;
-
-const SPECIAL_KEYS = [
-  'Plus',
-  'Space',
-  'Tab',
-  'Capslock',
-  'Numlock',
-  'Scrolllock',
-  'Backspace',
-  'Delete',
-  'Insert',
-  'Return',
-  'Enter',
-  'Up',
-  'Down',
-  'Left',
-  'Right',
-  'Home',
-  'End',
-  'PageUp',
-  'PageDown',
-  'Escape',
-  'Esc',
-  'PrintScreen',
-] as const;
-
-const MEDIA_KEYS = [
-  'VolumeUp',
-  'VolumeDown',
-  'VolumeMute',
-  'MediaNextTrack',
-  'MediaPreviousTrack',
-  'MediaStop',
-  'MediaPlayPause',
-] as const;
-
-const NUMPAD_KEYS = [
-  'NumpadDecimal',
-  'NumpadAdd',
-  'NumpadSubtract',
-  'NumpadMultiply',
-  'NumpadDivide',
-  'Numpad0',
-  'Numpad1',
-  'Numpad2',
-  'Numpad3',
-  'Numpad4',
-  'Numpad5',
-  'Numpad6',
-  'Numpad7',
-  'Numpad8',
-  'Numpad9',
-] as const;
-
-const FUNCTION_KEYS = Array.from({ length: 24 }, (_, i) => `F${i + 1}`);
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const DIGITS = '0123456789'.split('');
-
-const ALLOWED_KEYS: ReadonlySet<string> = new Set<string>([
-  ...MODIFIER_KEYS,
-  ...SPECIAL_KEYS,
-  ...MEDIA_KEYS,
-  ...NUMPAD_KEYS,
-  ...FUNCTION_KEYS,
-  ...LETTERS,
-  ...DIGITS,
-]);
+// The flat allow-list lives in `domain/settings/Hotkey` so the settings UI,
+// YAML loader, and the `Hotkey` value object agree on a single vocabulary.
+// The doc table in `docs/HOTKEYS.md` is the user-facing copy of the same set.
 
 const keyToken = z
   .string()
   .min(1)
-  .refine((s) => ALLOWED_KEYS.has(s), {
+  .refine((s) => ALLOWED_KEY_TOKENS.has(s), {
     message: 'Unknown key token. See docs/HOTKEYS.md for the full list.',
   });
 
