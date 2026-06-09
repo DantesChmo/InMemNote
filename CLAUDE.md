@@ -203,6 +203,13 @@ Details in `docs/HOTKEYS.md`.
 - Prettier is the only formatter.
 - Any function with cyclomatic complexity > 10 is a candidate for
   decomposition.
+- **Dependency installs go through `npm ci`, never `npm install`.**
+  `npm ci` rebuilds `node_modules` strictly from the lockfile and is the
+  only mode that guarantees reproducibility — critical here because we
+  have a native addon (`@inmemnote/window-events`) whose ABI must match
+  the installed Electron exactly. `npm install` is reserved for the
+  single case of adding or removing a dependency; the resulting
+  lockfile change is committed in the same step.
 
 ---
 

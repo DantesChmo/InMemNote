@@ -96,8 +96,17 @@ Requires Node.js 22+ (Node 25 also works) and npm 10+.
 ```sh
 git clone <repo>
 cd inmemnote
-npm install
+npm ci
 ```
+
+**Always use `npm ci`, not `npm install`.** `npm ci` wipes
+`node_modules` and installs exactly what `package-lock.json` declares —
+the only way to guarantee a reproducible tree. `npm install` may mutate
+the lockfile or leave partial state behind, which is the most common
+source of "works on my machine" bugs (missing `react`/`electron` type
+declarations, mismatched native ABI, etc.). Only reach for `npm install`
+when you are deliberately adding or removing a dependency; commit the
+updated lockfile in the same change.
 
 After install, rebuild the native module against the Electron ABI
 (do this once, and again after every Electron upgrade):
