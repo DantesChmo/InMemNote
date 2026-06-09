@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { useTranslation, type Translator } from '@presentation/i18n/useTranslation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { applyAppearance } from './applyTheme';
 import { HotkeyInput } from './HotkeyInput';
@@ -37,6 +37,10 @@ const SECTION_LABEL_KEYS: Record<Section, MessageKey> = {
 
 const SECTION_ORDER: readonly Section[] = ['palette', 'hotkeys', 'language'];
 
+// Keep in sync with the Tailwind `duration-…` classes on the backdrop and
+// panel below — we read this in JS to time the unmount after exit.
+const ANIM_MS = 180;
+
 export function SettingsPopup(): JSX.Element | null {
   const dispatch = useAppDispatch();
   const popupOpen = useAppSelector((s) => s.settings.popupOpen);
@@ -51,6 +55,47 @@ export function SettingsPopup(): JSX.Element | null {
   // store while the popup is closed.
   const [form, setForm] = useState<AppSettingsDTO | null>(current);
   const [section, setSection] = useState<Section>('palette');
+
+  // Open/close animation is driven by two flags:
+  //   `mounted` keeps the modal in the React tree across the exit transition
+  //     (otherwise React would yank it out before CSS could animate).
+  //   `entered` is the visual state — flipped AFTER the initial `entered=false`
+  //     frame has actually painted, so the transition sees a delta to animate
+  //     against.
+  const [mounted, setMounted] = useState(popupOpen);
+  const [entered, setEntered] = useState(false);
+
+  // Step 1: mount/unmount in response to the open flag. Unmount is deferred
+  // until the exit transition finishes so CSS can play out.
+  useEffect(() => {
+    if (popupOpen) {
+      setMounted(true);
+      return;
+    }
+    setEntered(false);
+    const timer = window.setTimeout(() => setMounted(false), ANIM_MS);
+    return () => window.clearTimeout(timer);
+  }, [popupOpen]);
+
+  // Step 2: trigger the enter transition the moment the dialog element is
+  // actually in the DOM. Tying this to a ref instead of just `mounted` matters
+  // because the early `if (!mounted || !form) return null` can keep the
+  // element out of the DOM for a render or two after `mounted` flips — if we
+  // flipped `entered` based on `mounted` alone, the element would appear for
+  // the first time already in the final state and never animate.
+  //
+  // `void el.offsetWidth` forces a synchronous style/layout flush so the
+  // browser commits the initial `opacity-0 / scale-.96` styles before the
+  // rAF callback flips them to `entered=true`.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!mounted || !popupOpen) return;
+    const el = dialogRef.current;
+    if (!el) return;
+    void el.offsetWidth;
+    const raf = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(raf);
+  }, [mounted, popupOpen, form]);
 
   useEffect(() => {
     if (popupOpen) setForm(current);
@@ -93,7 +138,7 @@ export function SettingsPopup(): JSX.Element | null {
     return !shallowEqual(form.palette, current.palette);
   }, [current, form]);
 
-  if (!popupOpen || !form) return null;
+  if (!mounted || !form) return null;
 
   const onSave = async (): Promise<void> => {
     const action = await dispatch(saveSettings(form));
@@ -104,7 +149,9 @@ export function SettingsPopup(): JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity duration-[180ms] ease-out ${
+        entered ? 'opacity-100' : 'opacity-0'
+      }`}
       onMouseDown={(e) => {
         // Click on the dim layer (not children) closes — same rule as macOS
         // sheets that the user dismisses with a stray click.
@@ -114,7 +161,10 @@ export function SettingsPopup(): JSX.Element | null {
       }}
     >
       <div
-        className="w-[640px] max-w-[92vw] max-h-[88vh] flex flex-col bg-panel border border-line rounded-panel shadow-panel overflow-hidden"
+        ref={dialogRef}
+        className={`w-[640px] max-w-[92vw] max-h-[88vh] flex flex-col bg-panel border border-line rounded-panel shadow-panel overflow-hidden transform transition duration-[180ms] ease-out ${
+          entered ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.96] translate-y-1'
+        }`}
         role="dialog"
         aria-label={t('settings.title')}
         aria-modal="true"
