@@ -8,18 +8,11 @@ DEFS_Debug := \
 	'-DUSING_V8_SHARED=1' \
 	'-DV8_DEPRECATION_WARNINGS=1' \
 	'-D_GLIBCXX_USE_CXX11_ABI=1' \
-	'-DELECTRON_ENSURE_CONFIG_GYPI' \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-D_DARWIN_USE_64_BIT_INODE=1' \
 	'-D_LARGEFILE_SOURCE' \
-	'-D_FILE_OFFSET_BITS=64' \
-	'-DUSING_ELECTRON_CONFIG_GYPI' \
-	'-DV8_COMPRESS_POINTERS' \
-	'-DV8_COMPRESS_POINTERS_IN_ISOLATE_CAGE' \
-	'-DV8_31BIT_SMIS_ON_64BIT_ARCH' \
-	'-DV8_ENABLE_SANDBOX' \
 	'-DOPENSSL_NO_PINSHARED' \
 	'-DOPENSSL_THREADS' \
-	'-DOPENSSL_NO_ASM' \
 	'-DNAPI_DISABLE_CPP_EXCEPTIONS' \
 	'-DBUILDING_NODE_EXTENSION' \
 	'-DDEBUG' \
@@ -29,6 +22,7 @@ DEFS_Debug := \
 CFLAGS_Debug := \
 	-O0 \
 	-gdwarf-2 \
+	-fno-strict-aliasing \
 	-mmacosx-version-min=10.15 \
 	-arch \
 	arm64 \
@@ -39,7 +33,6 @@ CFLAGS_Debug := \
 
 # Flags passed to only C files.
 CFLAGS_C_Debug := \
-	-fno-strict-aliasing \
 	-fobjc-arc
 
 # Flags passed to only C++ files.
@@ -48,7 +41,6 @@ CFLAGS_CC_Debug := \
 	-stdlib=libc++ \
 	-fno-rtti \
 	-fno-exceptions \
-	-fno-strict-aliasing \
 	-fobjc-arc
 
 # Flags passed to only ObjC files.
@@ -58,13 +50,13 @@ CFLAGS_OBJC_Debug :=
 CFLAGS_OBJCC_Debug :=
 
 INCS_Debug := \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/include/node \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/src \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/openssl/config \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/openssl/openssl/include \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/uv/include \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/zlib \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/v8/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/include/node \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/src \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/openssl/config \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/openssl/openssl/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/uv/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/zlib \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/v8/include \
 	-I/Users/daniil.amirkhanov/projects/inmemnote/node_modules/node-addon-api
 
 DEFS_Release := \
@@ -73,18 +65,11 @@ DEFS_Release := \
 	'-DUSING_V8_SHARED=1' \
 	'-DV8_DEPRECATION_WARNINGS=1' \
 	'-D_GLIBCXX_USE_CXX11_ABI=1' \
-	'-DELECTRON_ENSURE_CONFIG_GYPI' \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-D_DARWIN_USE_64_BIT_INODE=1' \
 	'-D_LARGEFILE_SOURCE' \
-	'-D_FILE_OFFSET_BITS=64' \
-	'-DUSING_ELECTRON_CONFIG_GYPI' \
-	'-DV8_COMPRESS_POINTERS' \
-	'-DV8_COMPRESS_POINTERS_IN_ISOLATE_CAGE' \
-	'-DV8_31BIT_SMIS_ON_64BIT_ARCH' \
-	'-DV8_ENABLE_SANDBOX' \
 	'-DOPENSSL_NO_PINSHARED' \
 	'-DOPENSSL_THREADS' \
-	'-DOPENSSL_NO_ASM' \
 	'-DNAPI_DISABLE_CPP_EXCEPTIONS' \
 	'-DBUILDING_NODE_EXTENSION'
 
@@ -92,6 +77,7 @@ DEFS_Release := \
 CFLAGS_Release := \
 	-O3 \
 	-gdwarf-2 \
+	-fno-strict-aliasing \
 	-mmacosx-version-min=10.15 \
 	-arch \
 	arm64 \
@@ -102,7 +88,6 @@ CFLAGS_Release := \
 
 # Flags passed to only C files.
 CFLAGS_C_Release := \
-	-fno-strict-aliasing \
 	-fobjc-arc
 
 # Flags passed to only C++ files.
@@ -111,7 +96,6 @@ CFLAGS_CC_Release := \
 	-stdlib=libc++ \
 	-fno-rtti \
 	-fno-exceptions \
-	-fno-strict-aliasing \
 	-fobjc-arc
 
 # Flags passed to only ObjC files.
@@ -121,13 +105,13 @@ CFLAGS_OBJC_Release :=
 CFLAGS_OBJCC_Release :=
 
 INCS_Release := \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/include/node \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/src \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/openssl/config \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/openssl/openssl/include \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/uv/include \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/zlib \
-	-I/Users/daniil.amirkhanov/.electron-gyp/33.4.11/deps/v8/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/include/node \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/src \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/openssl/config \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/openssl/openssl/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/uv/include \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/zlib \
+	-I/Users/daniil.amirkhanov/Library/Caches/node-gyp/25.5.0/deps/v8/include \
 	-I/Users/daniil.amirkhanov/projects/inmemnote/node_modules/node-addon-api
 
 OBJS := \
