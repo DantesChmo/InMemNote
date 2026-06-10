@@ -13,3 +13,6 @@ test-results
 # Tracked Makefiles and config.gypi leak absolute machine paths.
 native/*/build/
 native/*/bin/
+# SwiftPM output for the Swift halves of native addons.
+native/*/.build/
+native/*/Package.resolved

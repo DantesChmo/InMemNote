@@ -7,7 +7,7 @@
 
 | Name | Purpose | Source | JS surface | Notes |
 |---|---|---|---|---|
-| `@inmemnote/window-events` | macOS window / focus event hooks for the global hotkey overlay | _(path tbd)_ | _(tbd)_ | local workspace package |
+| `@inmemnote/window-events` | macOS mouse-event hooks (left-mouse up/down/drag) and a header hover sensor for the Draft window | `native/window-events/` — Swift static lib in `Sources/WindowEventsCore/` + ObjC++ N-API shim in `src/shim.mm` | `subscribeToMouseUp/Down/Drag`, `installHeaderHoverTracker`, `removeHeaderHoverTracker`, `unsubscribe` | local workspace package |
 
 ## Build & rebuild
 
@@ -18,6 +18,11 @@
   Electron Forge).
 - `npm ci` is the default install mode (CLAUDE.md §9). `npm install` is
   reserved for adding/removing deps in one explicit commit.
+- For addons with a Swift half: `binding.gyp` runs `swift build -c release`
+  as a pre-build action and links the resulting static archive
+  (`.build/release/lib<Module>.a`) into the `.node` bundle. The Swift
+  runtime is resolved at load time from `/usr/lib/swift` (shipped with
+  macOS 10.14.4+) — nothing extra to package.
 
 ## Language policy: Swift first
 
