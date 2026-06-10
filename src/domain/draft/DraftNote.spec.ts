@@ -10,9 +10,9 @@
 //   - pullEvents drains the buffer and returns a *copy* (mutating the result
 //     does not corrupt internal state);
 //   - the Date passed in is the exact value stored — no clock cheating.
+import { unwrap } from '@shared/Result';
 import { describe, expect, it } from 'vitest';
 
-import { unwrap } from '@shared/Result';
 
 import { DraftId } from './DraftId';
 import { DraftNote } from './DraftNote';

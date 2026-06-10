@@ -11,9 +11,9 @@
 //     bad — pinning this prevents silent reordering of validation);
 //   - toPlain shape (Required<>: every key always present);
 //   - full round-trip through toPlain → fromPlain.
+import { unwrap } from '@shared/Result';
 import { describe, expect, it } from 'vitest';
 
-import { unwrap } from '@shared/Result';
 
 import {
   AppSettings,

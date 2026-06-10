@@ -3,9 +3,9 @@
 // Tiny VO, but it's a closed enum that gates which CSS variables the renderer
 // applies. A silent widening (e.g. "auto" sneaking in) would cause a class of
 // "looks wrong on launch" bugs we never want.
+import { DomainError } from '@domain/shared/DomainError';
 import { describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { InvalidThemeModeError, ThemeMode } from './ThemeMode';
 

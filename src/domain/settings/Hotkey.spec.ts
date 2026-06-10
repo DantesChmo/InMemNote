@@ -4,9 +4,9 @@
 // in the Electron main process. Every token must be one the OS will deliver,
 // in the exact case Electron expects. We pin all branches and equivalence
 // classes so a broken hotkey can never escape the boundary.
+import { DomainError } from '@domain/shared/DomainError';
 import { describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { ALLOWED_KEY_TOKENS, Hotkey, InvalidHotkeyError } from './Hotkey';
 

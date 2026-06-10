@@ -6,9 +6,9 @@
 //
 // We pin every equivalence class so a future refactor (e.g. switching to a
 // uuid library) cannot widen or narrow the accepted set silently.
+import { DomainError } from '@domain/shared/DomainError';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { DraftId, InvalidDraftIdError } from './DraftId';
 

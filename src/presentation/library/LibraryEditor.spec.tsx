@@ -49,6 +49,8 @@ vi.mock('./slice', () => ({
   },
 }));
 
+// Component under test is imported after vi.mock blocks by design — see src/presentation/CLAUDE.md §4.
+// eslint-disable-next-line import/order
 import { LibraryEditor } from './LibraryEditor';
 
 const note = (over: Partial<NoteDTO>): NoteDTO => ({

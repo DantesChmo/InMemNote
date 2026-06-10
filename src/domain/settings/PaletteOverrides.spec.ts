@@ -8,10 +8,10 @@
 // On top of validation we pin immutability (with*/without* return new
 // instances, originals untouched) and ordering (toOrderedPairs follows
 // PALETTE_TOKEN_KEYS regardless of input order).
-import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '@domain/shared/DomainError';
 import { unwrap } from '@shared/Result';
+import { describe, expect, it } from 'vitest';
 
 import {
   InvalidPaletteColorError,

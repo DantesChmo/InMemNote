@@ -4,12 +4,12 @@
 // accidental change to the contract (e.g. swapping the Map for an array,
 // breaking last-write-wins, mis-comparing dates in findLatest) fails loudly
 // instead of leaking into use-case tests that depend on this fallback.
-import { describe, expect, it } from 'vitest';
 
 import { DraftId } from '@domain/draft/DraftId';
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
 import { unwrap } from '@shared/Result';
+import { describe, expect, it } from 'vitest';
 
 import { InMemoryDraftRepository } from './InMemoryDraftRepository';
 

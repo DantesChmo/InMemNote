@@ -3,9 +3,9 @@
 // LanguageMode mirrors ThemeMode and gates which translation dictionary the
 // renderer picks. A silent widening (a random "fr" code accepted but with no
 // dictionary shipped) would crash useTranslation at first key lookup.
+import { DomainError } from '@domain/shared/DomainError';
 import { describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { InvalidLanguageModeError, LanguageMode, SUPPORTED_LOCALES } from './LanguageMode';
 

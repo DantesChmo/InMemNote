@@ -3,12 +3,12 @@
 // Same intent as the draft variant: lock down the contract so a future
 // refactor (e.g. moving the sort key, switching containers) cannot silently
 // invert the pinned-first / recency-DESC ordering everyone downstream relies on.
-import { describe, expect, it } from 'vitest';
 
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
 import { NoteId } from '@domain/note/NoteId';
 import { unwrap } from '@shared/Result';
+import { describe, expect, it } from 'vitest';
 
 import { InMemoryNoteRepository } from './InMemoryNoteRepository';
 

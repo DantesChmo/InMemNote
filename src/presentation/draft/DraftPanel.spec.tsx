@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { emptyDraftDTO, installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
+import { DraftPanel } from './DraftPanel';
+
 import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
 
 // ---- Module-level mocks ----
@@ -85,7 +87,6 @@ vi.mock('./slice', () => ({
 }));
 
 // Import AFTER all mocks are declared.
-import { DraftPanel } from './DraftPanel';
 
 describe('DraftPanel (shallow)', () => {
   let api: InmemnoteAPI;

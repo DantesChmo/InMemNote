@@ -7,9 +7,9 @@
 // We pin both invariants at their boundaries, plus the equality contract and
 // the error shape (code/message), since the persistence layer relies on
 // `code` to react to corrupted rows.
+import { DomainError } from '@domain/shared/DomainError';
 import { describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { NoteContent, NoteContentTooLargeError } from './NoteContent';
 

@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
+import { LibraryWindow } from './LibraryWindow';
+
 import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
 
 const dispatch = vi.fn();
@@ -36,7 +38,6 @@ vi.mock('./slice', () => ({
   fetchNotes: () => ({ type: 'library/fetchNotes' }),
 }));
 
-import { LibraryWindow } from './LibraryWindow';
 
 describe('LibraryWindow (shallow)', () => {
   let api: InmemnoteAPI;

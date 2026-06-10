@@ -8,10 +8,10 @@
 //
 // We also pin `title()` exhaustively because the library card is rendered from
 // it; the regex inside is small but each branch matters for the visible UI.
-import { describe, expect, it } from 'vitest';
 
 import { NoteContent } from '@domain/draft/NoteContent';
 import { unwrap } from '@shared/Result';
+import { describe, expect, it } from 'vitest';
 
 import { Note } from './Note';
 import { NoteId } from './NoteId';

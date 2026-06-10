@@ -1,8 +1,8 @@
 // Regression tests for the in-memory settings repository.
-import { describe, expect, it } from 'vitest';
 
 import { AppSettingsParse } from '@domain/settings/AppSettings';
 import { unwrap } from '@shared/Result';
+import { describe, expect, it } from 'vitest';
 
 import { InMemorySettingsRepository } from './InMemorySettingsRepository';
 

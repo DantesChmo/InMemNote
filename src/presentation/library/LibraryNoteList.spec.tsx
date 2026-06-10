@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { LibraryNoteList } from './LibraryNoteList';
+
 import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
 
 const dispatch = vi.fn();
@@ -39,7 +41,6 @@ vi.mock('./slice', () => ({
   },
 }));
 
-import { LibraryNoteList } from './LibraryNoteList';
 
 const note = (over: Partial<NoteDTO>): NoteDTO => ({
   id: '1',

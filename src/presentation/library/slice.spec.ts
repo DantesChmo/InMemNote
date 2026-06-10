@@ -9,9 +9,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
-
 import { installInmemnoteApiMock, noteDTO } from '../../test/mockInmemnoteApi';
 
 import {
@@ -24,6 +21,11 @@ import {
   toggleNotePin,
   type LibraryState,
 } from './slice';
+
+import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
+import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+
+
 
 function makeStore(preloaded?: LibraryState) {
   return configureStore({

@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { settingsDTO } from '../../test/mockInmemnoteApi';
 
+import { SettingsPopup } from './SettingsPopup';
+
 import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
 
 const dispatch = vi.fn();
@@ -76,7 +78,6 @@ vi.mock('./slice', () => ({
   },
 }));
 
-import { SettingsPopup } from './SettingsPopup';
 
 describe('SettingsPopup (shallow)', () => {
   beforeEach(() => {

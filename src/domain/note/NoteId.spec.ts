@@ -3,9 +3,9 @@
 // Mirrors DraftId — same UUID v4 contract. Kept as a separate spec because the
 // brands are intentionally distinct: a draft id is not a note id, and a future
 // refactor must not be allowed to weaken either contract without us noticing.
+import { DomainError } from '@domain/shared/DomainError';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DomainError } from '@domain/shared/DomainError';
 
 import { InvalidNoteIdError, NoteId } from './NoteId';
 

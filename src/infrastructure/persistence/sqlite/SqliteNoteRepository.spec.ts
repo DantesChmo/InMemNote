@@ -9,15 +9,16 @@
 //   - search: case-insensitive substring match + LIKE wildcard escaping;
 //   - corrupted-row guards on read;
 //   - concurrent writes (single id collapses to one row; many ids → many rows).
-import Database from 'better-sqlite3';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
 import { NoteId } from '@domain/note/NoteId';
 import { unwrap } from '@shared/Result';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { SqliteNoteRepository } from './SqliteNoteRepository';
+
+import type Database from 'better-sqlite3';
 
 function makeRepo() {
   return new SqliteNoteRepository(':memory:');

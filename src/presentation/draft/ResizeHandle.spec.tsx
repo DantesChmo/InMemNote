@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
+
 import { ResizeHandle } from './ResizeHandle';
 
-import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
 import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
 

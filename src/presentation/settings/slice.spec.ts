@@ -16,12 +16,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  AppSettingsDTO,
-  AppSettingsPatchDTO,
-} from '@infrastructure/electron/ipc-channels';
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
-
 import { installInmemnoteApiMock, settingsDTO } from '../../test/mockInmemnoteApi';
 
 import {
@@ -31,6 +25,14 @@ import {
   settingsReducer,
   type SettingsState,
 } from './slice';
+
+import type {
+  AppSettingsDTO,
+  AppSettingsPatchDTO,
+} from '@infrastructure/electron/ipc-channels';
+import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+
+
 
 function makeStore() {
   return configureStore({ reducer: { settings: settingsReducer } });
