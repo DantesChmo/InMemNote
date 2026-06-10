@@ -51,15 +51,29 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # Cache `node_modules` keyed by the lockfile. On hit we skip both
+      # `npm ci` and the better-sqlite3 rebuild below — those native
+      # bindings are inside `node_modules`, so they ride along in the
+      # cache. The key includes the OS to keep Linux and macOS native
+      # binaries from contaminating each other.
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-quality-node-modules-${{ hashFiles('package-lock.json') }}
+
       # `--ignore-scripts` skips the postinstall step for every package —
       # most of those builds aren't needed for typecheck/lint/unit tests and
       # they pull in extra toolchain on Linux. We do, however, need
       # `better-sqlite3` native bindings: `SqliteDraftRepository.spec.ts`
       # opens a real `:memory:` database in the unit suite, so we rebuild
       # just that one addon for the host Node.
-      - run: npm ci --ignore-scripts
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
 
-      - run: npm rebuild better-sqlite3
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm rebuild better-sqlite3
 
       - run: npm run typecheck
 
@@ -87,12 +101,31 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - run: npm ci
+      # Cache `node_modules` together with the already-Electron-rebuilt
+      # native modules. The key is OS-scoped (macOS has different
+      # NODE_MODULE_VERSION than Linux) and includes the lockfile, the
+      # native addon's gyp file, and its sources — touching any of those
+      # is what would actually invalidate the rebuild. We also include
+      # `native/window-events/build` in the cached paths so the
+      # gyp-produced binary survives across runs and gets picked up by
+      # the bundle step below.
+      - name: Cache node_modules + native build
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            native/window-events/build
+          key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('package-lock.json', 'native/window-events/binding.gyp', 'native/window-events/src/**') }}
+
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
 
       # Rebuild native modules against the Electron ABI. `npm ci` builds them
       # for the host Node, which has a different NODE_MODULE_VERSION; without
       # this step `better-sqlite3` would refuse to load inside Electron.
-      - name: Rebuild native modules for Electron
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        name: Rebuild native modules for Electron
         run: npx @electron/rebuild -f -w better-sqlite3
 
       - name: Forge package
@@ -179,9 +212,24 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - run: npm ci
+      # Reuse the same cache the `e2e-prepare` job populated earlier in
+      # the run (same key shape, same OS). On a tag push e2e-prepare runs
+      # first as part of the test pipeline, so the cache is already warm
+      # when we get here and `npm ci` + electron-rebuild are skipped.
+      - name: Cache node_modules + native build
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            native/window-events/build
+          key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('package-lock.json', 'native/window-events/binding.gyp', 'native/window-events/src/**') }}
 
-      - name: Rebuild native modules for Electron
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        name: Rebuild native modules for Electron
         run: npx @electron/rebuild -f -w better-sqlite3
 
       # `make` produces the distributable bundles for every maker registered
