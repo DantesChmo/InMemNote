@@ -35,11 +35,15 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      # `--ignore-scripts` skips the postinstall step that builds native
-      # modules (better-sqlite3) for the host platform — we don't need them
-      # for typecheck/lint/unit tests, and on Linux the build pulls extra
-      # toolchain dependencies that slow the job down.
+      # `--ignore-scripts` skips the postinstall step for every package —
+      # most of those builds aren't needed for typecheck/lint/unit tests and
+      # they pull in extra toolchain on Linux. We do, however, need
+      # `better-sqlite3` native bindings: `SqliteDraftRepository.spec.ts`
+      # opens a real `:memory:` database in the unit suite, so we rebuild
+      # just that one addon for the host Node.
       - run: npm ci --ignore-scripts
+
+      - run: npm rebuild better-sqlite3
 
       - run: npm run typecheck
 
