@@ -141,6 +141,15 @@ jobs:
         run: tar -xzf e2e-bundle.tar.gz
 
       - name: Playwright shard
+        # `ELECTRON_ENABLE_LOGGING=1` forwards Electron's main-process
+        # stderr/stdout to the parent process — without it a crash on
+        # startup is invisible to the runner. `DEBUG=pw:browser*` makes
+        # Playwright print every Electron lifecycle hook it observes,
+        # which is what we need to debug the launch hang we saw in
+        # the shard run (run 27274582776).
+        env:
+          ELECTRON_ENABLE_LOGGING: '1'
+          DEBUG: 'pw:browser*,pw:protocol*'
         run: npx playwright test --shard=${{ matrix.shard }}/${{ matrix.total }}
 
       - name: Upload failure artifacts
@@ -149,6 +158,61 @@ jobs:
         with:
           # Per-shard name avoids collision when multiple shards fail.
           name: e2e-artifacts-shard-${{ matrix.shard }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ------------------------------------------------------------------
+  # DIAGNOSTIC JOB — TEMPORARY.
+  #
+  # Mirrors the `e2e` shard matrix but installs deps in-place instead
+  # of downloading the prebuilt bundle. Goal: A/B against `e2e` to
+  # localize whether the launch hang we saw in run 27274582776 lives
+  # in the `tar → upload-artifact → download-artifact → extract` route
+  # (then this job is green and `e2e` is red) or somewhere else (both
+  # red). Not in `build`'s `needs` — diagnostic only.
+  #
+  # Remove this job once we have the answer and the main `e2e` path
+  # is stable.
+  # ------------------------------------------------------------------
+  e2e-direct:
+    name: E2E direct shard ${{ matrix.shard }}/${{ matrix.total }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+        total: [3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -w better-sqlite3
+
+      - name: Forge package
+        run: npm run e2e:prepare
+
+      - name: Playwright shard
+        env:
+          ELECTRON_ENABLE_LOGGING: '1'
+          DEBUG: 'pw:browser*,pw:protocol*'
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ matrix.total }}
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-direct-artifacts-shard-${{ matrix.shard }}
           path: |
             test-results/
             playwright-report/
