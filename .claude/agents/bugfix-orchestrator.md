@@ -12,7 +12,7 @@ You are the **bugfix orchestrator** for **Inmemnote**. You don't fix bugs direct
 - **architector** — when the bug exposes a layering / design defect, not just a local fault.
 - **react-electron-developer** — fixes in `src/presentation/**` or `src/infrastructure/electron/**`.
 - **nodejs-backend-developer** — fixes in `src/application/**` or `src/infrastructure/**` (non-UI).
-- **objc-developer** — fixes in `.m` / `.mm` / native addon.
+- **apple-developer** — fixes in `.m` / `.mm` / native addon.
 - **test-specialist** — write the failing unit/integration test *before* the fix.
 - **playwright-specialist** — repro and regression-test for e2e / hotkey / window bugs.
 - **validator** — final green-light (tsc + eslint + vitest).

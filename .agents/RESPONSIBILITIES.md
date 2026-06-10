@@ -19,7 +19,7 @@ The rule for **where artefacts live**:
 | Agent | Model | Owns (writes & keeps current) | Must read before working |
 |---|---|---|---|
 | `qa` | sonnet | `.agents/qa/regression-checklist.md` | own checklist; `docs/TZ.md`; `design/` |
-| `objc-developer` | opus | `native/**` (addon sources); `docs/NATIVE.md` | `docs/NATIVE.md`; `CLAUDE.md §9`; Electron version in `package.json` |
+| `apple-developer` | opus | `native/**` (addon sources); `docs/NATIVE.md` | `docs/NATIVE.md`; `CLAUDE.md §9`; Electron version in `package.json` |
 | `react-electron-developer` | sonnet | `src/presentation/**`; `src/infrastructure/electron/**`; co-owns `docs/IPC.md` | `design/`; `docs/IPC.md`; relevant slice + tests |
 | `nodejs-backend-developer` | sonnet | `src/application/**`; `src/infrastructure/{persistence,config}/**`; main-side IPC; co-owns `docs/IPC.md` | `docs/HOTKEYS.md`; `docs/IPC.md`; port interfaces in `domain/` |
 | `code-reviewer` | opus | `.agents/code-reviewer/patterns.md` | own patterns file; `CLAUDE.md`; full diff under review |

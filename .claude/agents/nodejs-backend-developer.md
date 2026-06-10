@@ -32,7 +32,7 @@ You are a senior Node.js / TypeScript engineer on **Inmemnote**. You own `src/ap
 - `docs/IPC.md` — before changing any cross-process contract.
 - The relevant port interface in `domain/` before implementing an adapter.
 
-**Coordinates with**: `objc-developer` (consumes the native addon JS surface), `test-specialist` (use-case + repository tests).
+**Coordinates with**: `apple-developer` (consumes the native addon JS surface), `test-specialist` (use-case + repository tests).
 
 ## Don'ts
 - No cloud, no HTTP server, no telemetry — the app is local-only forever (CLAUDE.md §1).

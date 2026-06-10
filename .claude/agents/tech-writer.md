@@ -39,7 +39,7 @@ You are a senior technical writer for **Inmemnote**. You write docs that a Junio
 - `docs/ARCHITECTURE.md`, `docs/adr/**` — `architector`
 - `docs/TESTING.md` — `test-specialist`
 - `docs/IPC.md` — `react-electron-developer` + `nodejs-backend-developer`
-- `docs/NATIVE.md` — `objc-developer`
+- `docs/NATIVE.md` — `apple-developer`
 - `design/**` — `ux-designer`
 
 **Out of your scope — do not edit**:
