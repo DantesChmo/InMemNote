@@ -231,3 +231,92 @@ able to continue by reading:
 1. `CLAUDE.md` (this file — what & how).
 2. `docs/TZ.md` (where we currently are).
 3. `design/` (what it should look like).
+4. `.agents/RESPONSIBILITIES.md` (who — which agent — owns what).
+
+---
+
+## 12. Agents and where their state lives
+
+The project ships with a fleet of specialist agents (QA, architector, code
+reviewer, developer agents per stack layer, etc.). They are an integral
+part of how work gets done here, not an optional add-on.
+
+### Repo layout
+
+| Path | Purpose | Edited by |
+|---|---|---|
+| `.claude/agents/*.md` | Agent prompts (system instructions per agent). | Humans — these are configuration. |
+| `.agents/` | **Agent operational state** — checklists, accumulated patterns, regression plans, bug log, postmortems. Read by agents at the start of every session and appended to during work. | The owning agent (see below). |
+| `.agents/RESPONSIBILITIES.md` | **Master distribution map**: which agent owns which files, which docs they must read first, and how they coordinate with each other. | Maintained alongside the agent prompts. |
+| `docs/` | **Human-readable developer documentation**. Polished, narrative. | Specialist agents first-author their section; `tech-writer` polishes. |
+| `design/` | Visual design assets and mockups. | `ux-designer`. |
+
+### Rules
+
+- `docs/**` and `.agents/**` are **different in kind**. Anything that a
+  new contributor should read to understand the project belongs in
+  `docs/`. Anything that is the working memory of an agent (lists,
+  patterns, plans) belongs in `.agents/`.
+- The agent prompts in `.claude/agents/*.md` and the table in
+  `.agents/RESPONSIBILITIES.md` must agree. If they disagree, that's a
+  bug — fix one of them, don't proceed with the contradiction.
+- When adding a new agent: drop a prompt into `.claude/agents/`, add a
+  row to `.agents/RESPONSIBILITIES.md` in the same change.
+
+---
+
+## 13. Feature trigger — the `feature` keyword
+
+If the **first word** of the user's prompt is `feature` (case-insensitive),
+the work is a *feature delivery*, not an ad-hoc task. The full pipeline
+below is **mandatory and non-negotiable**, executed by delegating to the
+appropriate specialist agents — typically via `feature-orchestrator`.
+
+If the first word is anything else, act per the situation; no pipeline is
+forced.
+
+### The pipeline (in order)
+
+1. **Architecture** — `architector` designs the change (or explicitly
+   states "no architectural change required" with reasoning). Updates
+   `docs/ARCHITECTURE.md` if shape changes. New ADR if a non-trivial
+   decision was made.
+2. **Design** — `ux-designer` if any UI surface is involved. Mockup or
+   updated entry in `design/INDEX.md`. Skipped only for purely non-UI
+   features, with an explicit note.
+3. **Code plan** — the relevant developer agent(s) draft a file-level
+   plan (which files, which interfaces, sequencing). No production code
+   yet.
+4. **Tests first** — `test-specialist` writes failing unit / integration
+   tests against the planned interfaces (TDD red — CLAUDE.md §4).
+5. **Implementation** — the developer agent(s) turn the red tests green.
+   No scope creep beyond the plan.
+6. **E2E** — `playwright-specialist` adds an e2e spec covering the
+   feature's primary user flow and updates
+   `.agents/playwright/test-plan.md`.
+7. **Validation** — `validator` runs type-check + ESLint + Vitest.
+   Must be green before proceeding.
+8. **Regression** — `qa` walks
+   `.agents/qa/regression-checklist.md` for the affected surfaces;
+   `playwright-specialist` runs the regression spec set. Failures loop
+   back to step 5.
+9. **Human documentation** — `tech-writer` (with first-authors) updates
+   `docs/**` so a new contributor can read about the feature without
+   spelunking the diff.
+10. **Constitution updates** — review and update, in this order:
+    `CLAUDE.md`, `docs/ARCHITECTURE.md`, `.agents/RESPONSIBILITIES.md`,
+    `docs/TZ.md`. If none need an update, state so explicitly.
+
+### Rules of execution
+
+- **Unconditional.** No step is skipped because "it's small". A step
+  that doesn't apply is acknowledged in writing ("step 2 skipped, no UI
+  change") — silence is not allowed.
+- **Distributed.** Every step is delegated to the agent that owns it.
+  The orchestrator does not write the code, the tests, or the docs
+  itself.
+- **Sequential gates.** A step's output is the input to the next. Don't
+  start implementation before the test plan is red.
+- **One feature, one trigger.** The `feature` word starts one pipeline.
+  Splitting a feature into multiple pipelines requires breaking the
+  prompt into multiple `feature ...` prompts.
