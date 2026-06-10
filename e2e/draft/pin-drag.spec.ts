@@ -9,7 +9,26 @@ import { DraftPage } from '../helpers/draft';
  * works in headless Playwright + Electron) and asserts the post-drag bounds.
  */
 test.describe('Pinned drag-to-corner', () => {
-  for (const corner of ['tl', 'bl', 'br'] as const) {
+  for (const corner of ['tl', 'tr', 'bl', 'br'] as const) {
+    /**
+     * @scenario Dragging the pinned window into a quadrant snaps it to that corner
+     * @area Draft
+     * @feature Pin / Drag-to-corner
+     * @type positive
+     * @priority P0
+     *
+     * Preconditions:
+     *   - Draft pinned with content.
+     *
+     * Steps:
+     *   1. Summon, type, pin (await animation).
+     *   2. Programmatically `setBounds` so the window center lands in the
+     *      target quadrant (tl/tr/bl/br).
+     *   3. Wait for the snap animation.
+     *
+     * Expected:
+     *   - The window's resulting center quadrant matches the target corner.
+     */
     test(`drop on the ${corner} quadrant snaps the window into the ${corner} corner`, async () => {
       const handles = await launchApp();
       try {
@@ -21,8 +40,6 @@ test.describe('Pinned drag-to-corner', () => {
         await draft.clickPin();
         await draft.raw.waitForTimeout(700);
 
-        // Move the window into the target quadrant programmatically. AppKit
-        // can't be driven by Playwright, so we go straight to BrowserWindow.
         const expectedCorner = corner;
         const finalBounds = await handles.app.evaluate(
           async ({ BrowserWindow, screen: screenMod }, args) => {
@@ -42,23 +59,15 @@ test.describe('Pinned drag-to-corner', () => {
             const t = targets[args.corner];
             if (!t) throw new Error('bad corner');
             w.setBounds({ x: t.x, y: t.y, width: startBounds.width, height: startBounds.height });
-            // The `move` event fires synchronously off `setBounds`; the drag
-            // detector sees no size change and treats it as a real drag.
             await new Promise((resolve) => setTimeout(resolve, 500));
             return w.getBounds();
           },
           { corner: expectedCorner },
         );
 
-        // Allow the snap animation to land.
         await draft.raw.waitForTimeout(500);
 
-        const bounds = await handles.app.evaluate(({ BrowserWindow }) => {
-          const w = BrowserWindow.getAllWindows().find((win) =>
-            win.webContents.getURL().includes('view=draft'),
-          );
-          return w?.getBounds();
-        });
+        const bounds = await DraftPage.draftBounds(handles.app);
 
         const display = await handles.app.evaluate(({ BrowserWindow, screen: screenMod }) => {
           const w = BrowserWindow.getAllWindows().find((win) =>
@@ -68,8 +77,6 @@ test.describe('Pinned drag-to-corner', () => {
           return screenMod.getDisplayMatching(w.getBounds()).workArea;
         });
 
-        // We don't care about the exact pixel — just that the centre of the
-        // resulting window sits in the right quadrant.
         const centerX = (bounds?.x ?? 0) + (bounds?.width ?? 0) / 2;
         const centerY = (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2;
         const midX = display.x + display.width / 2;
@@ -85,7 +92,6 @@ test.describe('Pinned drag-to-corner', () => {
             : 'tl';
 
         expect(observed).toBe(expectedCorner);
-        // Silence unused warning on `finalBounds` — useful in failure logs.
         expect(finalBounds).toBeTruthy();
       } finally {
         await handles.dispose();
@@ -93,5 +99,50 @@ test.describe('Pinned drag-to-corner', () => {
     });
   }
 
-});
+  /**
+   * @scenario First pin lands at the design-default top-right anchor
+   * @area Draft
+   * @feature Pin / Anchor
+   * @type positive
+   * @priority P1
+   *
+   * Steps:
+   *   1. Summon, type, pin (await animation).
+   *   2. Measure window bounds relative to the work area.
+   *
+   * Expected:
+   *   - Window right edge is within ~40 px of the work-area right edge.
+   *   - Window top edge is within ~40 px of the work-area top edge.
+   *
+   * Notes:
+   *   - The internal `lastPinnedCorner` field only updates through the
+   *     native mouseUp stream which Playwright cannot drive. We assert the
+   *     observable geometry instead of internal state.
+   */
+  test('first pin lands in the top-right anchor by design', async () => {
+    const handles = await launchApp();
+    try {
+      const draft = await DraftPage.summon(handles.app);
+      await draft.typeIntoEditor('first pin');
+      await draft.raw.waitForTimeout(200);
+      await draft.clickPin();
+      await draft.raw.waitForTimeout(700);
 
+      const r = await handles.app.evaluate(({ BrowserWindow, screen: screenMod }) => {
+        const w = BrowserWindow.getAllWindows().find((win) =>
+          win.webContents.getURL().includes('view=draft'),
+        );
+        if (!w) throw new Error('No draft window');
+        const b = w.getBounds();
+        const wa = screenMod.getDisplayMatching(b).workArea;
+        return { b, wa };
+      });
+      const rightGap = r.wa.x + r.wa.width - (r.b.x + r.b.width);
+      const topGap = r.b.y - r.wa.y;
+      expect(rightGap).toBeLessThan(40);
+      expect(topGap).toBeLessThan(40);
+    } finally {
+      await handles.dispose();
+    }
+  });
+});

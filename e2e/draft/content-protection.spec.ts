@@ -21,6 +21,27 @@ import { DraftPage } from '../helpers/draft';
  *      this by spying on `setContentProtection` after launch and asserting
  *      that no call with `false` lands during a pin → unpin → pin cycle.
  */
+
+/**
+ * @scenario Content protection (NSWindowSharingNone) is preserved across pin/unpin cycles
+ * @area Draft
+ * @feature Security / Screen capture
+ * @type positive
+ * @priority P0
+ *
+ * Preconditions:
+ *   - macOS host with `setContentProtection` available on BrowserWindow.
+ *
+ * Steps:
+ *   1. Confirm `setContentProtection` is a function on the live Draft window.
+ *   2. Patch `BrowserWindow.prototype.setContentProtection` to record every call.
+ *   3. Summon Draft, type, then pin → unpin → pin (await each animation).
+ *   4. Read back the recorded calls; restore the original method.
+ *
+ * Expected:
+ *   - The API is present on the window.
+ *   - The recorded calls do NOT include any `false` argument.
+ */
 test('draft window keeps content protection across pin/unpin cycles', async () => {
   const handles = await launchApp();
   try {

@@ -70,6 +70,21 @@ export class LibraryPage {
     return this.cards().count();
   }
 
+  /**
+   * Returns the visible card titles in DOM order. The card includes an
+   * empty accent-stripe `<span>` when active, so we pick the first span
+   * that has visible text — which is always the title row.
+   */
+  public async cardTitles(): Promise<string[]> {
+    return this.cards().evaluateAll((nodes) =>
+      nodes.map((n) => {
+        const spans = Array.from(n.querySelectorAll('span'));
+        const titleSpan = spans.find((s) => (s.textContent ?? '').trim().length > 0);
+        return titleSpan?.textContent?.trim() ?? '';
+      }),
+    );
+  }
+
   // ---------- Editor ----------
 
   public editor() {
@@ -83,10 +98,33 @@ export class LibraryPage {
     await this.page.keyboard.type(text);
   }
 
+  /**
+   * Replace the editor's contents with `text` via a single paste event —
+   * orders-of-magnitude faster than `typeIntoEditor` for large payloads.
+   * The CM6 view handles paste in one transaction, so a multi-KB body
+   * commits in milliseconds instead of one keystroke per char.
+   */
+  public async setEditorContent(text: string): Promise<void> {
+    await this.editor().click();
+    await this.page.keyboard.press('Meta+KeyA');
+    await this.page.keyboard.press('Delete');
+    await this.page.evaluate((payload) => {
+      const target = document.querySelector('.cm-content') as HTMLElement | null;
+      if (!target) throw new Error('No .cm-content element');
+      const event = new ClipboardEvent('paste', { clipboardData: new DataTransfer() });
+      event.clipboardData!.setData('text/plain', payload);
+      target.dispatchEvent(event);
+    }, text);
+  }
+
   public async clearEditor(): Promise<void> {
     await this.editor().click();
     await this.page.keyboard.press('Meta+KeyA');
     await this.page.keyboard.press('Delete');
+  }
+
+  public async editorText(): Promise<string> {
+    return (await this.editor().textContent()) ?? '';
   }
 
   public async clickPin(): Promise<void> {
@@ -119,5 +157,15 @@ export class LibraryPage {
       .filter({ hasText: expected })
       .first()
       .waitFor({ timeout: 5_000 });
+  }
+
+  /** Wait until there is exactly `n` cards in the list. */
+  public async waitForCardCount(n: number): Promise<void> {
+    await this.page.waitForFunction(
+      (expected) =>
+        document.querySelectorAll('[data-testid^="note-card-"]').length === expected,
+      n,
+      { timeout: 5_000 },
+    );
   }
 }

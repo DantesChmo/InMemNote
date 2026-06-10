@@ -38,6 +38,40 @@ export class DraftPage {
     });
   }
 
+  /**
+   * True if a Draft BrowserWindow currently exists in the app. Useful for
+   * race-condition tests where a window may have been closed between
+   * actions.
+   */
+  public static async draftWindowExistsInApp(app: ElectronApplication): Promise<boolean> {
+    return app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some((w) =>
+        w.webContents.getURL().includes('view=draft'),
+      ),
+    );
+  }
+
+  /** Whether the main process reports the Draft window as visible. */
+  public static async draftIsVisibleInApp(app: ElectronApplication): Promise<boolean> {
+    return app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((win) =>
+        win.webContents.getURL().includes('view=draft'),
+      );
+      return !!w && !w.isDestroyed() && w.isVisible();
+    });
+  }
+
+  public static async draftBounds(
+    app: ElectronApplication,
+  ): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    return app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((win) =>
+        win.webContents.getURL().includes('view=draft'),
+      );
+      return w?.getBounds() ?? null;
+    });
+  }
+
   public get raw(): Page {
     return this.page;
   }
@@ -49,6 +83,34 @@ export class DraftPage {
   public async typeIntoEditor(text: string): Promise<void> {
     await this.editor().click();
     await this.page.keyboard.type(text);
+  }
+
+  /**
+   * Replace the editor's contents wholesale via direct paste-style input —
+   * faster than typing for long strings and bypasses CodeMirror's auto-indent
+   * heuristics that can muddle keystroke-driven input on Markdown lists.
+   */
+  public async setEditorContent(text: string): Promise<void> {
+    await this.editor().click();
+    await this.selectAll();
+    await this.page.keyboard.press('Delete');
+    // Type via clipboard-style insertion: dispatch a paste event to the
+    // CM6 view. CodeMirror handles `paste` as a single transaction, so
+    // even huge payloads commit quickly without ResizeObserver thrash.
+    await this.page.evaluate((payload) => {
+      const view = (window as unknown as { __cmView?: unknown }).__cmView;
+      void view;
+      const target = document.querySelector('.cm-content') as HTMLElement | null;
+      if (!target) throw new Error('No .cm-content element');
+      const event = new ClipboardEvent('paste', { clipboardData: new DataTransfer() });
+      event.clipboardData!.setData('text/plain', payload);
+      target.dispatchEvent(event);
+    }, text);
+  }
+
+  public async selectAll(): Promise<void> {
+    await this.editor().focus();
+    await this.page.keyboard.press('Meta+KeyA');
   }
 
   public async submit(): Promise<void> {
@@ -71,5 +133,10 @@ export class DraftPage {
     // `isClosed()` is sync; `locator.isVisible()` is async.
     if (this.page.isClosed()) return false;
     return this.page.locator('body').isVisible();
+  }
+
+  /** Current editor text via DOM `.cm-content`. */
+  public async editorText(): Promise<string> {
+    return (await this.editor().textContent()) ?? '';
   }
 }

@@ -13,6 +13,28 @@ import { _electron as electron, test, expect } from '@playwright/test';
  * variant would. The difference is that Playwright owns the argv vector and
  * adds the `--remote-debugging-port` it needs to attach.
  */
+
+/**
+ * @scenario Renderer applies design tokens (accent, panel) and Tailwind utilities; Draft overlay screenshot is produced
+ * @area Visual
+ * @feature Design tokens / Bootstrap
+ * @type positive
+ * @priority P0
+ *
+ * Steps:
+ *   1. Launch app (unpackaged), grab the first window.
+ *   2. Read CSS custom properties on `:root` (`--accent`, `--panel`, …).
+ *   3. Take a full-page screenshot of Library, then summon Draft and screenshot it.
+ *
+ * Expected:
+ *   - `--accent` resolves to `#3f7d6b` (brand accent).
+ *   - `--panel` is non-empty (token CSS loaded).
+ *   - `#root` innerHTML length > 100 (React mounted content).
+ *
+ * Notes:
+ *   - Screenshots land in `test-results/`; they are visual regression aids,
+ *     not assertions.
+ */
 test('renderer applies design tokens and Tailwind utilities', async () => {
   const userDataDir = mkdtempSync(join(tmpdir(), 'inmemnote-vis-'));
   const app = await electron.launch({
