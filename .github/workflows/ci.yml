@@ -1,11 +1,22 @@
 # Continuous integration for Inmemnote.
 #
-# Three jobs run in parallel where possible:
+# Jobs:
 #
-#   1. `quality`   — typecheck, lint, unit tests on Linux (fast, cheap).
-#   2. `e2e`       — Playwright + Electron suite on macOS (we ship macOS-only,
-#                    so there's no point exercising E2E elsewhere).
-#   3. `build`     — DMG package on macOS, gated on the two checks above.
+#   1. `quality`        — typecheck, lint, unit tests on Linux (fast, cheap).
+#   2. `e2e-prepare`    — macOS: install deps, rebuild native modules against
+#                         Electron's ABI, run `e2e:prepare` (Forge package +
+#                         Vite renderer build). Uploads a single tarball that
+#                         every shard reuses, so we pay this multi-minute cost
+#                         once per run instead of once per shard.
+#   3. `e2e`            — macOS matrix: each shard downloads the tarball and
+#                         runs its slice of the Playwright suite via
+#                         `--shard=<i>/<total>`. Combined with 2 Playwright
+#                         workers per shard (see `playwright.config.ts`), this
+#                         fans the suite across ~6 parallel Electron instances.
+#   4. `build`          — DMG package on macOS, gated on `quality` and `e2e`.
+#                         Only runs on tag pushes (`v*`) — `main` pushes
+#                         shouldn't burn macOS minutes producing throwaway
+#                         DMGs; the artifact only matters for releases.
 #
 # Node 22 is the LTS we target; CI pins to it explicitly so we don't drift if
 # the runner default moves.
@@ -15,6 +26,11 @@ name: CI
 on:
   push:
     branches: [main]
+    # `v*` matches the release-tag convention (`v1.2.0`, `v0.4.1-rc1`).
+    # Tag pushes are what trigger the DMG build (see the `build` job below);
+    # `quality` and `e2e` still run so a release tag is never cut without
+    # a green test run.
+    tags: ['v*']
   pull_request:
 
 # Cancel in-flight runs of the same ref. PR pushes shouldn't queue up minutes.
@@ -59,8 +75,8 @@ jobs:
       - name: Check e2e test plan is up to date
         run: npm run check:test-plan
 
-  e2e:
-    name: E2E (Playwright + Electron)
+  e2e-prepare:
+    name: E2E prepare (package + native rebuild)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,14 +98,57 @@ jobs:
       - name: Forge package
         run: npm run e2e:prepare
 
-      - name: Playwright run
-        run: npm run e2e
+      # Tar before upload: `node_modules` is hundreds of thousands of small
+      # files, and `actions/upload-artifact` is dramatically slower over that
+      # shape than over one large blob. The shards pay a single ~30 s
+      # extract instead of multi-minute per-file IO.
+      - name: Bundle prepared workspace
+        run: tar -czf e2e-bundle.tar.gz node_modules .vite
+
+      - name: Upload e2e bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-bundle
+          path: e2e-bundle.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  e2e:
+    name: E2E shard ${{ matrix.shard }}/${{ matrix.total }}
+    needs: e2e-prepare
+    runs-on: macos-latest
+    strategy:
+      # One shard's failure shouldn't cancel the others — we want the full
+      # picture of which slices are red before respinning CI.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+        total: [3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download e2e bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-bundle
+
+      - name: Extract bundle
+        run: tar -xzf e2e-bundle.tar.gz
+
+      - name: Playwright shard
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ matrix.total }}
 
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts
+          # Per-shard name avoids collision when multiple shards fail.
+          name: e2e-artifacts-shard-${{ matrix.shard }}
           path: |
             test-results/
             playwright-report/
@@ -100,6 +159,10 @@ jobs:
     name: Build DMG
     runs-on: macos-latest
     needs: [quality, e2e]
+    # Tag pushes only — `main` pushes and PRs skip this job. `needs` still
+    # gates the build behind green `quality` + `e2e`, so a tag never produces
+    # a DMG without passing tests.
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 

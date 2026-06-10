@@ -15,10 +15,29 @@ import { app, globalShortcut } from 'electron';
  * The DB lives on top because the settings popup is the documented user
  * workflow; YAML stays as the power-user / scripted-deploy escape hatch.
  */
+export interface HotkeyServiceOptions {
+  /**
+   * When true, every operation becomes a no-op — no `globalShortcut`
+   * calls are made. Used by E2E runs where multiple Electron instances
+   * coexist on the same host and would otherwise race for the same
+   * accelerator (the second `register` returns false on macOS, polluting
+   * logs and producing a confusing "hotkey doesn't work" failure mode
+   * mid-suite). Playwright drives Draft through the `__inmemnoteTest`
+   * IPC channel anyway, so the OS-level shortcut is dead weight in tests.
+   */
+  disabled?: boolean;
+}
+
 export class HotkeyService {
   private registered: string | null = null;
+  private readonly disabled: boolean;
 
-  constructor(private readonly onTrigger: () => void) {}
+  constructor(
+    private readonly onTrigger: () => void,
+    options: HotkeyServiceOptions = {},
+  ) {
+    this.disabled = options.disabled ?? false;
+  }
 
   /**
    * Resolve the effective accelerator (DB-first, YAML fallback) and
@@ -29,6 +48,7 @@ export class HotkeyService {
    * but only the latter should fall back to YAML.
    */
   loadInitial(opts: { dbAccelerator: string | null; settingsRowExists: boolean }): void {
+    if (this.disabled) return;
     const { hotkeys: yamlHotkeys, warning } = loadHotkeys({
       defaultsPath: join(app.getAppPath(), 'config/hotkeys.yaml'),
       userOverridePath: join(app.getPath('userData'), 'hotkeys.yaml'),
@@ -44,6 +64,7 @@ export class HotkeyService {
    * the Settings popup flow to re-register without restart.
    */
   register(accelerator: string): void {
+    if (this.disabled) return;
     if (this.registered) {
       globalShortcut.unregister(this.registered);
       this.registered = null;
@@ -57,6 +78,7 @@ export class HotkeyService {
   }
 
   unregisterAll(): void {
+    if (this.disabled) return;
     globalShortcut.unregisterAll();
     this.registered = null;
   }

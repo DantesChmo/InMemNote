@@ -76,7 +76,7 @@ app.whenReady().then(async () => {
   draftController = new DraftWindowController();
   libraryController.openOrFocus();
 
-  hotkey = new HotkeyService(() => draftController?.toggle());
+  hotkey = new HotkeyService(() => draftController?.toggle(), { disabled: E2E_MODE });
   hotkey.loadInitial({
     dbAccelerator: currentSettings.openDraftHotkey.accelerator,
     settingsRowExists,

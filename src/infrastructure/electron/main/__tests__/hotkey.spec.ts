@@ -113,3 +113,15 @@ describe('HotkeyService.unregisterAll', () => {
     expect(globalShortcutMock.unregister).not.toHaveBeenCalled();
   });
 });
+
+describe('HotkeyService disabled mode', () => {
+  it('skips every globalShortcut call so parallel E2E workers do not collide', () => {
+    const s = new HotkeyService(vi.fn(), { disabled: true });
+    s.loadInitial({ dbAccelerator: 'Alt+Space', settingsRowExists: true });
+    s.register('Alt+Other');
+    s.unregisterAll();
+    expect(globalShortcutMock.register).not.toHaveBeenCalled();
+    expect(globalShortcutMock.unregister).not.toHaveBeenCalled();
+    expect(globalShortcutMock.unregisterAll).not.toHaveBeenCalled();
+  });
+});
