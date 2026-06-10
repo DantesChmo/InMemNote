@@ -47,6 +47,14 @@ jobs:
 
       - run: npm test
 
+      # Regenerate `e2e/TEST-PLAN.md` from the JSDoc on each `test(...)`
+      # and fail if the committed file is out of sync. Cheap (~1 s, no
+      # deps beyond Node) and catches two classes of mistake at once:
+      #   1. a new test added without `@scenario`/`@area`/… JSDoc;
+      #   2. an existing test whose docstring drifted from the rendered plan.
+      - name: Check e2e test plan is up to date
+        run: npm run check:test-plan
+
   e2e:
     name: E2E (Playwright + Electron)
     runs-on: macos-latest

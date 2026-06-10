@@ -19,6 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "e2e:prepare": "rm -rf .vite out node_modules/.vite && electron-forge package",
     "e2e": "playwright test",
+    "gen:test-plan": "node scripts/gen-test-plan.mjs",
+    "check:test-plan": "node scripts/gen-test-plan.mjs && git ls-files --error-unmatch -- e2e/TEST-PLAN.md && git diff --exit-code -- e2e/TEST-PLAN.md",
     "prepare": "husky"
   },
   "lint-staged": {
