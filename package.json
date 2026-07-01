@@ -1,7 +1,7 @@
 {
   "name": "inmemnote",
   "productName": "Inmemnote",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Quick notes for macOS — Spotlight-style overlay with markdown.",
   "main": ".vite/build/main.js",
   "private": true,
