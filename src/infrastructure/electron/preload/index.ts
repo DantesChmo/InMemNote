@@ -2,6 +2,7 @@ import {
   IPC,
   type AppSettingsDTO,
   type AppSettingsPatchDTO,
+  type AvailableUpdateDTO,
   type DraftDTO,
   type NoteDTO,
   type NoteListFilterDTO,
@@ -175,6 +176,27 @@ const api = {
       const listener = (_e: unknown, next: AppSettingsDTO): void => handler(next);
       ipcRenderer.on(IPC.SettingsChanged, listener);
       return () => ipcRenderer.removeListener(IPC.SettingsChanged, listener);
+    },
+  },
+  update: {
+    /** Ask main to check the release feed now. Resolves to a DTO or `null`. */
+    check: (): Promise<AvailableUpdateDTO | null> => ipcRenderer.invoke(IPC.UpdateCheck),
+    /**
+     * Download + install the pending update and relaunch. Resolves once the
+     * hand-off succeeded (the app then quits); rejects if it failed.
+     */
+    install: (): Promise<void> => ipcRenderer.invoke(IPC.UpdateInstall),
+    /** Subscribe to "a newer release was found" broadcasts from the startup/periodic check. */
+    onAvailable: (handler: (update: AvailableUpdateDTO) => void): (() => void) => {
+      const listener = (_e: unknown, update: AvailableUpdateDTO): void => handler(update);
+      ipcRenderer.on(IPC.UpdateAvailable, listener);
+      return () => ipcRenderer.removeListener(IPC.UpdateAvailable, listener);
+    },
+    /** Subscribe to download-progress (0..1) during an install. */
+    onProgress: (handler: (fraction: number) => void): (() => void) => {
+      const listener = (_e: unknown, fraction: number): void => handler(fraction);
+      ipcRenderer.on(IPC.UpdateProgress, listener);
+      return () => ipcRenderer.removeListener(IPC.UpdateProgress, listener);
     },
   },
 };

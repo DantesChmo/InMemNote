@@ -25,8 +25,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   default, language picker in Settings. Typed `MessageKey` union enforces
   full coverage at compile time.
 - [ ] **E2E.** Full coverage of user-facing flows with Playwright + Electron.
-- [ ] **Later — Auto-update.** Wire up `update-electron-app` (requires a
-  GitHub Releases feed + macOS code signing/notarization).
+- [x] **V2.3 — Auto-update.** Signing-free self-updater: the app polls the
+  GitHub Releases feed, and a one-click banner downloads the DMG and swaps
+  the bundle in place via a detached helper (no Apple Developer ID, no
+  Squirrel). See §4d.
 
 ---
 
@@ -292,6 +294,73 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 
 ---
 
+## 4d. Auto-update — functional requirements (V2.3)
+
+### 4d.1 Approach and constraint
+- [x] **No Apple Developer ID, no Squirrel.** `update-electron-app` /
+  Squirrel.Mac refuse to apply an update whose code signature isn't a valid,
+  matching Developer ID. This app ships ad-hoc-signed and installs via `curl`
+  to dodge Gatekeeper's quarantine (see README), so Squirrel is a non-starter.
+  Instead we reproduce `scripts/install.sh` from inside the app.
+- [x] The update feed IS the GitHub Release the CI `build` job already
+  publishes — no backend of our own, keeping the "no cloud" promise.
+
+### 4d.2 Detection
+- [x] `GithubReleaseGateway` reads the anonymous GitHub Releases API
+  (`/releases/latest`), parses `tag_name` → `AppVersion`, and resolves the
+  DMG asset URL from the release's own asset list (falling back to the stable
+  `/latest/download/` URL).
+- [x] `CheckForUpdateUseCase` compares the feed version against
+  `app.getVersion()` numerically (not lexicographically) and returns the
+  release only when strictly newer. A feed failure is a soft `Result` error —
+  offline is not an error the user sees.
+- [x] Main checks 8 s after launch and every 6 h; the Library window also
+  checks on mount. Found releases broadcast `update:available`.
+
+### 4d.3 Install
+- [x] `DmgSelfUpdater` downloads the DMG (streaming, with 0..1 progress),
+  writes a detached `/bin/bash` helper, spawns it un-tethered, and quits.
+- [x] The helper waits for the app's PID to exit (a live bundle can't be
+  replaced), then `hdiutil attach` → `rm -rf` + `cp -R` into `/Applications`
+  → `hdiutil detach` → `xattr -dr com.apple.quarantine` → `open`. Because
+  `cp` never quarantines, the relaunched build opens with no Gatekeeper
+  prompt.
+- [x] Target is hardcoded to `/Applications/Inmemnote.app` — the documented
+  install location, where the launcher and Dock already point.
+
+### 4d.4 UI
+- [x] `UpdateBanner` (Library window, under the toolbar): one line, hidden
+  until a release is found. "Update & restart" / "Later" (dismiss;
+  re-surfaces next check) / "What's new" link. Shows a progress bar while
+  downloading and a failure message on error (retry stays available).
+- [x] i18n keys under `update.*` in both locales.
+
+### 4d.5 Architecture
+- [x] Domain: `AppVersion` (VO with numeric semver compare), `ReleaseInfo`,
+  ports `ReleaseGateway` + `UpdateInstaller`, `errors.ts`.
+- [x] Application: `CheckForUpdateUseCase`, `InstallUpdateUseCase`
+  (both return `Result`).
+- [x] Infrastructure: `GithubReleaseGateway`, `DmgSelfUpdater` (injectable
+  seams for unit tests), `main/ipc/update.ts`.
+- [x] IPC: `update:check` / `update:install` (invoke) + `update:available` /
+  `update:progress` (broadcast). Preload `window.inmemnote.update.*`.
+- [x] Presentation: `presentation/update/` slice + `UpdateBanner`.
+- [x] Auto-check + timers are disabled under `INMEMNOTE_E2E=1` and the
+  gateway is stubbed to fail-soft, so the E2E suite stays hermetic/offline.
+- [x] 44 unit tests across the layers.
+
+> **Open item.** The `update-electron-app` dependency is now dead (we don't
+> use Squirrel). Left in `package.json` for now to avoid churning the
+> lockfile + native ABI during this change; drop it in a dedicated
+> dependency commit (`npm install` + committed lockfile).
+
+> **E2E note.** No Playwright spec is added for the install flow: it is
+> network- + process-replacement-bound (it quits and swaps the running app)
+> and is deliberately disabled under E2E. Banner rendering and the
+> check/install state machine are covered by component + slice unit tests.
+
+---
+
 ## 5. Decision log
 
 - **2026-06-05** — Stack confirmed: Electron Forge + Vite, Redux Toolkit,
@@ -330,3 +399,14 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   no new runtime dep, TS-enforced full coverage of the message catalog,
   trivial review surface. Plural rules and ICU formatting are
   deliberately out of scope — when we need them, we add the library.
+- **2026-07-01** — V2.3 (Auto-update) closed. Chose a signing-free
+  self-updater over `update-electron-app`/Squirrel.Mac: Squirrel requires a
+  valid Apple Developer ID signature, which the project deliberately doesn't
+  have (ad-hoc-signed, `curl`-installed to dodge quarantine). The updater
+  reads the existing GitHub Releases feed and reproduces `install.sh` from a
+  detached helper (wait-for-PID → mount → swap `/Applications` bundle →
+  de-quarantine → relaunch), so it works today at zero cost and keeps the
+  "no backend" promise. `update-electron-app` is now dead code, flagged for
+  removal in a follow-up dependency commit. Full alternatives considered:
+  Apple Developer ID + notarization + Squirrel (rejected: $99/yr + cert
+  management), notify-only banner (rejected: still manual install). See §4d.

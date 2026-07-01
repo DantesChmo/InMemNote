@@ -1,4 +1,9 @@
+import { CheckForUpdateUseCase } from '@application/update/CheckForUpdateUseCase';
+import { InstallUpdateUseCase } from '@application/update/InstallUpdateUseCase';
+import { AppVersion } from '@domain/update/AppVersion';
 import { IPC } from '@infrastructure/electron/ipc-channels';
+import { createDmgSelfUpdater } from '@infrastructure/update/DmgSelfUpdater';
+import { GithubReleaseGateway } from '@infrastructure/update/GithubReleaseGateway';
 import { app, BrowserWindow } from 'electron';
 
 import { buildContainer } from './composition';
@@ -7,8 +12,14 @@ import { HotkeyService } from './hotkey';
 import { registerDraftIpc } from './ipc/draft';
 import { registerNotesIpc } from './ipc/notes';
 import { registerSettingsIpc } from './ipc/settings';
+import { registerUpdateIpc } from './ipc/update';
 import { DraftWindowController } from './windows/DraftWindowController';
 import { LibraryWindowController } from './windows/LibraryWindowController';
+
+/** How often to re-check the release feed while the app is running. */
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+/** Delay before the first check so it doesn't compete with startup work. */
+const UPDATE_FIRST_CHECK_DELAY_MS = 8000;
 
 /**
  * Electron main process entry point.
@@ -98,8 +109,48 @@ app.whenReady().then(async () => {
     );
   }
 
+  setupAutoUpdate();
+
   if (E2E_MODE) registerE2eAffordances(draftController);
 });
+
+/**
+ * Wire the signing-free self-updater.
+ *
+ * In E2E the gateway is stubbed to fail-soft (never touches the network) and
+ * the automatic timers are skipped, so the suite stays hermetic and offline.
+ * A manual `update:check` from the renderer still resolves (to "no update").
+ */
+function setupAutoUpdate(): void {
+  const versionResult = AppVersion.create(app.getVersion());
+  if (!versionResult.ok) {
+    console.warn('Skipping auto-update: unparseable app version', app.getVersion());
+    return;
+  }
+
+  const gateway = E2E_MODE
+    ? {
+        fetchLatest: async () => {
+          throw new Error('auto-update disabled under E2E');
+        },
+      }
+    : new GithubReleaseGateway();
+
+  const checkForUpdate = new CheckForUpdateUseCase(gateway, versionResult.value);
+  const installUpdate = new InstallUpdateUseCase(
+    createDmgSelfUpdater((fraction) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send(IPC.UpdateProgress, fraction);
+      }
+    }),
+  );
+
+  const updateIpc = registerUpdateIpc({ checkForUpdate, installUpdate });
+
+  if (E2E_MODE) return;
+  setTimeout(() => void updateIpc.checkNow(), UPDATE_FIRST_CHECK_DELAY_MS);
+  setInterval(() => void updateIpc.checkNow(), UPDATE_CHECK_INTERVAL_MS);
+}
 
 app.on('activate', () => {
   // macOS: clicking the Dock icon when no windows are open should resurface

@@ -30,8 +30,8 @@ curl -fsSL https://raw.githubusercontent.com/DantesChmo/InMemNote/main/scripts/i
 Developer ID, that flag makes Gatekeeper block the first launch — you'd have
 to approve it in *System Settings → Privacy & Security*. `curl` (like `git`
 or a USB copy) doesn't set the flag, so the app opens on a normal
-double-click, no prompts. Only the first install is manual; `update-electron-app`
-handles later versions without re-triggering Gatekeeper.
+double-click, no prompts. Only the first install is manual; the built-in
+auto-updater (below) handles later versions the same quarantine-free way.
 
 **Prefer to do it by hand?** Grab `Inmemnote-macos-arm64.dmg` from the
 [latest release](https://github.com/DantesChmo/InMemNote/releases/latest),
@@ -251,15 +251,22 @@ See `docs/HOTKEYS.md`.
 
 ---
 
+## Auto-update
+
+The app checks the GitHub Releases feed on launch and every few hours (and
+whenever you open the Library). When a newer version is out, a banner appears
+at the top of the Library window — **Update & restart** downloads the new DMG
+and swaps the app in place, then relaunches. No Squirrel, no Apple Developer
+ID: it reproduces the `curl` install flow from inside the app, so updates
+stay quarantine-free just like the first install. Everything runs against the
+public GitHub release — no backend of our own.
+
 ## Out of scope
 
 - Cloud sync / backend.
 - Accounts, auth, telemetry.
 - Multiple concurrent pinned stickers.
 - Markdown file import/export.
-
-Auto-update (`update-electron-app`) is on the roadmap but requires macOS
-code signing and notarization — deferred.
 
 ---
 

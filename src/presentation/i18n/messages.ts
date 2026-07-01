@@ -101,6 +101,14 @@ export type Messages = {
   'settings.language.system': string;
   'settings.language.en': string;
   'settings.language.ru': string;
+
+  // Auto-update banner.
+  'update.available': string; // {version}
+  'update.install': string;
+  'update.later': string;
+  'update.notes': string;
+  'update.downloading': string; // {percent}
+  'update.failed': string;
 };
 
 export type MessageKey = keyof Messages;

@@ -45,10 +45,19 @@ No cloud. No backend. Everything is stored locally.
 | Linter             | ESLint (typescript-eslint, react-hooks)               |
 | Formatter          | Prettier                                              |
 | Pre-commit         | husky + lint-staged                                   |
-| Auto-update        | `update-electron-app` (GitHub Releases / static feed) |
+| Auto-update        | In-house signing-free updater over the GitHub Releases feed |
 
 Any deviation from the stack is approved explicitly and then reflected in
 this section.
+
+> **Auto-update note.** The stack originally named `update-electron-app`, but
+> it was never wired in: Squirrel.Mac (its engine) requires a valid Apple
+> Developer ID signature, which this app deliberately lacks (it ships
+> ad-hoc-signed and installs via `curl` to dodge Gatekeeper's quarantine).
+> V2.3 instead ships an in-house updater that reads the same GitHub Releases
+> feed and applies updates by reproducing `scripts/install.sh` from a
+> detached helper. The `update-electron-app` package is now dead and slated
+> for removal. Details: `docs/TZ.md` §4d.
 
 ---
 

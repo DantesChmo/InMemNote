@@ -87,6 +87,12 @@ export function createInmemnoteApiMock(): InmemnoteAPI {
       save: vi.fn(async (patch) => settingsDTO(patch)),
       onChanged: vi.fn(() => noopUnsub),
     },
+    update: {
+      check: vi.fn(async () => null),
+      install: vi.fn(async () => undefined),
+      onAvailable: vi.fn(() => noopUnsub),
+      onProgress: vi.fn(() => noopUnsub),
+    },
   };
 
   return api;

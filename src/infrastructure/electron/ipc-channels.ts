@@ -62,6 +62,19 @@ export const IPC = {
    * theme/palette to the DOM.
    */
   SettingsChanged: 'settings:changed',
+
+  // Auto-update
+  /** Renderer asks main to check the release feed now. Resolves to a DTO or null. */
+  UpdateCheck: 'update:check',
+  /** Renderer asks main to download + install the pending update and relaunch. */
+  UpdateInstall: 'update:install',
+  /**
+   * Main broadcast: a newer release was found (by the startup / periodic check
+   * or an explicit request). The Library window surfaces its update banner.
+   */
+  UpdateAvailable: 'update:available',
+  /** Main broadcast: download progress during an install, as a 0..1 fraction. */
+  UpdateProgress: 'update:progress',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -108,3 +121,14 @@ export interface AppSettingsDTO {
 }
 
 export type AppSettingsPatchDTO = Partial<AppSettingsDTO>;
+
+/**
+ * A newer release, as it crosses IPC to the renderer's update banner.
+ * The domain `ReleaseInfo` carries an `AppVersion` object that can't survive
+ * the bridge, so we ship the version as a plain `"0.6.0"` string.
+ */
+export interface AvailableUpdateDTO {
+  version: string;
+  downloadUrl: string;
+  notesUrl: string;
+}

@@ -80,4 +80,11 @@ export const ru: Messages = {
   'settings.language.system': 'Системный',
   'settings.language.en': 'English',
   'settings.language.ru': 'Русский',
+
+  'update.available': 'Доступна версия {version}',
+  'update.install': 'Обновить и перезапустить',
+  'update.later': 'Позже',
+  'update.notes': 'Что нового',
+  'update.downloading': 'Загрузка… {percent}%',
+  'update.failed': 'Не удалось обновить. Попробуйте позже.',
 };

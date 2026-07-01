@@ -38,6 +38,17 @@ vi.mock('./slice', () => ({
   fetchNotes: () => ({ type: 'library/fetchNotes' }),
 }));
 
+vi.mock('@presentation/update/UpdateBanner', () => ({
+  UpdateBanner: () => <div data-testid="stub-update-banner" />,
+}));
+vi.mock('@presentation/update/slice', () => ({
+  checkForUpdate: () => ({ type: 'update/check' }),
+  updateActions: {
+    setAvailable: (u: unknown) => ({ type: 'update/setAvailable', payload: u }),
+    setProgress: (p: unknown) => ({ type: 'update/setProgress', payload: p }),
+  },
+}));
+
 
 describe('LibraryWindow (shallow)', () => {
   let api: InmemnoteAPI;
@@ -68,7 +79,10 @@ describe('LibraryWindow (shallow)', () => {
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchNotes' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'settings/fetch' });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'update/check' });
     expect(api.notes.onChanged).toHaveBeenCalledTimes(1);
+    expect(api.update.onAvailable).toHaveBeenCalledTimes(1);
+    expect(api.update.onProgress).toHaveBeenCalledTimes(1);
   });
 
   it('re-fetches when the notes:changed broadcast fires', async () => {
