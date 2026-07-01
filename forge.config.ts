@@ -92,6 +92,14 @@ const config: ForgeConfig = {
     }),
     new FusesPlugin({
       version: FuseVersion.V1,
+      // Flipping fuses rewrites the Electron binary, which invalidates the
+      // ad-hoc signature the packager applies on Apple Silicon. A broken
+      // signature makes Gatekeeper report the app as "damaged" (a hard block)
+      // instead of the softer "unidentified developer" prompt. Re-applying an
+      // ad-hoc signature after the flip keeps the signature valid, so an
+      // unsigned/un-notarized build can still be opened via right-click → Open
+      // (or System Settings → Privacy & Security → "Open Anyway").
+      resetAdHocDarwinSignature: true,
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
