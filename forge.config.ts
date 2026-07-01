@@ -8,6 +8,7 @@
  * disable risky capabilities (`run-as-node`, raw NODE_OPTIONS), enable cookie
  * encryption, etc. Standard hygiene for shipping desktop apps.
  */
+import { execFileSync } from 'node:child_process';
 import { cp } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -64,6 +65,37 @@ const config: ForgeConfig = {
     ],
   },
   rebuildConfig: {},
+  hooks: {
+    // Final ad-hoc re-sign of the whole .app bundle.
+    //
+    // This is load-bearing for distribution: without a *valid* signature
+    // macOS Gatekeeper reports a downloaded build as "damaged" (a hard block
+    // you can't click past) instead of the softer "unidentified developer"
+    // prompt that a right-click → Open / "Open Anyway" can bypass.
+    //
+    // Two earlier steps each leave the signature broken:
+    //   1. `afterCopy` writes native modules into Contents/Resources/app
+    //      *after* the packager's ad-hoc sign, so the bundle seal is stale.
+    //   2. The Fuses plugin rewrites the Electron binary; its
+    //      `resetAdHocDarwinSignature` re-signs only that Mach-O, leaving the
+    //      bundle's Info.plist "not bound" (verified with `codesign --verify`).
+    //
+    // A config-level `postPackage` hook runs *after* all plugin hooks (Forge
+    // triggers plugin hooks first, then the config hook), i.e. after the Fuses
+    // plugin — so this is the last touch and reseals the entire bundle,
+    // Info.plist included. It's ad-hoc (`--sign -`), so still not notarized:
+    // good enough for local/side-loaded installs, not for frictionless
+    // distribution (that needs an Apple Developer ID — see docs/TZ.md).
+    postPackage: async (_forgeConfig, { platform, outputPaths }) => {
+      if (platform !== 'darwin') return;
+      for (const outputPath of outputPaths) {
+        const appPath = join(outputPath, 'Inmemnote.app');
+        execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
+          stdio: 'inherit',
+        });
+      }
+    },
+  },
   makers: [
     new MakerDMG({}, ['darwin']),
     new MakerZIP({}, ['darwin']),
@@ -92,13 +124,12 @@ const config: ForgeConfig = {
     }),
     new FusesPlugin({
       version: FuseVersion.V1,
-      // Flipping fuses rewrites the Electron binary, which invalidates the
-      // ad-hoc signature the packager applies on Apple Silicon. A broken
-      // signature makes Gatekeeper report the app as "damaged" (a hard block)
-      // instead of the softer "unidentified developer" prompt. Re-applying an
-      // ad-hoc signature after the flip keeps the signature valid, so an
-      // unsigned/un-notarized build can still be opened via right-click → Open
-      // (or System Settings → Privacy & Security → "Open Anyway").
+      // Flipping fuses rewrites the Electron binary and invalidates the
+      // packager's ad-hoc signature. This re-signs that Mach-O so it isn't
+      // left broken — but it is NOT sufficient on its own: it signs only the
+      // binary, leaving the bundle's Info.plist unbound. The whole bundle is
+      // resealed afterwards by the `postPackage` hook above, which is what
+      // actually keeps Gatekeeper from flagging the app as "damaged".
       resetAdHocDarwinSignature: true,
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
