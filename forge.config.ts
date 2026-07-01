@@ -47,7 +47,14 @@ const config: ForgeConfig = {
           for (const dep of NATIVE_DEP_CLOSURE) {
             const src = join(process.cwd(), 'node_modules', dep);
             const dest = join(buildPath, 'node_modules', dep);
-            await cp(src, dest, { recursive: true });
+            // `dereference: true` is load-bearing: `@inmemnote/window-events`
+            // is a `file:` dependency, so npm links it into node_modules as a
+            // symlink pointing at the checkout. Without dereferencing, `cp`
+            // copies the symlink verbatim, asar records it as a link to the
+            // build machine's absolute path, and the packaged app crashes at
+            // startup with ENOENT on a `/Users/runner/...` path that only ever
+            // existed on the CI runner.
+            await cp(src, dest, { recursive: true, dereference: true });
           }
           callback();
         } catch (e) {
