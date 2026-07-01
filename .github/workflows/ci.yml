@@ -203,6 +203,9 @@ jobs:
     # gates the build behind green `quality` + `e2e`, so a tag never produces
     # a DMG without passing tests.
     if: startsWith(github.ref, 'refs/tags/v')
+    # Needed to create/update the GitHub Release and attach the DMG.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -244,3 +247,27 @@ jobs:
           path: out/make/**/*.dmg
           if-no-files-found: error
           retention-days: 14
+
+      # Copy the versioned DMG (`Inmemnote-<version>-arm64.dmg`) to a stable,
+      # version-independent name. This is what lets the `curl` installer and
+      # the README point at a fixed URL:
+      #   https://github.com/<repo>/releases/latest/download/Inmemnote-macos-arm64.dmg
+      # which always resolves to the newest release's asset.
+      - name: Stage DMG under a stable asset name
+        run: |
+          dmg="$(find out/make -name '*.dmg' | head -1)"
+          test -n "$dmg" || { echo "no .dmg produced by 'npm run make'" >&2; exit 1; }
+          cp "$dmg" "Inmemnote-macos-arm64.dmg"
+
+      # Publish (or update) the GitHub Release for this tag and attach the DMG.
+      # Release assets — unlike Actions artifacts — have a stable, anonymous
+      # download URL and don't expire, so `curl` can fetch them without a token.
+      # Split view/create/upload so re-running a tag build is idempotent.
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release view "$tag" >/dev/null 2>&1 \
+            || gh release create "$tag" --title "$tag" --generate-notes
+          gh release upload "$tag" "Inmemnote-macos-arm64.dmg" --clobber

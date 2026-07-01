@@ -16,6 +16,36 @@ No cloud, no backend. Everything lives in a local SQLite file
 
 ---
 
+## Install on macOS
+
+Apple Silicon only. One command downloads the latest release, installs it to
+`/Applications` and launches it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/DantesChmo/InMemNote/main/scripts/install.sh | bash
+```
+
+**Why `curl` and not the browser.** A browser stamps every download with a
+`com.apple.quarantine` flag. Because the app isn't notarized by an Apple
+Developer ID, that flag makes Gatekeeper block the first launch — you'd have
+to approve it in *System Settings → Privacy & Security*. `curl` (like `git`
+or a USB copy) doesn't set the flag, so the app opens on a normal
+double-click, no prompts. Only the first install is manual; `update-electron-app`
+handles later versions without re-triggering Gatekeeper.
+
+**Prefer to do it by hand?** Grab `Inmemnote-macos-arm64.dmg` from the
+[latest release](https://github.com/DantesChmo/InMemNote/releases/latest),
+open it, drag **Inmemnote** into Applications, then run once:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Inmemnote.app
+```
+
+That `xattr` line is only needed when the DMG came from a browser — it strips
+the quarantine flag so the app launches without the Gatekeeper prompt.
+
+---
+
 ## Stack
 
 | Layer              | Tech                                          |
@@ -89,7 +119,7 @@ Details live in `CLAUDE.md` (the project constitution) and `docs/TZ.md`
 
 ---
 
-## Install
+## Build from source
 
 Requires Node.js 22+ (Node 25 also works) and npm 10+.
 
