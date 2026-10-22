@@ -155,6 +155,16 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   affects how the process is laid out.)
 - Hotkey behavior on macOS when focus is on a fullscreen app: confirm
   there's no conflict with Spotlight (`⌘Space`).
+- **Layering (found 2026-10-22, docs sync).** Presentation imports IPC DTO
+  types from `@infrastructure/electron/ipc-channels` and the preload API
+  type from `@infrastructure/electron/preload` (type-only, 8 files). This
+  edge is not in the `CLAUDE.md` §3 dependency rule. Accept it explicitly,
+  or move the contract types to a layer-neutral module? Details in
+  `docs/ARCHITECTURE.md` → Known deviations.
+- **Ownership gap (found 2026-10-22).** `.agents/RESPONSIBILITIES.md` assigns
+  no owner to `src/domain/**`, `src/shared/**`,
+  `src/infrastructure/SystemClock.ts` or `scripts/**`. Which agent owns
+  them?
 
 ---
 
@@ -446,3 +456,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   versions are known to work for tsc/ESLint/Vitest. Added the missing
   `.husky/pre-commit` (lint-staged + `npm run typecheck`), which CLAUDE.md
   §9 had promised but never ran.
+- **2026-10-22** — Documentation re-synced with the v0.6.0 code:
+  `docs/ARCHITECTURE.md` now lists every context (Draft/Pin, Note/Library,
+  Settings, Update, i18n), all six ports and both windows;
+  `.agents/playwright/test-plan.md` maps critical flows to the 12 e2e specs;
+  `CLAUDE.md` §3 tree, README and `docs/HOTKEYS.md` updated. ADRs recorded
+  retroactively: 0002 (signing-free self-updater), 0003 (two windows, one
+  renderer bundle).

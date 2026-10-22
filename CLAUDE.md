@@ -67,39 +67,58 @@ this section.
 src/
 ├── domain/            # pure TS. No imports from react/electron/sqlite.
 │   ├── draft/
-│   │   ├── DraftNote.ts          # Entity
-│   │   ├── NoteContent.ts        # Value Object
+│   │   ├── DraftNote.ts          # Entity (the scratch buffer; `pinned` = Pin)
+│   │   ├── NoteContent.ts        # Value Object (shared with note/)
 │   │   ├── DraftId.ts            # Value Object (branded string)
-│   │   ├── DraftRepository.ts    # interface
+│   │   ├── DraftRepository.ts    # port
 │   │   └── events.ts             # domain events
-│   └── shared/                   # shared types, Result/Either, errors
+│   ├── note/                     # Note (Library item), NoteId, NoteRepository
+│   ├── settings/                 # AppSettings + ThemeMode, Hotkey,
+│   │                             # PaletteOverrides, LanguageMode, SettingsRepository
+│   ├── update/                   # AppVersion, ReleaseInfo, ReleaseGateway,
+│   │                             # UpdateInstaller, errors
+│   └── shared/                   # Clock (port), DomainError
 │
 ├── application/       # use-cases. Depends on domain, ignorant of frameworks.
-│   └── draft/
-│       ├── OpenDraftUseCase.ts
-│       ├── SaveDraftUseCase.ts
-│       ├── TogglePinUseCase.ts
-│       └── CloseDraftUseCase.ts
+│   ├── draft/                    # Open / Save / TogglePin / Close
+│   ├── note/                     # List / Find / Create / UpdateContent /
+│   │                             # TogglePin / Delete / Search / PromoteDraftToNote
+│   ├── settings/                 # LoadSettings / UpdateSettings
+│   └── update/                   # CheckForUpdate / InstallUpdate
 │
 ├── infrastructure/    # port implementations: SQLite, Electron adapters, IPC.
-│   ├── persistence/sqlite/
+│   ├── persistence/              # InMemory{Draft,Note,Settings}Repository
+│   │   └── sqlite/               # Sqlite{Draft,Note,Settings}Repository
 │   ├── electron/
-│   │   ├── main/                 # main-process entry point
-│   │   ├── preload/              # contextBridge
-│   │   └── hotkey/               # GlobalShortcut wrapper
-│   └── config/                   # loaders for hotkeys.yaml + user override
+│   │   ├── ipc-channels.ts       # channel names + DTO types
+│   │   ├── main/                 # main-process entry, composition root,
+│   │   │   │                     # hotkey.ts (GlobalShortcut wrapper), e2e.ts
+│   │   │   ├── ipc/              # draft / notes / settings / update handlers
+│   │   │   └── windows/          # Draft + Library window controllers
+│   │   └── preload/              # contextBridge
+│   ├── update/                   # GithubReleaseGateway, DmgSelfUpdater
+│   ├── config/                   # loaders for hotkeys.yaml + user override
+│   └── SystemClock.ts            # SystemClock / FixedClock
 │
-├── presentation/      # React + Redux.
+├── presentation/      # React + Redux. One bundle, two windows (?view=).
 │   ├── draft/
 │   │   ├── DraftPanel.tsx
 │   │   ├── DraftHeader.tsx
 │   │   ├── DraftFooter.tsx
-│   │   ├── editor/CodeMirrorEditor.tsx
+│   │   ├── ResizeHandle.tsx
+│   │   ├── editor/CodeMirrorEditor.tsx   # shared with library/
 │   │   └── slice.ts              # Redux Toolkit slice
-│   ├── theme/
-│   └── app/                      # React app root
+│   ├── library/                  # Library window: toolbar, sidebar, list,
+│   │                             # editor, slice
+│   ├── settings/                 # Settings popup, palette, hotkey input, slice
+│   ├── update/                   # UpdateBanner + slice
+│   ├── i18n/                     # typed message catalog, en / ru, useTranslation
+│   ├── theme/                    # design tokens
+│   ├── types/                    # window.inmemnote typings
+│   └── app/                      # React app root, store, ?view= routing
 │
-└── shared/            # truly cross-cutting utilities (logger, assert)
+├── shared/            # truly cross-cutting utilities (Result)
+└── test/              # Vitest setup + window.inmemnote mock
 ```
 
 **Dependency rule** (loosening it = a review-blocking bug):

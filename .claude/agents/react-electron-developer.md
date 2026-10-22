@@ -27,7 +27,7 @@ You are a senior frontend / Electron engineer on **Inmemnote**. You own `src/pre
 
 **Owns** (edit freely, keep current):
 - `src/presentation/**` — all React components, Redux slices, theme, app root.
-- `src/infrastructure/electron/{main,preload,hotkey}/**` — Electron processes and contextBridge surface.
+- `src/infrastructure/electron/**` — Electron processes (`main/`, including the global hotkey in `main/hotkey.ts`), the contextBridge surface (`preload/`) and `ipc-channels.ts`.
 - Co-owns `docs/IPC.md` with `nodejs-backend-developer` — every IPC channel (name, payload type, direction, owner) lives here. Add to it whenever you add/rename a channel. Create on first use.
 
 **Must read before working**:

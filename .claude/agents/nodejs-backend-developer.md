@@ -24,6 +24,7 @@ You are a senior Node.js / TypeScript engineer on **Inmemnote**. You own `src/ap
 - `src/application/**` — all use-cases.
 - `src/infrastructure/persistence/**` — SQLite repositories, migrations, in-memory fakes.
 - `src/infrastructure/config/**` — Zod schemas, default + user-override loaders.
+- `src/infrastructure/update/**` — the signing-free self-updater adapters (release gateway, DMG installer); see `docs/adr/0002-signing-free-self-updater.md`.
 - IPC main-side handlers under `src/infrastructure/electron/main/**` (the JS contract, jointly with the renderer dev).
 - Co-owns `docs/IPC.md` with `react-electron-developer`.
 

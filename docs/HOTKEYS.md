@@ -10,6 +10,21 @@
 If the user file fails schema validation we log the reason and fall back
 to the defaults, so the app always starts.
 
+Since V2.1 the everyday way to change the hotkey is **Settings → Hotkeys**
+in the Library window. The value saved there is stored in the SQLite
+`settings` table and wins over both YAML files. Effective precedence,
+highest first (`src/infrastructure/electron/main/hotkey.ts`):
+
+1. The value saved from Settings (SQLite).
+2. The user override YAML above.
+3. The bundled `config/hotkeys.yaml`.
+4. A hard-coded fallback in `loadHotkeys`.
+
+YAML therefore only takes effect until something has been saved from
+Settings — it remains the escape hatch for scripted setups. The Settings
+capture input validates through the same token vocabulary as the YAML
+loader (`Hotkey` in `src/domain/settings/`).
+
 ## Format
 
 YAML, hand-editable, comments welcome. Each command accepts either form:
