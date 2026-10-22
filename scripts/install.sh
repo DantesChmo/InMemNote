@@ -19,7 +19,8 @@ REPO="DantesChmo/InMemNote"
 ASSET="Inmemnote-macos-arm64.dmg"
 URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
 APP="Inmemnote.app"
-DEST="/Applications"
+# Overridable only so the test suite can install into a sandbox.
+DEST="${INMEMNOTE_INSTALL_DIR:-/Applications}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Inmemnote is macOS-only (this is $(uname -s))." >&2
@@ -54,9 +55,34 @@ mkdir -p "${mount}"
 hdiutil attach "${dmg}" -nobrowse -noautoopen -noverify -mountpoint "${mount}" >/dev/null
 
 echo "Installing to ${DEST}/${APP}…"
-# Replace any previous copy so we don't merge an old and new bundle.
-rm -rf "${DEST:?}/${APP}"
-cp -R "${mount}/${APP}" "${DEST}/"
+# Never delete the installed copy before the new one is fully in place: copy
+# to a hidden staging path in ${DEST} (same volume, so the `mv`s below are
+# atomic renames), move the old bundle aside, move the new one in, and only
+# then drop the old one. Any failure restores the previous version untouched.
+staged="${DEST}/.${APP}.new-$$"
+backup="${DEST}/.${APP}.old-$$"
+
+fail() {
+  echo "Install failed: $1" >&2
+  rm -rf "${staged}" || true
+  if [[ -e "${backup}" ]]; then
+    rm -rf "${DEST:?}/${APP}" || true
+    if mv "${backup}" "${DEST}/${APP}"; then
+      echo "The previous version was kept." >&2
+    else
+      echo "Could not restore the previous version; it is at ${backup}" >&2
+    fi
+  fi
+  exit 1
+}
+
+cp -R "${mount}/${APP}" "${staged}" || fail "could not copy ${APP} into ${DEST}"
+[[ -f "${staged}/Contents/Info.plist" ]] || fail "the downloaded ${APP} is incomplete"
+if [[ -e "${DEST}/${APP}" ]]; then
+  mv "${DEST}/${APP}" "${backup}" || fail "could not move the installed ${APP} aside"
+fi
+mv "${staged}" "${DEST}/${APP}" || fail "could not move the new ${APP} into place"
+rm -rf "${backup}"
 
 hdiutil detach "${mount}" -quiet
 rmdir "${mount}" 2>/dev/null || true
