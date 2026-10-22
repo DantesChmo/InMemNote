@@ -5,7 +5,7 @@ import { settingsDTO } from '../../test/mockInmemnoteApi';
 
 import { SettingsPopup } from './SettingsPopup';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 const dispatch = vi.fn();
 let state: {
@@ -77,7 +77,6 @@ vi.mock('./slice', () => ({
     closePopup: () => ({ type: 'settings/closePopup' }),
   },
 }));
-
 
 describe('SettingsPopup (shallow)', () => {
   beforeEach(() => {

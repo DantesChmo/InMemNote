@@ -1,9 +1,9 @@
 import { CheckForUpdateUseCase } from '@application/update/CheckForUpdateUseCase';
 import { InstallUpdateUseCase } from '@application/update/InstallUpdateUseCase';
 import { AppVersion } from '@domain/update/AppVersion';
-import { IPC } from '@infrastructure/electron/ipc-channels';
 import { createDmgSelfUpdater } from '@infrastructure/update/DmgSelfUpdater';
 import { GithubReleaseGateway } from '@infrastructure/update/GithubReleaseGateway';
+import { IPC } from '@shared/ipc';
 import { app, BrowserWindow } from 'electron';
 
 import { buildContainer } from './composition';

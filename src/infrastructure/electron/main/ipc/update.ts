@@ -1,4 +1,4 @@
-import { IPC, type AvailableUpdateDTO } from '@infrastructure/electron/ipc-channels';
+import { IPC, type AvailableUpdateDTO } from '@shared/ipc';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import type { CheckForUpdateUseCase } from '@application/update/CheckForUpdateUseCase';

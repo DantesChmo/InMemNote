@@ -1,6 +1,6 @@
 import { resolveLocale } from '@presentation/i18n/resolveLocale';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 /**
  * DOM-side application of the persisted theme + palette overrides.

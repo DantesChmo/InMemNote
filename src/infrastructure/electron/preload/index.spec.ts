@@ -1,6 +1,4 @@
-import { IPC } from '@infrastructure/electron/ipc-channels';
-
-import type { InmemnoteAPI } from './index';
+import { IPC, type InmemnoteAPI } from '@shared/ipc';
 
 /**
  * The preload script is the security boundary between the renderer and

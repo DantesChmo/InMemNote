@@ -5,7 +5,7 @@ import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
 import { LibraryWindow } from './LibraryWindow';
 
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { InmemnoteAPI } from '@shared/ipc';
 
 const dispatch = vi.fn();
 
@@ -49,7 +49,6 @@ vi.mock('@presentation/update/slice', () => ({
   },
 }));
 
-
 describe('LibraryWindow (shallow)', () => {
   let api: InmemnoteAPI;
 
@@ -87,12 +86,10 @@ describe('LibraryWindow (shallow)', () => {
 
   it('re-fetches when the notes:changed broadcast fires', async () => {
     let push: (() => void) | null = null;
-    (api.notes.onChanged as ReturnType<typeof vi.fn>).mockImplementation(
-      (h: () => void) => {
-        push = h;
-        return () => undefined;
-      },
-    );
+    (api.notes.onChanged as ReturnType<typeof vi.fn>).mockImplementation((h: () => void) => {
+      push = h;
+      return () => undefined;
+    });
 
     await act(async () => {
       render(<LibraryWindow />);

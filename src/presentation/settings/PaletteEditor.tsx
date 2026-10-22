@@ -5,8 +5,8 @@ import {
 } from '@domain/settings/PaletteOverrides';
 import { useTranslation, type Translator } from '@presentation/i18n/useTranslation';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
 import type { MessageKey } from '@presentation/i18n/messages';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 /**
  * Color-picker editor for `PALETTE_TOKEN_KEYS`.

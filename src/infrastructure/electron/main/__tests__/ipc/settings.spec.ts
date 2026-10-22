@@ -1,6 +1,6 @@
 import { AppSettings } from '@domain/settings/AppSettings';
 import { Hotkey } from '@domain/settings/Hotkey';
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { ok, unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -116,8 +116,8 @@ describe('registerSettingsIpc', () => {
     await ipcHandlers.get(IPC.SettingsSave)!({}, { openDraftHotkey: 'Alt+Space' });
     expect(hotkey.register).toHaveBeenCalledWith('Alt+Space');
     // Order: persist first, then re-register.
-    const persistCall = (uc.updateSettings.execute.mock.invocationCallOrder)[0]!;
-    const registerCall = (hotkey.register.mock.invocationCallOrder)[0]!;
+    const persistCall = uc.updateSettings.execute.mock.invocationCallOrder[0]!;
+    const registerCall = hotkey.register.mock.invocationCallOrder[0]!;
     expect(persistCall).toBeLessThan(registerCall);
   });
 
@@ -131,9 +131,7 @@ describe('registerSettingsIpc', () => {
       uc: failingUc as never,
       hotkey: { register: vi.fn() } as never,
     });
-    await expect(
-      ipcHandlers.get(IPC.SettingsSave)!({}, { themeMode: 'dark' }),
-    ).rejects.toThrow();
+    await expect(ipcHandlers.get(IPC.SettingsSave)!({}, { themeMode: 'dark' })).rejects.toThrow();
   });
 
   it('handle.pushTo sends settings to a live window and skips destroyed ones', () => {
@@ -146,5 +144,46 @@ describe('registerSettingsIpc', () => {
 
     expect(live.webContents.send).toHaveBeenCalledWith(IPC.SettingsChanged, expect.any(Object));
     expect(dead.webContents.send).not.toHaveBeenCalled();
+  });
+
+  describe('payload validation', () => {
+    const invalid = /Invalid IPC payload for "settings:save"/;
+
+    it.each([
+      [null],
+      [undefined],
+      ['dark'],
+      [{ themeMode: 'sepia' }],
+      [{ language: 'de' }],
+      [{ openDraftHotkey: 42 }],
+      [{ palette: 'green' }],
+      [{ palette: { accent: 1 } }],
+      [{ themeMode: 'dark', bogus: true }],
+    ])('SettingsSave rejects patch %j without persisting', async (patch) => {
+      const { uc, hotkey } = setup();
+      const win = makeBrowserWindow();
+      browserWindows.push(win);
+
+      await expect(ipcHandlers.get(IPC.SettingsSave)!({}, patch)).rejects.toThrow(invalid);
+
+      expect(uc.updateSettings.execute).not.toHaveBeenCalled();
+      expect(hotkey.register).not.toHaveBeenCalled();
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    });
+
+    it('SettingsSave accepts an empty patch', async () => {
+      const { uc } = setup();
+      await ipcHandlers.get(IPC.SettingsSave)!({}, {});
+      expect(uc.updateSettings.execute).toHaveBeenCalled();
+    });
+
+    it('SettingsSave accepts a palette map of strings', async () => {
+      const { uc } = setup();
+      await ipcHandlers.get(IPC.SettingsSave)!({}, { palette: { accent: '#3f7d6b' } });
+      const passed = uc.updateSettings.execute.mock.calls[0]![0] as {
+        palette: Record<string, string>;
+      };
+      expect(passed.palette).toEqual({ accent: '#3f7d6b' });
+    });
   });
 });

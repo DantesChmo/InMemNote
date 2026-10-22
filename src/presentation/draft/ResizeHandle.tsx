@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-type Corner = 'tl' | 'tr' | 'bl' | 'br';
+import type { Corner } from '@shared/ipc';
 
 interface ResizeHandleProps {
   /** The corner the pin is currently anchored to. The handle is placed on the diagonally OPPOSITE corner. */

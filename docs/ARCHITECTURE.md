@@ -16,12 +16,18 @@
 ```
 presentation → application → domain
 infrastructure ↦ ports declared in domain / application
-domain depends on nothing
+domain depends on nothing (but shared)
+* → shared            (leaf: depends on nothing outside src/shared)
 ```
 
-`src/shared/` holds only `Result.ts` (`Result<T, E>`, `ok`, `err`). It is the
-one module `domain` imports from outside itself; it has no dependencies of
-its own.
+`src/shared/` holds `Result.ts` (`Result<T, E>`, `ok`, `err`) and the
+cross-process IPC contracts (`shared/ipc/`). It is a leaf: it has no
+dependencies of its own, and every layer may import it.
+
+The boundaries are enforced by `no-restricted-imports` blocks in
+`eslint.config.mjs` (alias and relative forms). Known, tolerated exception:
+use-case specs in `src/application/**/*.spec.ts` wire in-memory adapters
+from `@infrastructure` (ADR 0005).
 
 ## Bounded contexts
 
@@ -91,9 +97,12 @@ Expected failures come back as `Result`, never as a throw across layers.
 | preload | `src/infrastructure/electron/preload/index.ts` | `contextBridge` → `window.inmemnote.{draft,notes,settings,update}`; plus `window.__inmemnote_test__` only under `INMEMNOTE_E2E=1` |
 | renderer | `src/presentation/` | React 18 + Redux Toolkit UI for both windows |
 
-Channel names and DTO types live in
-`src/infrastructure/electron/ipc-channels.ts`. Contracts are documented in
-[`IPC.md`](./IPC.md).
+Contracts (channel names, DTOs, the `InmemnoteAPI` type of `window.inmemnote`)
+live in `src/shared/ipc/`, one file per context
+([ADR 0005](./adr/0005-ipc-contracts-module.md)); main, preload and the
+renderer import them as `@shared/ipc`. Inbound payloads are Zod-validated by
+the main-side handlers against `infrastructure/electron/main/ipc/*.schemas.ts`
+before any use-case runs. Every channel has a row in [`IPC.md`](./IPC.md).
 
 Main → renderer broadcasts that keep both windows in sync:
 `notes:changed` (after any note mutation, including Draft promote),
@@ -134,7 +143,7 @@ header hover sensor. It is consumed only by that controller. Details:
 | `update/` | `UpdateBanner`, `slice.ts` |
 | `i18n/` | `messages.ts`, `translations.{en,ru}.ts`, `resolveLocale.ts`, `useTranslation.ts` |
 | `theme/` | `tokens.css` (design tokens) |
-| `types/` | `global.d.ts` — types `window.inmemnote` from the preload API |
+| `types/` | `global.d.ts` — types `window.inmemnote` from `@shared/ipc` |
 
 ## Configuration
 
@@ -187,16 +196,13 @@ Inert unless the binary is launched with these env variables (all handled in
 
 ## Known deviations from `CLAUDE.md §3`
 
-Surfaced here rather than papered over; none is fixed on this branch.
+Surfaced here rather than papered over.
 
-- **presentation → infrastructure (type-only).** Several presentation
-  modules import DTO types from `@infrastructure/electron/ipc-channels`
-  (`app/main.tsx`, `library/slice.ts`, `settings/{slice,applyTheme,
-  SettingsPopup,PaletteEditor}`, `update/slice.ts`) and `types/global.d.ts`
-  imports `InmemnoteAPI` from the preload module. These are `import type`
-  only — nothing crosses at runtime — but the edge is not in the dependency
-  rule. Resolving it (e.g. moving the IPC contract types to a neutral
-  module) is an open architecture question.
+- **application specs → infrastructure.** Use-case specs in
+  `src/application/**/*.spec.ts` wire in-memory adapters and `FixedClock`
+  from `@infrastructure`; the boundary lint exempts them (ADR 0005). The
+  former presentation → infrastructure edge is gone: IPC contracts now live
+  in `src/shared/ipc/`.
 - **presentation → domain.** `settings/HotkeyInput`, `settings/PaletteEditor`
   and `i18n/{useTranslation,resolveLocale}` import domain value objects
   (`Hotkey`, `PaletteOverrides`, `LanguageMode`) directly instead of going
@@ -214,3 +220,4 @@ ADRs are not deleted, only marked `Superseded by NNNN`.
 | [0002](./adr/0002-signing-free-self-updater.md) | Signing-free self-updater instead of Squirrel / `update-electron-app` |
 | [0003](./adr/0003-two-windows-one-renderer-bundle.md) | Two windows in one renderer bundle, routed by `?view=` |
 | [0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md) | One SQLite connection with versioned schema migrations (`user_version`) |
+| [0005](./adr/0005-ipc-contracts-module.md) | IPC contracts live in `src/shared/ipc/`; inbound payloads Zod-validated in main |

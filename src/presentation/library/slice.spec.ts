@@ -22,10 +22,7 @@ import {
   type LibraryState,
 } from './slice';
 
-import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
-
-
+import type { InmemnoteAPI, NoteDTO } from '@shared/ipc';
 
 function makeStore(preloaded?: LibraryState) {
   return configureStore({
@@ -240,12 +237,14 @@ describe('library async thunks', () => {
       const existing: NoteDTO = noteDTO({ id: 'old' });
       const created: NoteDTO = noteDTO({ id: 'new' });
       (api.notes.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
-      store = makeStore(stateWith({
-        notes: [existing],
-        filter: 'pinned',
-        query: 'something',
-        selectedId: 'old',
-      }));
+      store = makeStore(
+        stateWith({
+          notes: [existing],
+          filter: 'pinned',
+          query: 'something',
+          selectedId: 'old',
+        }),
+      );
 
       await store.dispatch(createNote());
 
@@ -261,7 +260,11 @@ describe('library async thunks', () => {
   describe('saveNote', () => {
     it('forwards id/content to notes.save and replaces the note in place', async () => {
       const before = noteDTO({ id: 'n1', content: 'old' });
-      const after: NoteDTO = noteDTO({ id: 'n1', content: 'new', updatedAt: '2026-06-09T12:00:00.000Z' });
+      const after: NoteDTO = noteDTO({
+        id: 'n1',
+        content: 'new',
+        updatedAt: '2026-06-09T12:00:00.000Z',
+      });
       (api.notes.save as ReturnType<typeof vi.fn>).mockResolvedValueOnce(after);
       store = makeStore(stateWith({ notes: [before], selectedId: 'n1' }));
 

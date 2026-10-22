@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
+import type { NoteDTO } from '@shared/ipc';
 
 const dispatch = vi.fn();
 let state: { notes: NoteDTO[]; selectedId: string | null } = {

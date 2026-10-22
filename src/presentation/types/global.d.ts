@@ -1,4 +1,4 @@
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { InmemnoteAPI, InmemnoteTestAPI } from '@shared/ipc';
 
 /**
  * Augments `window` with the surface exposed by the preload script.
@@ -8,6 +8,8 @@ import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
 declare global {
   interface Window {
     inmemnote: InmemnoteAPI;
+    /** Present only when the app runs with `INMEMNOTE_E2E=1`. */
+    __inmemnote_test__?: InmemnoteTestAPI;
   }
 }
 

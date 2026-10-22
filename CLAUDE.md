@@ -88,12 +88,11 @@ src/
 │
 ├── infrastructure/    # port implementations: SQLite, Electron adapters, IPC.
 │   ├── persistence/              # InMemory{Draft,Note,Settings}Repository
-│   │   └── sqlite/               # Sqlite{Draft,Note,Settings}Repository
+│   │   └── sqlite/               # Sqlite*Repository, openDatabase, migrations
 │   ├── electron/
-│   │   ├── ipc-channels.ts       # channel names + DTO types
 │   │   ├── main/                 # main-process entry, composition root,
 │   │   │   │                     # hotkey.ts (GlobalShortcut wrapper), e2e.ts
-│   │   │   ├── ipc/              # draft / notes / settings / update handlers
+│   │   │   ├── ipc/              # handlers + Zod schemas (*.schemas.ts)
 │   │   │   └── windows/          # Draft + Library window controllers
 │   │   └── preload/              # contextBridge
 │   ├── update/                   # GithubReleaseGateway, DmgSelfUpdater
@@ -117,7 +116,7 @@ src/
 │   ├── types/                    # window.inmemnote typings
 │   └── app/                      # React app root, store, ?view= routing
 │
-├── shared/            # truly cross-cutting utilities (Result)
+├── shared/            # leaf: Result, cross-process IPC contracts (shared/ipc)
 └── test/              # Vitest setup + window.inmemnote mock
 ```
 
@@ -125,6 +124,8 @@ src/
 `presentation → application → domain`
 `infrastructure → application/domain (port implementations only)`
 `domain` depends on nothing. Ever.
+`shared` depends on nothing — no other layer, no electron/react/sqlite/zod.
+Every layer may import it (ADR 0005). ESLint enforces these boundaries.
 
 ---
 

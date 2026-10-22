@@ -144,6 +144,12 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   live in `infrastructure` (in-memory + SQLite).
 - [x] IPC between main and renderer — a narrow typed bridge through
   `preload` (`window.inmemnote.draft.*`).
+- [x] IPC contracts (channels, DTOs, `InmemnoteAPI`) in `src/shared/ipc/`,
+  so presentation no longer imports `@infrastructure` (ADR 0005); layer
+  boundaries enforced by ESLint `no-restricted-imports`. Every inbound
+  payload is Zod-validated main-side (`main/ipc/*.schemas.ts`) and a bad
+  one rejects with `IpcValidationError` before any use-case runs. Channel
+  table: `docs/IPC.md`.
 
 ---
 
@@ -161,12 +167,6 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   affects how the process is laid out.)
 - Hotkey behavior on macOS when focus is on a fullscreen app: confirm
   there's no conflict with Spotlight (`⌘Space`).
-- **Layering (found 2026-10-22, docs sync).** Presentation imports IPC DTO
-  types from `@infrastructure/electron/ipc-channels` and the preload API
-  type from `@infrastructure/electron/preload` (type-only, 8 files). This
-  edge is not in the `CLAUDE.md` §3 dependency rule. Accept it explicitly,
-  or move the contract types to a layer-neutral module? Details in
-  `docs/ARCHITECTURE.md` → Known deviations.
 - **Ownership gap (found 2026-10-22).** `.agents/RESPONSIBILITIES.md` assigns
   no owner to `src/domain/**`, `src/shared/**`,
   `src/infrastructure/SystemClock.ts` or `scripts/**`. Which agent owns
@@ -174,6 +174,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - The shared SQLite connection is never closed explicitly on quit (the
   OS reclaims it; WAL keeps the file consistent). Closing it belongs after
   the pending-autosave flush in the quit sequence — follow-up, see ADR 0004.
+- Use-case specs in `src/application/**/*.spec.ts` import in-memory
+  adapters from `@infrastructure` (exempted from the boundary lint). Move
+  the in-memory repositories/`FixedClock` to `src/test/` so the exemption
+  can be dropped? (ADR 0005.)
 
 ---
 
@@ -485,3 +489,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   the adoption of existing user files lossless — covered by a spec that
   seeds a v0.6.0-shaped file. A failed open now degrades all three stores
   together; per-repository try/catch is kept.
+- **2026-10-22** — IPC contracts moved out of infrastructure (ADR 0005).
+  Chose `src/shared/ipc/` over a new `src/contracts/` layer (same effect,
+  no new alias or §3 layer) and over `application` (channel names and the
+  window API are transport, not use-case contracts). Zod schemas stay
+  main-side — the trust boundary is main, and keeping `shared` dependency-
+  free means neither preload nor the renderer bundle Zod; the cost is that
+  schemas `satisfies` the shared DTOs rather than being their source.

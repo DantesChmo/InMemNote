@@ -1,4 +1,4 @@
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { ok } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,7 +62,12 @@ afterEach(() => {
 });
 
 describe('registerDraftIpc', () => {
-  function setup(opts: { ucOverrides?: Record<string, unknown>; controllerOverrides?: Record<string, unknown> } = {}): {
+  function setup(
+    opts: {
+      ucOverrides?: Record<string, unknown>;
+      controllerOverrides?: Record<string, unknown>;
+    } = {},
+  ): {
     controller: Record<string, ReturnType<typeof vi.fn>>;
     uc: Record<string, { execute: ReturnType<typeof vi.fn> }>;
     drafts: { save: ReturnType<typeof vi.fn> };
@@ -177,5 +182,79 @@ describe('registerDraftIpc', () => {
     const result = await handlers.get(IPC.DraftPromote)!({}, VALID_ID);
     expect(result).toBeNull();
     expect(emitNotesChanged).not.toHaveBeenCalled();
+  });
+
+  describe('payload validation', () => {
+    const invalid = /Invalid IPC payload for "draft:/;
+
+    it.each([[42], [null], [{ body: 'x' }]])(
+      'DraftSave rejects non-string content %j without calling the use-case',
+      async (content) => {
+        const { uc } = setup();
+        await expect(handlers.get(IPC.DraftSave)!({}, VALID_ID, content)).rejects.toThrow(invalid);
+        expect(uc.saveDraft!.execute).not.toHaveBeenCalled();
+      },
+    );
+
+    it('DraftSave rejects a non-string id', async () => {
+      const { uc } = setup();
+      await expect(handlers.get(IPC.DraftSave)!({}, 1, 'x')).rejects.toThrow(invalid);
+      expect(uc.saveDraft!.execute).not.toHaveBeenCalled();
+    });
+
+    it('DraftClose rejects a non-string id', async () => {
+      const { uc } = setup();
+      await expect(handlers.get(IPC.DraftClose)!({}, null)).rejects.toThrow(invalid);
+      expect(uc.closeDraft!.execute).not.toHaveBeenCalled();
+    });
+
+    it('DraftTogglePin accepts an omitted target height', async () => {
+      const { controller } = setup();
+      await handlers.get(IPC.DraftTogglePin)!({}, VALID_ID);
+      await handlers.get(IPC.DraftTogglePin)!({}, VALID_ID, undefined);
+      expect(controller.applyPinState).toHaveBeenNthCalledWith(1, true, undefined);
+      expect(controller.applyPinState).toHaveBeenNthCalledWith(2, true, undefined);
+    });
+
+    it.each([['240'], [Number.NaN], [Number.POSITIVE_INFINITY], [-10]])(
+      'DraftTogglePin rejects target height %j',
+      async (targetHeight) => {
+        const { uc, controller } = setup();
+        await expect(handlers.get(IPC.DraftTogglePin)!({}, VALID_ID, targetHeight)).rejects.toThrow(
+          invalid,
+        );
+        expect(uc.togglePinDraft!.execute).not.toHaveBeenCalled();
+        expect(controller.applyPinState).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([['300'], [Number.NaN], [Number.NEGATIVE_INFINITY], [undefined]])(
+      'DraftResize rejects height %j',
+      async (height) => {
+        const { controller } = setup();
+        await expect(handlers.get(IPC.DraftResize)!({}, height)).rejects.toThrow(invalid);
+        expect(controller.applyContentHeight).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [{ width: 400 }],
+      [{ width: '400', height: 300 }],
+      [{ width: 400, height: Number.NaN }],
+      [{ width: 400, height: 300, x: 0 }],
+      [[400, 300]],
+      [null],
+    ])('DraftSetPinSize rejects %j', async (size) => {
+      const { controller } = setup();
+      await expect(handlers.get(IPC.DraftSetPinSize)!({}, size)).rejects.toThrow(invalid);
+      expect(controller.setPinSize).not.toHaveBeenCalled();
+    });
+
+    it('DraftPromote rejects a non-string id', async () => {
+      const { uc, emitNotesChanged } = setup();
+      await expect(handlers.get(IPC.DraftPromote)!({}, { id: VALID_ID })).rejects.toThrow(invalid);
+      expect(uc.promote!.execute).not.toHaveBeenCalled();
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
   });
 });

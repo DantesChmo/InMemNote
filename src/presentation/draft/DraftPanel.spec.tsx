@@ -5,7 +5,7 @@ import { emptyDraftDTO, installInmemnoteApiMock } from '../../test/mockInmemnote
 
 import { DraftPanel } from './DraftPanel';
 
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { InmemnoteAPI } from '@shared/ipc';
 
 // ---- Module-level mocks ----
 //
@@ -132,9 +132,7 @@ describe('DraftPanel (shallow)', () => {
 
     expect(api.draft.open).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({ type: 'draft/setLoading', payload: true });
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'draft/setDraft' }),
-    );
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'draft/setDraft' }));
   });
 
   it('forwards editor.onChange to a debounced draft/editContent dispatch', async () => {
@@ -204,9 +202,9 @@ describe('DraftPanel (shallow)', () => {
       render(<DraftPanel />);
     });
     await act(async () => {
-      screen.getByTestId('stub-editor').dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true }),
-      );
+      screen
+        .getByTestId('stub-editor')
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
     });
     expect(api.draft.hide).toHaveBeenCalled();
     expect(api.draft.close).not.toHaveBeenCalled();

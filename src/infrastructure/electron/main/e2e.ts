@@ -1,3 +1,4 @@
+import { IPC } from '@shared/ipc';
 import { ipcMain } from 'electron';
 
 import type { DraftWindowController } from './windows/DraftWindowController';
@@ -17,10 +18,10 @@ import type { DraftWindowController } from './windows/DraftWindowController';
  *     `ipcRenderer`.
  */
 export function registerE2eAffordances(controller: DraftWindowController): void {
-  ipcMain.handle('__test__:showDraft', async (): Promise<void> => {
+  ipcMain.handle(IPC.TestShowDraft, async (): Promise<void> => {
     controller.toggle();
   });
-  ipcMain.handle('__test__:hideDraft', async (): Promise<void> => {
+  ipcMain.handle(IPC.TestHideDraft, async (): Promise<void> => {
     if (controller.isVisible()) controller.browserWindow().hide();
   });
   (

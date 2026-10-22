@@ -11,7 +11,7 @@ import {
   type UpdateState,
 } from './slice';
 
-import type { AvailableUpdateDTO } from '@infrastructure/electron/ipc-channels';
+import type { AvailableUpdateDTO } from '@shared/ipc';
 
 const dto: AvailableUpdateDTO = {
   version: '0.6.0',
