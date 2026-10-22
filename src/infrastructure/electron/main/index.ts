@@ -13,6 +13,7 @@ import { registerDraftIpc } from './ipc/draft';
 import { registerNotesIpc } from './ipc/notes';
 import { registerSettingsIpc } from './ipc/settings';
 import { registerUpdateIpc } from './ipc/update';
+import { claimSingleInstance } from './singleInstance';
 import { DraftWindowController } from './windows/DraftWindowController';
 import { LibraryWindowController } from './windows/LibraryWindowController';
 
@@ -67,52 +68,82 @@ function emitNotesChanged(): void {
   }
 }
 
+// ---------- Single instance ----------
+//
+// Runs AFTER the userData override above: Electron keys the lock on the
+// userData directory, so E2E instances with distinct `INMEMNOTE_USER_DATA`
+// never block each other. A second launch quits here, before the container,
+// windows or hotkey exist; the first one resurfaces the Library instead.
+if (claimSingleInstance(app, () => libraryController.openOrFocus())) {
+  startPrimaryInstance();
+}
+
 // ---------- App lifecycle ----------
 
-app.whenReady().then(async () => {
-  const { drafts, settings, uc } = buildContainer();
+/** Boot the app. Only the process that owns the single-instance lock runs this. */
+function startPrimaryInstance(): void {
+  app.whenReady().then(async () => {
+    const { drafts, settings, uc } = buildContainer();
 
-  // Resolve the effective accelerator BEFORE creating windows so the
-  // global-hotkey registration below uses the persisted user choice (DB
-  // wins) and falls back to the YAML defaults only when nothing was saved.
-  //
-  // We probe the repo directly so we can tell "user explicitly chose the
-  // default" apart from "row was never written" — both surface as the same
-  // `AppSettings.default()` through the use-case, but only the latter should
-  // defer to YAML.
-  const storedSettings = await settings.load();
-  const currentSettings = storedSettings ?? (await uc.loadSettings.execute());
-  const settingsRowExists = storedSettings !== null;
+    // Resolve the effective accelerator BEFORE creating windows so the
+    // global-hotkey registration below uses the persisted user choice (DB
+    // wins) and falls back to the YAML defaults only when nothing was saved.
+    //
+    // We probe the repo directly so we can tell "user explicitly chose the
+    // default" apart from "row was never written" — both surface as the same
+    // `AppSettings.default()` through the use-case, but only the latter should
+    // defer to YAML.
+    const storedSettings = await settings.load();
+    const currentSettings = storedSettings ?? (await uc.loadSettings.execute());
+    const settingsRowExists = storedSettings !== null;
 
-  draftController = new DraftWindowController();
-  libraryController.openOrFocus();
+    draftController = new DraftWindowController();
+    libraryController.openOrFocus();
 
-  hotkey = new HotkeyService(() => draftController?.toggle(), { disabled: E2E_MODE });
-  hotkey.loadInitial({
-    dbAccelerator: currentSettings.openDraftHotkey.accelerator,
-    settingsRowExists,
+    hotkey = new HotkeyService(() => draftController?.toggle(), { disabled: E2E_MODE });
+    hotkey.loadInitial({
+      dbAccelerator: currentSettings.openDraftHotkey.accelerator,
+      settingsRowExists,
+    });
+
+    registerDraftIpc({ controller: draftController, drafts, uc, emitNotesChanged });
+    registerNotesIpc({ uc, emitNotesChanged });
+    const settingsIpc = registerSettingsIpc({ initial: currentSettings, uc, hotkey });
+
+    // Push the loaded settings into both windows once they're done loading
+    // — the renderer applies palette + theme on receipt, before its own
+    // `settings.load` call resolves.
+    const draftBrowserWin = draftController.browserWindow();
+    draftBrowserWin.webContents.once('did-finish-load', () => settingsIpc.pushTo(draftBrowserWin));
+    const libraryBrowserWin = libraryController.browserWindow();
+    if (libraryBrowserWin) {
+      libraryBrowserWin.webContents.once('did-finish-load', () =>
+        settingsIpc.pushTo(libraryBrowserWin),
+      );
+    }
+
+    setupAutoUpdate();
+
+    if (E2E_MODE) registerE2eAffordances(draftController);
   });
 
-  registerDraftIpc({ controller: draftController, drafts, uc, emitNotesChanged });
-  registerNotesIpc({ uc, emitNotesChanged });
-  const settingsIpc = registerSettingsIpc({ initial: currentSettings, uc, hotkey });
+  app.on('activate', () => {
+    // macOS: clicking the Dock icon when no windows are open should resurface
+    // the Library — this is the documented platform convention.
+    libraryController.openOrFocus();
+  });
 
-  // Push the loaded settings into both windows once they're done loading
-  // — the renderer applies palette + theme on receipt, before its own
-  // `settings.load` call resolves.
-  const draftBrowserWin = draftController.browserWindow();
-  draftBrowserWin.webContents.once('did-finish-load', () => settingsIpc.pushTo(draftBrowserWin));
-  const libraryBrowserWin = libraryController.browserWindow();
-  if (libraryBrowserWin) {
-    libraryBrowserWin.webContents.once('did-finish-load', () =>
-      settingsIpc.pushTo(libraryBrowserWin),
-    );
-  }
+  app.on('window-all-closed', () => {
+    // Stay alive on macOS so the global hotkey keeps working even after the
+    // user closes the Library window. On other platforms (we ship macOS only,
+    // but be defensive) quit when no windows remain.
+    if (process.platform !== 'darwin') app.quit();
+  });
 
-  setupAutoUpdate();
-
-  if (E2E_MODE) registerE2eAffordances(draftController);
-});
+  app.on('will-quit', () => {
+    hotkey?.unregisterAll();
+  });
+}
 
 /**
  * Wire the signing-free self-updater.
@@ -151,20 +182,3 @@ function setupAutoUpdate(): void {
   setTimeout(() => void updateIpc.checkNow(), UPDATE_FIRST_CHECK_DELAY_MS);
   setInterval(() => void updateIpc.checkNow(), UPDATE_CHECK_INTERVAL_MS);
 }
-
-app.on('activate', () => {
-  // macOS: clicking the Dock icon when no windows are open should resurface
-  // the Library — this is the documented platform convention.
-  libraryController.openOrFocus();
-});
-
-app.on('window-all-closed', () => {
-  // Stay alive on macOS so the global hotkey keeps working even after the
-  // user closes the Library window. On other platforms (we ship macOS only,
-  // but be defensive) quit when no windows remain.
-  if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('will-quit', () => {
-  hotkey?.unregisterAll();
-});
