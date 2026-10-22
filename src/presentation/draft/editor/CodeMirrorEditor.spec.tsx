@@ -197,6 +197,37 @@ describe('CodeMirrorEditor', () => {
       expect(props.onCancel).toHaveBeenCalled();
     });
 
+    // DraftPanel also listens for ⌘↵ / Esc on `document` (a fallback for when
+    // the editor is not focused). If a key the editor already handled kept
+    // bubbling, both handlers would fire: a double promote / double close.
+    it('a handled Mod-Enter / Escape does not reach document-level listeners', () => {
+      const onDocKey = vi.fn();
+      document.addEventListener('keydown', onDocKey);
+      try {
+        const { view, props } = setup({ value: 'note' });
+
+        press(view, 'Enter', { ctrl: true });
+        press(view, 'Escape');
+
+        expect(props.onSubmit).toHaveBeenCalledTimes(1);
+        expect(props.onCancel).toHaveBeenCalledTimes(1);
+        expect(onDocKey).not.toHaveBeenCalled();
+      } finally {
+        document.removeEventListener('keydown', onDocKey);
+      }
+    });
+
+    it('without onSubmit, Mod-Enter falls through to the default keymap', () => {
+      const onChange = vi.fn();
+      render(<CodeMirrorEditor value="note" onChange={onChange} />);
+      const view = EditorView.findFromDOM(document.querySelector<HTMLElement>('.cm-editor')!)!;
+      act(() => view.dispatch({ selection: EditorSelection.cursor(4) }));
+
+      press(view, 'Enter', { ctrl: true });
+
+      expect(view.state.doc.toString()).toBe('note\n');
+    });
+
     it('Mod-Enter and Escape are safe without onSubmit / onCancel', () => {
       const onChange = vi.fn();
       render(<CodeMirrorEditor value="note" onChange={onChange} />);

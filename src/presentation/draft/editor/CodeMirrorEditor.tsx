@@ -7,7 +7,7 @@ import {
 } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
+import { Annotation, EditorState } from '@codemirror/state';
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { useEffect, useRef } from 'react';
@@ -41,6 +41,15 @@ const inmemHighlightStyle = HighlightStyle.define([
 ]);
 
 /**
+ * Marks the transaction that pushes an external `value` into the editor.
+ * Such a change is the parent's own state coming back down, not user input,
+ * so the update listener must not report it through `onChange` — otherwise
+ * every external update (opening a draft, toggling Pin, clearing after
+ * submit) turns into a spurious edit plus a redundant debounced save.
+ */
+const externalSync = Annotation.define<true>();
+
+/**
  * CodeMirror 6 wrapper for the Draft body.
  *
  * Why this layer instead of using CM directly: React owns the lifecycle, but
@@ -63,9 +72,16 @@ export interface CodeMirrorEditorProps {
 export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
-  // Stable ref to the latest onChange — avoids tearing down the view on every render.
+  // Stable refs to the latest callbacks — avoids tearing down the view on
+  // every render. The keymap is built once, so a handler that read `props`
+  // directly would keep calling the first render's callbacks, which close
+  // over stale note content.
   const onChangeRef = useRef(props.onChange);
   onChangeRef.current = props.onChange;
+  const onSubmitRef = useRef(props.onSubmit);
+  onSubmitRef.current = props.onSubmit;
+  const onCancelRef = useRef(props.onCancel);
+  onCancelRef.current = props.onCancel;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -80,22 +96,26 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
           // for any indented block including markdown lists, which is what we
           // want for nesting.
           { key: 'Tab', run: indentMore, shift: indentLess },
-          ...defaultKeymap,
-          ...historyKeymap,
+          // Same for submit / cancel: `defaultKeymap` binds `Mod-Enter` to
+          // `insertBlankLine` (and `Escape` to `simplifySelection`), and the
+          // first binding that returns `true` wins.
+          //
+          // Without a callback the handler returns `false` so the key falls
+          // through to those defaults. With one, `stopPropagation` keeps the
+          // handled key from also reaching DraftPanel's document-level
+          // ⌘↵ / Esc fallback, which would submit or close a second time.
           {
             key: 'Mod-Enter',
-            run: () => {
-              props.onSubmit?.();
-              return true;
-            },
+            run: () => runCallback(onSubmitRef.current),
+            stopPropagation: true,
           },
           {
             key: 'Escape',
-            run: () => {
-              props.onCancel?.();
-              return true;
-            },
+            run: () => runCallback(onCancelRef.current),
+            stopPropagation: true,
           },
+          ...defaultKeymap,
+          ...historyKeymap,
         ]),
         markdown(),
         syntaxHighlighting(inmemHighlightStyle),
@@ -182,7 +202,9 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
           { dark: document.documentElement.dataset.theme === 'dark' },
         ),
         EditorView.updateListener.of((v) => {
-          if (v.docChanged) onChangeRef.current(v.state.doc.toString());
+          if (!v.docChanged) return;
+          if (v.transactions.some((tr) => tr.annotation(externalSync))) return;
+          onChangeRef.current(v.state.doc.toString());
         }),
       ],
     });
@@ -208,10 +230,17 @@ export function CodeMirrorEditor(props: CodeMirrorEditorProps): JSX.Element {
     if (current === props.value) return;
     view.dispatch({
       changes: { from: 0, to: current.length, insert: props.value },
+      annotations: externalSync.of(true),
     });
   }, [props.value]);
 
   // `h-full` so the CodeMirror EditorView, which sets `height: 100%` on
   // itself, has a definite parent to measure against.
   return <div ref={hostRef} className="draft-no-drag w-full h-full" />;
+}
+
+function runCallback(callback: (() => void) | undefined): boolean {
+  if (!callback) return false;
+  callback();
+  return true;
 }
