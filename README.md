@@ -20,7 +20,8 @@ No cloud, no backend. Everything lives in a local SQLite file
 
 ## Install on macOS
 
-Apple Silicon only. One command downloads the latest release, installs it to
+Apple Silicon only, macOS 13 Ventura or later (the floor set by Electron 44+).
+One command downloads the latest release, installs it to
 `/Applications` and launches it:
 
 ```sh
@@ -160,6 +161,11 @@ After install, rebuild the native module against the Electron ABI
 ```sh
 npx @electron/rebuild -f -w better-sqlite3
 ```
+
+The Electron binary itself is no longer fetched during install (Electron
+42+): it downloads on the first `require('electron')` / `npx electron`.
+To fetch it up front — e.g. before going offline — run
+`npx install-electron --no`.
 
 ---
 

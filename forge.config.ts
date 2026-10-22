@@ -26,15 +26,11 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
  * (plus their runtime deps) via an `afterCopy` hook, then let
  * `AutoUnpackNativesPlugin` move the resulting `.node` files out of asar.
  *
- * Walk the closure manually instead of pulling in `flora-colossus` — three
- * tiny packages don't justify another dev dependency.
+ * Walk the closure manually instead of pulling in `flora-colossus`. Since
+ * better-sqlite3 13 (N-API + bundled prebuilds) neither package has runtime
+ * dependencies — `node-addon-api` is compile-time headers only.
  */
-const NATIVE_DEP_CLOSURE = [
-  'better-sqlite3',
-  'bindings',
-  'file-uri-to-path',
-  '@inmemnote/window-events',
-];
+const NATIVE_DEP_CLOSURE = ['better-sqlite3', '@inmemnote/window-events'];
 
 const config: ForgeConfig = {
   packagerConfig: {

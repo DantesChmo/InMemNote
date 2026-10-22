@@ -672,6 +672,7 @@
 **Expected:**
 - The API is present on the window.
 - The recorded calls do NOT include any `false` argument.
+- `isContentProtected()` on the Draft window is `true` after the cycle.
 
 ---
 

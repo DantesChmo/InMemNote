@@ -9,9 +9,9 @@ import { DraftPage } from '../helpers/draft';
  * this with `BrowserWindow.setContentProtection(true)` inside
  * `createDraftWindow`, which maps to macOS `NSWindowSharingNone`.
  *
- * Electron 33 doesn't expose a public getter for content protection state,
- * so we can't read it back. We DO test the two things that would actually
- * regress this behavior in code:
+ * We read the live state back via `BrowserWindow.isContentProtected()`, and
+ * also test the two things that would actually regress this behavior in
+ * code:
  *
  *   1. The `setContentProtection` API is present on the live Draft window
  *      (an Electron upgrade renaming or removing it would otherwise pass
@@ -41,6 +41,7 @@ import { DraftPage } from '../helpers/draft';
  * Expected:
  *   - The API is present on the window.
  *   - The recorded calls do NOT include any `false` argument.
+ *   - `isContentProtected()` on the Draft window is `true` after the cycle.
  */
 test('draft window keeps content protection across pin/unpin cycles', async () => {
   const handles = await launchApp();
@@ -93,6 +94,14 @@ test('draft window keeps content protection across pin/unpin cycles', async () =
 
       // Nothing in the pin/unpin path should ever flip protection off.
       expect(calls).not.toContain(false);
+
+      const protectedNow = await handles.app.evaluate(({ BrowserWindow }) => {
+        const w = BrowserWindow.getAllWindows().find((win) =>
+          win.webContents.getURL().includes('view=draft'),
+        );
+        return w?.isContentProtected() ?? false;
+      });
+      expect(protectedNow).toBe(true);
     } finally {
       // Restore the original implementation so other tests are unaffected.
       await handles.app.evaluate(({ BrowserWindow }) => {

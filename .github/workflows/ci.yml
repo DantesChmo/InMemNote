@@ -3,9 +3,9 @@
 # Jobs:
 #
 #   1. `quality`        — typecheck, lint, unit tests on Linux (fast, cheap).
-#   2. `e2e-prepare`    — macOS: install deps, rebuild native modules against
-#                         Electron's ABI, run `e2e:prepare` (Forge package +
-#                         Vite renderer build). Uploads a single tarball that
+#   2. `e2e-prepare`    — macOS: install deps (builds the native addon),
+#                         fetch the Electron binary, run `e2e:prepare` (Forge
+#                         package + Vite renderer build). Uploads a single tarball that
 #                         every shard reuses, so we pay this multi-minute cost
 #                         once per run instead of once per shard.
 #   3. `e2e`            — macOS matrix: each shard downloads the tarball and
@@ -52,11 +52,8 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      # Cache `node_modules` keyed by the lockfile. On hit we skip both
-      # `npm ci` and the better-sqlite3 rebuild below — those native
-      # bindings are inside `node_modules`, so they ride along in the
-      # cache. The key includes the OS to keep Linux and macOS native
-      # binaries from contaminating each other.
+      # Cache `node_modules` keyed by the lockfile. On hit we skip `npm ci`.
+      # The key includes the OS to keep Linux and macOS trees apart.
       - name: Cache node_modules
         id: cache-node-modules
         uses: actions/cache@v6
@@ -64,17 +61,13 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-quality-node-modules-${{ hashFiles('package-lock.json') }}
 
-      # `--ignore-scripts` skips the postinstall step for every package —
-      # most of those builds aren't needed for typecheck/lint/unit tests and
-      # they pull in extra toolchain on Linux. We do, however, need
-      # `better-sqlite3` native bindings: `SqliteDraftRepository.spec.ts`
-      # opens a real `:memory:` database in the unit suite, so we rebuild
-      # just that one addon for the host Node.
+      # `--ignore-scripts` skips every install script — those builds aren't
+      # needed for typecheck/lint/unit tests and pull in extra toolchain on
+      # Linux. The unit suite does open real `:memory:` SQLite databases, but
+      # `better-sqlite3` (13+) is an N-API addon that ships prebuilt binaries
+      # for Linux and macOS, so there is nothing to compile.
       - if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --ignore-scripts
-
-      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm rebuild better-sqlite3
 
       - run: npm run typecheck
 
@@ -91,7 +84,7 @@ jobs:
         run: npm run check:test-plan
 
   e2e-prepare:
-    name: E2E prepare (package + native rebuild)
+    name: E2E prepare (package + native build)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -102,11 +95,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      # Cache `node_modules` together with the already-Electron-rebuilt
-      # native modules. The key is OS-scoped (macOS has different
-      # NODE_MODULE_VERSION than Linux) and includes the lockfile, the
-      # native addon's gyp file, and its sources — touching any of those
-      # is what would actually invalidate the rebuild. We also include
+      # Cache `node_modules` together with the compiled native addon. The key
+      # is OS-scoped and includes the lockfile, the native addon's gyp file,
+      # and its sources — touching any of those is what would actually
+      # invalidate the build. We also include
       # `native/window-events/build` in the cached paths so the
       # gyp-produced binary survives across runs and gets picked up by
       # the bundle step below.
@@ -122,12 +114,18 @@ jobs:
       - if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
-      # Rebuild native modules against the Electron ABI. `npm ci` builds them
-      # for the host Node, which has a different NODE_MODULE_VERSION; without
-      # this step `better-sqlite3` would refuse to load inside Electron.
+      # Since Electron 42 the `electron` package no longer downloads its
+      # binary in `postinstall`; it does so lazily on the first
+      # `require('electron')`. Fetch it here, on cache miss, so the binary
+      # lands in the cached `node_modules` and in the e2e tarball — otherwise
+      # every shard would download it again when Playwright launches the app.
       - if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        name: Rebuild native modules for Electron
-        run: npx @electron/rebuild -f -w better-sqlite3
+        name: Download Electron binary
+        run: npx install-electron --no
+
+      # No `@electron/rebuild` step: both native addons (`better-sqlite3` and
+      # `@inmemnote/window-events`) are N-API, whose ABI is stable across
+      # Node and Electron, so the binaries `npm ci` produced load as-is.
 
       - name: Forge package
         run: npm run e2e:prepare
@@ -219,7 +217,7 @@ jobs:
       # Reuse the same cache the `e2e-prepare` job populated earlier in
       # the run (same key shape, same OS). On a tag push e2e-prepare runs
       # first as part of the test pipeline, so the cache is already warm
-      # when we get here and `npm ci` + electron-rebuild are skipped.
+      # when we get here and `npm ci` is skipped.
       - name: Cache node_modules + native build
         id: cache-node-modules
         uses: actions/cache@v6
@@ -232,9 +230,10 @@ jobs:
       - if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
+      # Same as in `e2e-prepare`: keeps this cache entry identical in shape.
       - if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        name: Rebuild native modules for Electron
-        run: npx @electron/rebuild -f -w better-sqlite3
+        name: Download Electron binary
+        run: npx install-electron --no
 
       # `make` produces the distributable bundles for every maker registered
       # in `forge.config.ts` — for us that's DMG + ZIP.
