@@ -132,6 +132,12 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   live in `infrastructure` (in-memory + SQLite).
 - [x] IPC between main and renderer — a narrow typed bridge through
   `preload` (`window.inmemnote.draft.*`).
+- [x] IPC contracts (channels, DTOs, `InmemnoteAPI`) in `src/shared/ipc/`,
+  so presentation no longer imports `@infrastructure` (ADR 0002); layer
+  boundaries enforced by ESLint `no-restricted-imports`. Every inbound
+  payload is Zod-validated main-side (`main/ipc/*.schemas.ts`) and a bad
+  one rejects with `IpcValidationError` before any use-case runs. Channel
+  table: `docs/IPC.md`.
 
 ---
 
@@ -149,6 +155,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   affects how the process is laid out.)
 - Hotkey behavior on macOS when focus is on a fullscreen app: confirm
   there's no conflict with Spotlight (`⌘Space`).
+- Use-case specs in `src/application/**/*.spec.ts` import in-memory
+  adapters from `@infrastructure` (exempted from the boundary lint). Move
+  the in-memory repositories/`FixedClock` to `src/test/` so the exemption
+  can be dropped? (ADR 0002.)
 
 ---
 
@@ -412,3 +422,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   removal in a follow-up dependency commit. Full alternatives considered:
   Apple Developer ID + notarization + Squirrel (rejected: $99/yr + cert
   management), notify-only banner (rejected: still manual install). See §4d.
+- **2026-10-22** — IPC contracts moved out of infrastructure (ADR 0002).
+  Chose `src/shared/ipc/` over a new `src/contracts/` layer (same effect,
+  no new alias or §3 layer) and over `application` (channel names and the
+  window API are transport, not use-case contracts). Zod schemas stay
+  main-side — the trust boundary is main, and keeping `shared` dependency-
+  free means neither preload nor the renderer bundle Zod; the cost is that
+  schemas `satisfies` the shared DTOs rather than being their source.

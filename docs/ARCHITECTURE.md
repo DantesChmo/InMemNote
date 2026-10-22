@@ -14,8 +14,14 @@
 ```
 presentation → application → domain
 infrastructure ↦ ports declared in domain / application
-domain depends on nothing
+domain depends on nothing (but shared)
+* → shared            (leaf: depends on nothing outside src/shared)
 ```
+
+The boundaries are enforced by `no-restricted-imports` blocks in
+`eslint.config.mjs` (alias and relative forms). Known, tolerated exception:
+use-case specs in `src/application/**/*.spec.ts` wire in-memory adapters
+from `@infrastructure` (ADR 0002).
 
 ## Bounded contexts
 
@@ -39,7 +45,12 @@ domain depends on nothing
 | preload | `src/infrastructure/electron/preload/**` | `contextBridge` — narrow typed surface to renderer |
 | renderer | `src/presentation/**` | React + Redux UI |
 
-IPC contracts are documented in [`IPC.md`](./IPC.md).
+Contracts (channel names, DTOs, the `InmemnoteAPI` type of `window.inmemnote`)
+live in `src/shared/ipc/`, one file per context
+([ADR 0002](./adr/0002-ipc-contracts-module.md)); main, preload and the
+renderer import them as `@shared/ipc`. Inbound payloads are Zod-validated by
+the main-side handlers against `infrastructure/electron/main/ipc/*.schemas.ts`
+before any use-case runs. Every channel has a row in [`IPC.md`](./IPC.md).
 
 ## Configuration
 

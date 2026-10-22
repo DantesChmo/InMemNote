@@ -99,13 +99,16 @@ src/
 │   ├── theme/
 │   └── app/                      # React app root
 │
-└── shared/            # truly cross-cutting utilities (logger, assert)
+└── shared/            # leaf: Result, cross-process IPC contracts (shared/ipc),
+                       # truly cross-cutting utilities (logger, assert)
 ```
 
 **Dependency rule** (loosening it = a review-blocking bug):
 `presentation → application → domain`
 `infrastructure → application/domain (port implementations only)`
 `domain` depends on nothing. Ever.
+`shared` depends on nothing — no other layer, no electron/react/sqlite/zod.
+Every layer may import it (ADR 0002). ESLint enforces these boundaries.
 
 ---
 
