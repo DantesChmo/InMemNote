@@ -1,6 +1,6 @@
 # Inmemnote
 
-A local quick-notes app for macOS. Two surfaces:
+A local quick-notes app for macOS. Two windows:
 
 - **Draft** — a Spotlight-style overlay summoned by a global hotkey
   (default `⌘⇧Space`). Floats over any app, frameless, no Dock icon.
@@ -10,6 +10,8 @@ A local quick-notes app for macOS. Two surfaces:
   `NSWindowSharingNone` — you see the overlay, your audience doesn't.
 - **Library** — the main app window. Opens from Launchpad / Dock. Three
   panes: sidebar (All / Pinned), card list with search, Markdown editor.
+  The gear icon opens **Settings** (theme, palette, global hotkey, language
+  — English / Russian).
 
 No cloud, no backend. Everything lives in a local SQLite file
 (`better-sqlite3`).
@@ -64,6 +66,7 @@ the quarantine flag so the app launches without the Gatekeeper prompt.
 | Linter             | ESLint (typescript-eslint + react-hooks)      |
 | Formatter          | Prettier                                      |
 | Pre-commit         | husky + lint-staged                           |
+| Auto-update        | In-house signing-free updater (GitHub Releases) |
 
 ---
 
@@ -72,34 +75,47 @@ the quarantine flag so the app launches without the Gatekeeper prompt.
 ```
 src/
 ├── domain/            # pure TS. No imports from react/electron/sqlite.
-│   ├── draft/         # DraftNote (the scratch buffer) + ports
-│   ├── note/          # Note (library item) + ports
+│   ├── draft/         # DraftNote (the scratch buffer) + DraftRepository
+│   ├── note/          # Note (library item) + NoteRepository
+│   ├── settings/      # AppSettings, Hotkey, ThemeMode, PaletteOverrides,
+│   │                  # LanguageMode + SettingsRepository
+│   ├── update/        # AppVersion, ReleaseInfo + ReleaseGateway / UpdateInstaller
 │   └── shared/        # Clock, DomainError
 │
 ├── application/       # use-cases. Depend on domain, ignorant of frameworks.
 │   ├── draft/         # Open / Save / TogglePin / Close
-│   └── note/          # List / Find / Create / Update / TogglePin /
-│                      # Delete / Search / PromoteDraftToNote
+│   ├── note/          # List / Find / Create / Update / TogglePin /
+│   │                  # Delete / Search / PromoteDraftToNote
+│   ├── settings/      # LoadSettings / UpdateSettings
+│   └── update/        # CheckForUpdate / InstallUpdate
 │
 ├── infrastructure/    # port implementations: SQLite, IPC, Electron adapters.
-│   ├── persistence/   # InMemory* and SqliteDraftRepository / SqliteNoteRepository
+│   ├── persistence/   # InMemory* and Sqlite* repositories (drafts, notes, settings)
 │   ├── electron/      # main process, preload (contextBridge), IPC channels
+│   ├── update/        # GitHub Releases gateway + DMG self-updater
 │   ├── config/        # zod-validated config loaders
 │   └── SystemClock.ts # SystemClock / FixedClock
 │
 ├── presentation/      # React + Redux + CodeMirror 6.
 │   ├── draft/         # Draft panel, header, footer, editor
 │   ├── library/       # Library window, sidebar, list, editor, slice
+│   ├── settings/      # Settings popup, palette editor, hotkey input
+│   ├── update/        # update banner
+│   ├── i18n/          # typed message catalog, en / ru
 │   ├── theme/         # design tokens
 │   └── app/           # composition root + Redux store + ?view= routing
 │
-└── shared/            # Result<T, E> and other truly cross-cutting bits.
+└── shared/            # Result<T, E>.
 ```
 
 Dependency rule:
 `presentation → application → domain`
 `infrastructure → application/domain (only port implementations)`
 `domain` depends on nothing.
+
+The current module-level picture (contexts, ports, adapters, windows) is in
+`docs/ARCHITECTURE.md`; the reasoning behind non-obvious choices is in
+`docs/adr/`.
 
 ---
 
@@ -109,13 +125,12 @@ Dependency rule:
 - Every feature ships through the **interfaces → tests → implementation**
   pipeline.
 - Use-cases return `Result<T, DomainError>` — no `throw` across layers.
-- Source comments are written **in English**; only Markdown documentation is
-  in Russian.
+- Source comments and Markdown documentation are written **in English**.
 - Comment style: written by a Senior, read by a Junior. Explain *why*, never
   restate *what* the code already says.
 
 Details live in `CLAUDE.md` (the project constitution) and `docs/TZ.md`
-(work state + decision log) — both in Russian.
+(work state + decision log).
 
 ---
 
@@ -181,8 +196,10 @@ npm test           # single run
 npm run test:watch # watch mode
 ```
 
-Cover domain aggregates, value objects, application use-cases, and
-presentation helpers. **47 tests, ~1.3s.**
+Cover domain aggregates and value objects, application use-cases, the
+SQLite / in-memory repositories, the Electron main process (IPC handlers,
+window controllers, hotkey), and presentation components and slices. Specs
+live next to the code they cover (`Foo.ts` ↔ `Foo.spec.ts`).
 
 ### E2E (Playwright + Electron)
 
@@ -192,19 +209,31 @@ npm run e2e           # all specs
 npx playwright test e2e/library/crud.spec.ts -g "starts empty"  # one test
 ```
 
-The suite has **17 scenarios**:
+The suite has **75 scenarios in 12 spec files**:
 
-- **Library CRUD** — empty start, `⌘N` create, edit, delete, switching
-  between notes, persistence across app restarts.
-- **Library search / filters** — `⌘F` focus, live search, highlight, `Esc`
-  clears, Pinned filter.
-- **Library pin** — toggle, marker on the card, pinned notes rise to the top.
-- **Draft lifecycle** — summon, `Esc` keeps the scratch buffer, autosave
-  survives re-summon, blur hides an unpinned overlay, pin keeps it on top.
-- **Draft → Library promote** — `⌘↵` creates a Note and clears the scratch;
-  an empty draft creates nothing.
-- **Visual smoke** — tokens resolve, Tailwind utilities ship in the bundle,
-  React mounted content; screenshots are saved under `test-results/`.
+- **Draft lifecycle** (`e2e/draft/lifecycle.spec.ts`) — summon, `Esc` keeps
+  the scratch buffer, autosave survives re-summon and restart, blur hides an
+  unpinned overlay, pin keeps it on top, toggle races, positioning.
+- **Draft rendering** (`e2e/draft/markdown-render.spec.ts`,
+  `list-quote-render.spec.ts`) — headings, inline styles, bullets, quotes.
+- **Pin** (`e2e/draft/pin-*.spec.ts`, `content-protection.spec.ts`) — window
+  geometry, always-on-top, drag-to-corner, manual resize, screen-capture
+  protection.
+- **Library** (`e2e/library/crud.spec.ts`, `pin.spec.ts`,
+  `search-filter.spec.ts`) — CRUD, restart persistence, pin ordering,
+  `⌘F` live search, highlight, `Esc` reset, Pinned filter.
+- **Draft → Library promote** (`e2e/cross-window/draft-promote.spec.ts`) —
+  `⌘↵` creates a Note and clears the scratch; an empty draft creates nothing.
+- **Visual smoke** (`e2e/visual-smoke.spec.ts`) — tokens resolve, Tailwind
+  utilities ship in the bundle, React mounted content.
+
+The full scenario list (steps, expected results, priority) is generated from
+the specs' JSDoc into `e2e/TEST-PLAN.md`:
+
+```sh
+npm run gen:test-plan    # regenerate after editing a spec
+npm run check:test-plan  # what CI runs — fails if the file is stale
+```
 
 Every test launches with a fresh tmp `userData`, so they never pollute the
 local store.
@@ -225,15 +254,17 @@ npm run format      # prettier --write
 | Action               | Shortcut             | Scope    |
 |----------------------|----------------------|----------|
 | Open Draft           | `⌘⇧Space`            | global   |
-| Save + close         | `⌘↵`                 | Draft    |
+| Promote to Library   | `⌘↵`                 | Draft    |
 | Hide without promote | `Esc`                | Draft    |
 | Pin                  | header button        | Draft    |
 | New note             | `⌘N`                 | Library  |
 | Focus search         | `⌘F`                 | Library  |
 | Clear search         | `Esc` in search box  | Library  |
+| Save now             | `⌘↵`                 | Library  |
 
-The global hotkey can be overridden via
-`~/Library/Application Support/Inmemnote/hotkeys.yaml`.
+Change the global hotkey in **Settings → Hotkeys**. For scripted setups it
+can also be set in `~/Library/Application Support/Inmemnote/hotkeys.yaml`;
+a value saved from Settings takes precedence over the YAML file.
 See `docs/HOTKEYS.md`.
 
 ---
@@ -245,9 +276,11 @@ See `docs/HOTKEYS.md`.
 - Tables:
   - `drafts` — a single active scratch buffer; overwritten by a 500ms
     debounced autosave.
-  - `notes` — every promoted library item.
-- If SQLite fails to initialize, the app falls back to an in-memory
-  repository (notes survive the session but not a restart).
+  - `notes` — every library item (created in Library or promoted from Draft).
+  - `settings` — theme, palette, hotkey and language, one JSON value per key.
+- If SQLite fails to initialize, the affected store falls back to an
+  in-memory repository (data survives the session but not a restart). Each
+  store falls back independently.
 
 ---
 
