@@ -1,11 +1,10 @@
-import {
-  IPC,
-  type AppSettingsDTO,
-  type AppSettingsPatchDTO,
-} from '@infrastructure/electron/ipc-channels';
+import { IPC, type AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { settingsToDTO } from '../dto';
+
+import { SettingsSaveArgs } from './settings.schemas';
+import { parseIpcArgs } from './validate';
 
 import type { UseCases } from '../composition';
 import type { HotkeyService } from '../hotkey';
@@ -45,35 +44,33 @@ export function registerSettingsIpc(deps: {
 
   ipcMain.handle(IPC.SettingsLoad, async (): Promise<AppSettingsDTO> => settingsToDTO(current));
 
-  ipcMain.handle(
-    IPC.SettingsSave,
-    async (_e, patch: AppSettingsPatchDTO): Promise<AppSettingsDTO> => {
-      // Merge the patch with the current aggregate so the popup can send
-      // only the field(s) the user touched. The use-case re-validates
-      // the result through the domain parser — never trust the
-      // renderer's shape.
-      const merged = {
-        themeMode: patch.themeMode ?? current.themeMode,
-        language: patch.language ?? current.language,
-        palette: patch.palette ?? current.palette.toJSON(),
-        openDraftHotkey: patch.openDraftHotkey ?? current.openDraftHotkey.accelerator,
-      };
-      const result = await deps.uc.updateSettings.execute(merged);
-      if (!result.ok) throw new Error(result.error.message);
+  ipcMain.handle(IPC.SettingsSave, async (_e, ...args: unknown[]): Promise<AppSettingsDTO> => {
+    // The schema pins the patch's shape; value rules (hex colours, hotkey
+    // vocabulary) are re-checked by the domain parser inside the use-case.
+    const [patch] = parseIpcArgs(IPC.SettingsSave, SettingsSaveArgs, args);
+    // Merge the patch with the current aggregate so the popup can send
+    // only the field(s) the user touched.
+    const merged = {
+      themeMode: patch.themeMode ?? current.themeMode,
+      language: patch.language ?? current.language,
+      palette: patch.palette ?? current.palette.toJSON(),
+      openDraftHotkey: patch.openDraftHotkey ?? current.openDraftHotkey.accelerator,
+    };
+    const result = await deps.uc.updateSettings.execute(merged);
+    if (!result.ok) throw new Error(result.error.message);
 
-      const prevHotkey = current.openDraftHotkey.accelerator;
-      current = result.value;
+    const prevHotkey = current.openDraftHotkey.accelerator;
+    current = result.value;
 
-      // Hotkey changed — re-register the global shortcut AFTER the
-      // persistence step succeeded.
-      const nextHotkey = current.openDraftHotkey.accelerator;
-      if (nextHotkey !== prevHotkey) deps.hotkey.register(nextHotkey);
+    // Hotkey changed — re-register the global shortcut AFTER the
+    // persistence step succeeded.
+    const nextHotkey = current.openDraftHotkey.accelerator;
+    if (nextHotkey !== prevHotkey) deps.hotkey.register(nextHotkey);
 
-      const dto = settingsToDTO(current);
-      broadcast(dto);
-      return dto;
-    },
-  );
+    const dto = settingsToDTO(current);
+    broadcast(dto);
+    return dto;
+  });
 
   return {
     pushTo(win: BrowserWindow): void {

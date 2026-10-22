@@ -4,6 +4,15 @@ import { ipcMain } from 'electron';
 
 import { draftToDTO, noteToDTO } from '../dto';
 
+import {
+  DraftIdArgs,
+  DraftResizeArgs,
+  DraftSaveArgs,
+  DraftSetPinSizeArgs,
+  DraftTogglePinArgs,
+} from './draft.schemas';
+import { parseIpcArgs } from './validate';
+
 import type { UseCases } from '../composition';
 import type { DraftWindowController } from '../windows/DraftWindowController';
 import type { DraftRepository } from '@domain/draft/DraftRepository';
@@ -18,7 +27,8 @@ import type { DraftRepository } from '@domain/draft/DraftRepository';
  *
  * The split is intentional: `DraftWindowController` knows nothing about
  * use-cases or DTOs; the use-cases know nothing about windows. The IPC
- * layer is the only place that wires them together.
+ * layer is the only place that wires them together — and the place that
+ * validates every renderer payload (`draft.schemas.ts`) before either sees it.
  */
 export function registerDraftIpc(deps: {
   controller: DraftWindowController;
@@ -37,7 +47,8 @@ export function registerDraftIpc(deps: {
     return draftToDTO(note);
   });
 
-  ipcMain.handle(IPC.DraftSave, async (_e, id: string, content: string): Promise<DraftDTO> => {
+  ipcMain.handle(IPC.DraftSave, async (_e, ...args: unknown[]): Promise<DraftDTO> => {
+    const [id, content] = parseIpcArgs(IPC.DraftSave, DraftSaveArgs, args);
     const idResult = DraftId.create(id);
     if (!idResult.ok) throw new Error(idResult.error.message);
     const r = await uc.saveDraft.execute(idResult.value, content);
@@ -45,38 +56,36 @@ export function registerDraftIpc(deps: {
     return draftToDTO(r.value);
   });
 
-  ipcMain.handle(IPC.DraftClose, async (_e, id: string): Promise<void> => {
+  ipcMain.handle(IPC.DraftClose, async (_e, ...args: unknown[]): Promise<void> => {
+    const [id] = parseIpcArgs(IPC.DraftClose, DraftIdArgs, args);
     const idResult = DraftId.create(id);
     if (!idResult.ok) throw new Error(idResult.error.message);
     await uc.closeDraft.execute(idResult.value);
   });
 
-  ipcMain.handle(
-    IPC.DraftTogglePin,
-    async (_e, id: string, targetHeight?: number): Promise<DraftDTO> => {
-      const idResult = DraftId.create(id);
-      if (!idResult.ok) throw new Error(idResult.error.message);
-      const r = await uc.togglePinDraft.execute(idResult.value);
-      if (!r.ok) throw new Error(r.error.message);
-      controller.applyPinState(r.value.pinned, targetHeight);
-      return draftToDTO(r.value);
-    },
-  );
+  ipcMain.handle(IPC.DraftTogglePin, async (_e, ...args: unknown[]): Promise<DraftDTO> => {
+    const [id, targetHeight] = parseIpcArgs(IPC.DraftTogglePin, DraftTogglePinArgs, args);
+    const idResult = DraftId.create(id);
+    if (!idResult.ok) throw new Error(idResult.error.message);
+    const r = await uc.togglePinDraft.execute(idResult.value);
+    if (!r.ok) throw new Error(r.error.message);
+    controller.applyPinState(r.value.pinned, targetHeight);
+    return draftToDTO(r.value);
+  });
 
   ipcMain.handle(IPC.DraftHide, async (): Promise<void> => {
     controller.hideIfUnpinned();
   });
 
-  ipcMain.handle(IPC.DraftResize, async (_e, rawHeight: number): Promise<void> => {
+  ipcMain.handle(IPC.DraftResize, async (_e, ...args: unknown[]): Promise<void> => {
+    const [rawHeight] = parseIpcArgs(IPC.DraftResize, DraftResizeArgs, args);
     controller.applyContentHeight(rawHeight);
   });
 
-  ipcMain.handle(
-    IPC.DraftSetPinSize,
-    async (_e, raw: { width: number; height: number }): Promise<void> => {
-      controller.setPinSize(raw);
-    },
-  );
+  ipcMain.handle(IPC.DraftSetPinSize, async (_e, ...args: unknown[]): Promise<void> => {
+    const [size] = parseIpcArgs(IPC.DraftSetPinSize, DraftSetPinSizeArgs, args);
+    controller.setPinSize(size);
+  });
 
   ipcMain.handle(IPC.DraftGetCorner, async () => controller.getCorner());
 
@@ -88,7 +97,8 @@ export function registerDraftIpc(deps: {
     controller.resetPinSize();
   });
 
-  ipcMain.handle(IPC.DraftPromote, async (_e, id: string): Promise<NoteDTO | null> => {
+  ipcMain.handle(IPC.DraftPromote, async (_e, ...args: unknown[]): Promise<NoteDTO | null> => {
+    const [id] = parseIpcArgs(IPC.DraftPromote, DraftIdArgs, args);
     const idResult = DraftId.create(id);
     if (!idResult.ok) throw new Error(idResult.error.message);
     const r = await uc.promote.execute(idResult.value);
