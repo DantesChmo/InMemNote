@@ -16,14 +16,14 @@
 //   - concurrent writes — better-sqlite3 is synchronous so the "race" here is
 //     about ordering of awaited Promises producing a well-defined final state.
 
-import { DraftId } from '@domain/draft/DraftId';
-import { DraftNote } from '@domain/draft/DraftNote';
-import { NoteContent } from '@domain/draft/NoteContent';
-import { unwrap } from '@shared/Result';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { DraftId } from '@domain/draft/DraftId';
+import { DraftNote } from '@domain/draft/DraftNote';
+import { NoteContent } from '@domain/draft/NoteContent';
+import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openDatabase } from './openDatabase';

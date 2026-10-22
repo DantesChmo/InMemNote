@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-import { MIGRATIONS, type Migration } from './migrations';
+import { MIGRATIONS, runMigrations, type Migration } from './migrations';
 
 /**
  * Open the app's SQLite file and bring its schema up to date.
@@ -16,8 +16,13 @@ export function openDatabase(
   path: string,
   migrations: readonly Migration[] = MIGRATIONS,
 ): Database.Database {
-  void path;
-  void migrations;
-  void Database;
-  throw new Error('not implemented');
+  const db = new Database(path);
+  try {
+    db.pragma('journal_mode = WAL');
+    runMigrations(db, migrations);
+    return db;
+  } catch (e) {
+    db.close();
+    throw e;
+  }
 }

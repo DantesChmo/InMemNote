@@ -17,6 +17,7 @@ import { UpdateSettingsUseCase } from '@application/settings/UpdateSettingsUseCa
 import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
 import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
 import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
+import { openDatabase } from '@infrastructure/persistence/sqlite/openDatabase';
 import { SqliteDraftRepository } from '@infrastructure/persistence/sqlite/SqliteDraftRepository';
 import { SqliteNoteRepository } from '@infrastructure/persistence/sqlite/SqliteNoteRepository';
 import { SqliteSettingsRepository } from '@infrastructure/persistence/sqlite/SqliteSettingsRepository';
@@ -26,6 +27,7 @@ import { app } from 'electron';
 import type { DraftRepository } from '@domain/draft/DraftRepository';
 import type { NoteRepository } from '@domain/note/NoteRepository';
 import type { SettingsRepository } from '@domain/settings/SettingsRepository';
+import type Database from 'better-sqlite3';
 
 /**
  * Composition root for the main process.
@@ -36,11 +38,11 @@ import type { SettingsRepository } from '@domain/settings/SettingsRepository';
  * stays at the dependency-graph edge, so changes here don't ripple into
  * domain or application code.
  *
- * Each SQLite repository constructor is independently try/catch'd: if
- * native bindings fail to load on a particular machine the app can still
- * boot against an in-memory store and surface a clear warning. We don't
- * fall ALL the repos to in-memory atomically because one failing
- * persistence layer shouldn't disable the others.
+ * All SQLite repositories share ONE connection to `inmemnote.db`, opened
+ * and migrated here (ADR 0002). Each repository is still independently
+ * try/catch'd so the app can boot against an in-memory store and surface
+ * a clear warning — but a failure to open the file reaches every
+ * repository, so in practice they fall back together.
  */
 
 export interface UseCases {
@@ -77,9 +79,10 @@ export interface Container {
  * resolves — it touches `app.getPath('userData')`.
  */
 export function buildContainer(): Container {
-  const drafts = buildDraftRepo();
-  const notes = buildNoteRepo();
-  const settings = buildSettingsRepo();
+  const db = lazyDatabase(join(app.getPath('userData'), 'inmemnote.db'));
+  const drafts = buildDraftRepo(db);
+  const notes = buildNoteRepo(db);
+  const settings = buildSettingsRepo(db);
   const clock = new SystemClock();
 
   const uc: UseCases = {
@@ -104,29 +107,51 @@ export function buildContainer(): Container {
   return { drafts, notes, settings, uc };
 }
 
-function buildDraftRepo(): DraftRepository {
+function buildDraftRepo(db: SharedDatabase): DraftRepository {
   try {
-    return new SqliteDraftRepository(join(app.getPath('userData'), 'inmemnote.db'));
+    return new SqliteDraftRepository(db());
   } catch (e) {
     console.warn('SQLite (drafts) init failed; falling back to in-memory.', e);
     return new InMemoryDraftRepository();
   }
 }
 
-function buildNoteRepo(): NoteRepository {
+function buildNoteRepo(db: SharedDatabase): NoteRepository {
   try {
-    return new SqliteNoteRepository(join(app.getPath('userData'), 'inmemnote.db'));
+    return new SqliteNoteRepository(db());
   } catch (e) {
     console.warn('SQLite (notes) init failed; falling back to in-memory.', e);
     return new InMemoryNoteRepository();
   }
 }
 
-function buildSettingsRepo(): SettingsRepository {
+function buildSettingsRepo(db: SharedDatabase): SettingsRepository {
   try {
-    return new SqliteSettingsRepository(join(app.getPath('userData'), 'inmemnote.db'));
+    return new SqliteSettingsRepository(db());
   } catch (e) {
     console.warn('SQLite (settings) init failed; falling back to in-memory.', e);
     return new InMemorySettingsRepository();
   }
+}
+
+type SharedDatabase = () => Database.Database;
+
+/**
+ * Open the db file on first call and hand every caller the same connection.
+ * A failed open is remembered and rethrown to each caller, so every
+ * repository's fallback trips with the same error instead of retrying.
+ */
+function lazyDatabase(path: string): SharedDatabase {
+  let opened: { db: Database.Database } | { error: unknown } | undefined;
+  return () => {
+    if (!opened) {
+      try {
+        opened = { db: openDatabase(path) };
+      } catch (error) {
+        opened = { error };
+      }
+    }
+    if ('error' in opened) throw opened.error;
+    return opened.db;
+  };
 }

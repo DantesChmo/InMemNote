@@ -16,14 +16,14 @@
 //   - concurrent saves resolve to a self-consistent end-state;
 //   - saved settings survive closing and reopening the file.
 
-import { AppSettingsParse } from '@domain/settings/AppSettings';
-import { Hotkey } from '@domain/settings/Hotkey';
-import { PaletteOverrides } from '@domain/settings/PaletteOverrides';
-import { unwrap } from '@shared/Result';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { AppSettingsParse } from '@domain/settings/AppSettings';
+import { Hotkey } from '@domain/settings/Hotkey';
+import { PaletteOverrides } from '@domain/settings/PaletteOverrides';
+import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { openDatabase } from './openDatabase';

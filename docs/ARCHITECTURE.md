@@ -68,7 +68,8 @@ IPC contracts are documented in [`IPC.md`](./IPC.md).
   constructor; they wrap prepared statements and own no pragmas, DDL, or
   lifecycle. Multi-statement writes are transactional.
 - If opening/migrating fails, **all** repositories fall back to their
-  in-memory adapters together (one warning; the file on disk is untouched).
+  in-memory adapters together (the open error is shared, not retried per
+  repository; the file on disk is untouched).
 - The connection is not yet closed on quit (follow-up).
 - Why: [ADR 0002](./adr/0002-single-sqlite-connection-and-schema-migrations.md).
 

@@ -45,8 +45,11 @@ the connections in production.
   and creates `settings` on older DBs that predate it. Every later migration
   is a plain forward step. **Released migrations are never edited**; a fix is
   a new migration.
-- **All-or-nothing fallback**: if `openDatabase` throws, all three
-  repositories fall back to in-memory together, with one `console.warn`.
+- **All-or-nothing fallback**: the connection is opened lazily, once, by the
+  first repository that needs it; a failed open is remembered and rethrown
+  to every repository, so all three fall back to in-memory together (the
+  per-repository try/catch in the composition root stays, which keeps a
+  failing repository *constructor* isolated).
 
 ## Consequences
 
