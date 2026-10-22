@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { chmod, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +23,9 @@ import type { UpdateInstaller } from '@domain/update/UpdateInstaller';
  * So we don't use Squirrel at all. Instead we reproduce exactly what
  * `scripts/install.sh` does, but from inside the app:
  *
- *   1. download the release DMG to a temp dir (streaming, with progress);
+ *   1. download the release DMG to a temp dir (streaming, with progress) and,
+ *      when the release publishes one, check it against its SHA-256 — a
+ *      mismatch throws before anything quits (ADR 0007);
  *   2. write a tiny detached helper shell script;
  *   3. spawn it un-tethered and, once it is confirmed running, quit — the
  *      running app can't replace its own live bundle, so the helper waits for
@@ -135,7 +138,26 @@ export class DmgSelfUpdater implements UpdateInstaller {
     const dmgPath = join(this.deps.tmpDir, 'Inmemnote-update.dmg');
     const scriptPath = join(this.deps.tmpDir, 'inmemnote-update.sh');
 
+    // Fetched first: a missing or garbled checksum fails in a second, not
+    // after a full DMG download.
+    const expected = release.checksumUrl
+      ? parseChecksum(await this.deps.fetchText(release.checksumUrl))
+      : null;
+    if (expected === null) {
+      this.deps.warn(
+        `Installing ${release.version.toString()} without a checksum: the release publishes none.`,
+      );
+    }
+
     await this.deps.download(release.downloadUrl, dmgPath, this.deps.onProgress);
+    if (expected !== null) {
+      const actual = await this.deps.sha256File(dmgPath);
+      if (actual !== expected) {
+        await this.deps.removeFile(dmgPath);
+        throw new Error(`Checksum mismatch: expected ${expected}, got ${actual}`);
+      }
+    }
+
     await this.deps.writeScript(scriptPath, HELPER_SCRIPT);
     // Quit only once the helper is confirmed running: without it nothing would
     // swap the bundle or relaunch the app. A rejection here propagates to
@@ -143,6 +165,16 @@ export class DmgSelfUpdater implements UpdateInstaller {
     await this.deps.spawnDetached('/bin/bash', [scriptPath, String(this.deps.pid), dmgPath]);
     this.deps.quit();
   }
+}
+
+/**
+ * Extract the digest from a `shasum -a 256` line (`<hex>  <file name>`) or a
+ * bare digest. Throws on anything else, e.g. an HTML error page.
+ */
+function parseChecksum(text: string): string {
+  const digest = /^\s*([0-9a-f]{64})(\s|$)/i.exec(text)?.[1];
+  if (!digest) throw new Error('Malformed checksum file: no SHA-256 digest found');
+  return digest.toLowerCase();
 }
 
 // ---------- Real (Electron/Node) wiring ----------
@@ -172,11 +204,15 @@ async function nodeDownload(
 }
 
 async function nodeFetchText(url: string): Promise<string> {
-  throw new Error(`not implemented: ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Checksum download failed: HTTP ${response.status}`);
+  return response.text();
 }
 
 export async function nodeSha256File(path: string): Promise<string> {
-  throw new Error(`not implemented: ${path}`);
+  const hash = createHash('sha256');
+  await pipeline(createReadStream(path), hash);
+  return hash.digest('hex');
 }
 
 async function nodeRemoveFile(path: string): Promise<void> {
