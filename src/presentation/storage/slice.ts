@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 import type { DegradedStoreDTO, StorageStatusDTO } from '@shared/ipc';
 
@@ -25,7 +25,10 @@ export const fetchStorageStatus = createAsyncThunk<StorageStatusDTO>(
 export const storageSlice = createSlice({
   name: 'storage',
   initialState,
-  reducers: {},
+  reducers: {
+    /** A `storage:changed` broadcast from main (a store degraded after boot). */
+    setStatus: (_state, _action: PayloadAction<StorageStatusDTO>) => undefined,
+  },
   extraReducers: (builder) => {
     builder.addCase(fetchStorageStatus.fulfilled, (state, action) => {
       state.degraded = action.payload.degraded;
@@ -35,4 +38,5 @@ export const storageSlice = createSlice({
   },
 });
 
+export const storageActions = storageSlice.actions;
 export const storageReducer = storageSlice.reducer;

@@ -72,11 +72,8 @@ const api: InmemnoteAPI = {
     onProgress: (handler) => subscribe(IPC.UpdateProgress, handler),
   },
   storage: {
-    /**
-     * Which repositories fell back to in-memory at boot (SQLite failed to
-     * open). Non-empty means user data is NOT being persisted.
-     */
     status: () => ipcRenderer.invoke(IPC.StorageStatus),
+    onChanged: (handler) => subscribe(IPC.StorageChanged, handler),
   },
 };
 

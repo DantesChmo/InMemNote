@@ -27,6 +27,7 @@ import { app } from 'electron';
 import type { DraftRepository } from '@domain/draft/DraftRepository';
 import type { NoteRepository } from '@domain/note/NoteRepository';
 import type { SettingsRepository } from '@domain/settings/SettingsRepository';
+import type { StorageHealth } from '@infrastructure/persistence/StorageHealthMonitor';
 import type Database from 'better-sqlite3';
 
 /**
@@ -69,23 +70,17 @@ export interface UseCases {
   updateSettings: UpdateSettingsUseCase;
 }
 
-/** A repository that fell back to in-memory, with the SQLite error message. */
-export interface StorageDegradation {
-  store: 'drafts' | 'notes' | 'settings';
-  reason: string;
-}
-
-/** Which repositories are NOT persisted to disk. Empty = everything is. */
-export interface StorageHealth {
-  degraded: readonly StorageDegradation[];
-}
-
 export interface Container {
   drafts: DraftRepository;
   notes: NoteRepository;
   settings: SettingsRepository;
   storage: StorageHealth;
   uc: UseCases;
+  /**
+   * Close the shared SQLite connection. Call once, from `will-quit` — after
+   * every window has flushed its pending autosave (ADR 0008).
+   */
+  closeDatabase(): void;
 }
 
 /**
@@ -94,7 +89,7 @@ export interface Container {
  */
 export function buildContainer(): Container {
   const db = lazyDatabase(join(app.getPath('userData'), 'inmemnote.db'));
-  const degraded: StorageDegradation[] = [];
+  const degraded: { store: 'drafts' | 'notes' | 'settings'; reason: string }[] = [];
   const drafts = buildDraftRepo(db, degraded);
   const notes = buildNoteRepo(db, degraded);
   const settings = buildSettingsRepo(db, degraded);
@@ -119,10 +114,20 @@ export function buildContainer(): Container {
     updateSettings: new UpdateSettingsUseCase(settings),
   };
 
-  return { drafts, notes, settings, storage: { degraded }, uc };
+  return {
+    drafts,
+    notes,
+    settings,
+    storage: { degraded, onChange: () => () => undefined },
+    uc,
+    closeDatabase: () => undefined,
+  };
 }
 
-function buildDraftRepo(db: SharedDatabase, degraded: StorageDegradation[]): DraftRepository {
+function buildDraftRepo(
+  db: SharedDatabase,
+  degraded: { store: string; reason: string }[],
+): DraftRepository {
   try {
     return new SqliteDraftRepository(db());
   } catch (e) {
@@ -132,7 +137,10 @@ function buildDraftRepo(db: SharedDatabase, degraded: StorageDegradation[]): Dra
   }
 }
 
-function buildNoteRepo(db: SharedDatabase, degraded: StorageDegradation[]): NoteRepository {
+function buildNoteRepo(
+  db: SharedDatabase,
+  degraded: { store: string; reason: string }[],
+): NoteRepository {
   try {
     return new SqliteNoteRepository(db());
   } catch (e) {
@@ -142,7 +150,10 @@ function buildNoteRepo(db: SharedDatabase, degraded: StorageDegradation[]): Note
   }
 }
 
-function buildSettingsRepo(db: SharedDatabase, degraded: StorageDegradation[]): SettingsRepository {
+function buildSettingsRepo(
+  db: SharedDatabase,
+  degraded: { store: string; reason: string }[],
+): SettingsRepository {
   try {
     return new SqliteSettingsRepository(db());
   } catch (e) {
