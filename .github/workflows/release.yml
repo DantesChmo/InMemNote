@@ -1,0 +1,307 @@
+name: Release
+
+# Builds the macOS DMG and publishes it to a GitHub Release whenever a `v*` tag
+# is pushed. The version comes from the tag (`v1.2.3` → 1.2.3), not from
+# package.json. The full CI suite (`ci.yml`) runs first as a gate.
+#
+# Every release carries two copies of the same DMG:
+#   - `Inmemnote-X.Y.Z-arm64.dmg` — the versioned asset people download and
+#     the Homebrew cask points at;
+#   - `Inmemnote-macos-arm64.dmg` — a stable name that
+#     `releases/latest/download/…` always resolves. `scripts/install.sh` and
+#     the in-app updater of every version already shipped (≤ 0.6.0) fetch this
+#     exact name, so dropping it would strand them.
+#
+# Signing and notarization are optional: when the MACOS_* / APPLE_* /
+# APPSTORE_* secrets are configured the app is signed with Developer ID and
+# hardened runtime, and the DMG is signed, notarized and stapled; otherwise the
+# app is ad-hoc signed (the project's default, no Apple account needed) and
+# users allow it once with Open Anyway. See docs/RELEASING.md.
+#
+# A manual run (Actions → Release → Run workflow) builds the DMG as a workflow
+# artifact but publishes no release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.0.0)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build DMG
+    needs: tests
+    runs-on: macos-15
+    timeout-minutes: 45
+    # Needed to create the GitHub Release and attach the DMG.
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Resolve version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not semver (expected e.g. 1.2.3 or 1.2.3-rc1)" >&2
+            exit 1
+          fi
+          # `releases/latest` skips prereleases, so neither the updater nor
+          # Homebrew picks up an `-rc` tag.
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; else PRERELEASE=false; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION (prerelease: $PRERELEASE)"
+
+      - name: Check signing secrets
+        id: signing
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPSTORE_API_KEY_P8_BASE64: ${{ secrets.APPSTORE_API_KEY_P8_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          MISSING=""
+          for NAME in MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD MACOS_KEYCHAIN_PASSWORD \
+                      APPLE_TEAM_ID APPSTORE_API_KEY_P8_BASE64 APPSTORE_API_KEY_ID APPSTORE_API_ISSUER_ID; do
+            if [ -z "${!NAME}" ]; then
+              MISSING="$MISSING $NAME"
+            fi
+          done
+          if [ -z "$MISSING" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets found: building a signed and notarized DMG"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Ad-hoc signed build::Missing secrets:$MISSING. Building an ad-hoc signed, not notarized DMG (users allow it once with Open Anyway). See docs/RELEASING.md."
+          fi
+
+      # Same cache entry as `e2e-prepare` in ci.yml (same key shape, same OS),
+      # which the `tests` job has just warmed, so `npm ci` is normally skipped.
+      - name: Cache node_modules + native build
+        id: cache-node-modules
+        uses: actions/cache@v6
+        with:
+          path: |
+            node_modules
+            native/window-events/build
+          key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('package-lock.json', 'native/window-events/binding.gyp', 'native/window-events/src/**') }}
+
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # Same as in `e2e-prepare`: keeps this cache entry identical in shape.
+      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        name: Download Electron binary
+        run: npx install-electron --no
+
+      # The app reports `app.getVersion()` (package.json) to the updater, so
+      # the bundle must carry the tag's version. Only package.json changes;
+      # nothing is committed.
+      - name: Stamp version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            echo "::warning title=Version mismatch::package.json says $CURRENT, building $VERSION from the tag. Bump package.json (npm version) to keep them in step."
+          fi
+          npm pkg set version="$VERSION"
+
+      - name: Import signing certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          trap 'rm -f "$CERT_PATH"' EXIT
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -f pkcs12 \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          # Prepend the temporary keychain to the search list so codesign finds the identity.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q "Developer ID Application"; then
+            echo "::error::No 'Developer ID Application' identity in MACOS_CERTIFICATE_P12_BASE64" >&2
+            exit 1
+          fi
+
+      # forge.config.ts reads MACOS_SIGN_IDENTITY: when set, the packager signs
+      # every binary with that identity and hardened runtime; when empty, the
+      # `postPackage` hook reseals the bundle ad-hoc.
+      - name: Forge make
+        env:
+          MACOS_SIGN_IDENTITY: ${{ steps.signing.outputs.enabled == 'true' && 'Developer ID Application' || '' }}
+          MACOS_SIGN_KEYCHAIN: ${{ env.KEYCHAIN_PATH }}
+        run: npm run make
+
+      - name: Locate app and DMG
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find out -maxdepth 2 -name 'Inmemnote.app' -type d | head -n 1)
+          DMG_PATH=$(find out/make -name '*.dmg' -type f | head -n 1)
+          test -n "$APP_PATH" || { echo "::error::Inmemnote.app not found under out/" >&2; exit 1; }
+          test -n "$DMG_PATH" || { echo "::error::no .dmg produced by 'npm run make'" >&2; exit 1; }
+          echo "Found app at $APP_PATH and DMG at $DMG_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify app signature
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign --display --verbose=2 "$APP_PATH" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp|Runtime Version|flags)='
+
+      # A bundle whose seal is broken is reported as "damaged" by Gatekeeper,
+      # which Open Anyway cannot get past (see the postPackage hook).
+      - name: Verify ad-hoc signature
+        if: steps.signing.outputs.enabled != 'true'
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign --display --verbose=2 "$APP_PATH" 2>&1 | grep -E '^Signature=adhoc$'
+
+      # The DMG (not the bare .app) is what gets notarized: notarytool inspects
+      # the signed app inside it, and the ticket is stapled to the DMG, so one
+      # submission covers both.
+      - name: Sign DMG
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          codesign --force --timestamp --keychain "$KEYCHAIN_PATH" \
+            --sign "Developer ID Application" "$DMG_PATH"
+
+      - name: Notarize and staple DMG
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPSTORE_API_KEY_P8_BASE64: ${{ secrets.APPSTORE_API_KEY_P8_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          trap 'rm -f "$KEY_PATH"' EXIT
+          printf '%s' "$APPSTORE_API_KEY_P8_BASE64" | base64 --decode > "$KEY_PATH"
+
+          RESULT=$(xcrun notarytool submit "$DMG_PATH" \
+            --key "$KEY_PATH" \
+            --key-id "$APPSTORE_API_KEY_ID" \
+            --issuer "$APPSTORE_API_ISSUER_ID" \
+            --wait \
+            --output-format json)
+          SUBMISSION_ID=$(printf '%s' "$RESULT" | plutil -extract id raw -o - -)
+          STATUS=$(printf '%s' "$RESULT" | plutil -extract status raw -o - -)
+          echo "Notarization $SUBMISSION_ID finished with status: $STATUS"
+
+          if [ "$STATUS" != "Accepted" ]; then
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --key "$KEY_PATH" \
+              --key-id "$APPSTORE_API_KEY_ID" \
+              --issuer "$APPSTORE_API_ISSUER_ID" || true
+            echo "::error::Notarization failed with status $STATUS" >&2
+            exit 1
+          fi
+
+          xcrun stapler staple "$DMG_PATH"
+
+      - name: Verify DMG
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          xcrun stapler validate "$DMG_PATH"
+          codesign --verify --strict --verbose=2 "$DMG_PATH"
+          spctl -a -vv -t install "$DMG_PATH"
+
+      # $DMG_PATH is final from here on (signed, notarized and stapled when
+      # secrets are set), so both names below are byte-identical.
+      - name: Collect release assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp "$DMG_PATH" "release-assets/Inmemnote-$VERSION-arm64.dmg"
+          cp "$DMG_PATH" "release-assets/Inmemnote-macos-arm64.dmg"
+          ls -l release-assets
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Inmemnote-${{ steps.version.outputs.version }}-dmg
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 14
+
+      # Release assets, unlike Actions artifacts, have a stable anonymous
+      # download URL and never expire. View/create/upload are split so
+      # re-running a tag build is idempotent.
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            FLAGS=(--title "$TAG" --generate-notes --verify-tag)
+            if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
+            gh release create "$TAG" "${FLAGS[@]}"
+          fi
+          gh release upload "$TAG" release-assets/*.dmg --clobber
+
+      - name: Clean up signing keychain
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/AuthKey.p8"
+          if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi

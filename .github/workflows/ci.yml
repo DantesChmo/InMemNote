@@ -13,10 +13,10 @@
 #                         `--shard=<i>/<total>`. Combined with 2 Playwright
 #                         workers per shard (see `playwright.config.ts`), this
 #                         fans the suite across ~6 parallel Electron instances.
-#   4. `build`          — DMG package on macOS, gated on `quality` and `e2e`.
-#                         Only runs on tag pushes (`v*`) — `main` pushes
-#                         shouldn't burn macOS minutes producing throwaway
-#                         DMGs; the artifact only matters for releases.
+#
+# Releases live in `release.yml`, which calls this workflow (`workflow_call`)
+# as its test gate, so a DMG is never published without a green run. That is
+# why tag pushes are not a trigger here: the tag would run the suite twice.
 #
 # Node 22 is the LTS we target. Every job reads the version from `.nvmrc`
 # (`node-version-file`) so CI and local dev share one source of truth and we
@@ -27,14 +27,12 @@ name: CI
 on:
   push:
     branches: [main]
-    # `v*` matches the release-tag convention (`v1.2.0`, `v0.4.1-rc1`).
-    # Tag pushes are what trigger the DMG build (see the `build` job below);
-    # `quality` and `e2e` still run so a release tag is never cut without
-    # a green test run.
-    tags: ['v*']
   pull_request:
+  workflow_call:
 
 # Cancel in-flight runs of the same ref. PR pushes shouldn't queue up minutes.
+# When called from `release.yml` the ref is the tag; the caller uses its own
+# `release-` group, so the two never wait on each other.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -193,81 +191,3 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
-
-  build:
-    name: Build DMG
-    runs-on: macos-15
-    needs: [quality, e2e]
-    # Tag pushes only — `main` pushes and PRs skip this job. `needs` still
-    # gates the build behind green `quality` + `e2e`, so a tag never produces
-    # a DMG without passing tests.
-    if: startsWith(github.ref, 'refs/tags/v')
-    # Needed to create/update the GitHub Release and attach the DMG.
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      # Reuse the same cache the `e2e-prepare` job populated earlier in
-      # the run (same key shape, same OS). On a tag push e2e-prepare runs
-      # first as part of the test pipeline, so the cache is already warm
-      # when we get here and `npm ci` is skipped.
-      - name: Cache node_modules + native build
-        id: cache-node-modules
-        uses: actions/cache@v6
-        with:
-          path: |
-            node_modules
-            native/window-events/build
-          key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('package-lock.json', 'native/window-events/binding.gyp', 'native/window-events/src/**') }}
-
-      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
-
-      # Same as in `e2e-prepare`: keeps this cache entry identical in shape.
-      - if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        name: Download Electron binary
-        run: npx install-electron --no
-
-      # `make` produces the distributable bundles for every maker registered
-      # in `forge.config.ts` — for us that's DMG + ZIP.
-      - name: Forge make
-        run: npm run make
-
-      - name: Upload DMG
-        uses: actions/upload-artifact@v7
-        with:
-          name: Inmemnote-macos-dmg
-          path: out/make/**/*.dmg
-          if-no-files-found: error
-          retention-days: 14
-
-      # Copy the versioned DMG (`Inmemnote-<version>-arm64.dmg`) to a stable,
-      # version-independent name. This is what lets the `curl` installer and
-      # the README point at a fixed URL:
-      #   https://github.com/<repo>/releases/latest/download/Inmemnote-macos-arm64.dmg
-      # which always resolves to the newest release's asset.
-      - name: Stage DMG under a stable asset name
-        run: |
-          dmg="$(find out/make -name '*.dmg' | head -1)"
-          test -n "$dmg" || { echo "no .dmg produced by 'npm run make'" >&2; exit 1; }
-          cp "$dmg" "Inmemnote-macos-arm64.dmg"
-
-      # Publish (or update) the GitHub Release for this tag and attach the DMG.
-      # Release assets — unlike Actions artifacts — have a stable, anonymous
-      # download URL and don't expire, so `curl` can fetch them without a token.
-      # Split view/create/upload so re-running a tag build is idempotent.
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          gh release view "$tag" >/dev/null 2>&1 \
-            || gh release create "$tag" --title "$tag" --generate-notes
-          gh release upload "$tag" "Inmemnote-macos-arm64.dmg" --clobber
