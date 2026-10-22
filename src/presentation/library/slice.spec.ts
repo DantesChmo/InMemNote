@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installInmemnoteApiMock, noteDTO } from '../../test/mockInmemnoteApi';
 
 import {
+  commitDelete,
   createNote,
   deleteNote,
   fetchNotes,
@@ -19,6 +20,7 @@ import {
   libraryReducer,
   saveNote,
   toggleNotePin,
+  undoDelete,
   type LibraryState,
 } from './slice';
 
@@ -40,6 +42,7 @@ const initialState: LibraryState = {
   selectedId: null,
   loading: false,
   error: null,
+  pendingDelete: null,
 };
 
 function stateWith(overrides: Partial<LibraryState>): LibraryState {
@@ -300,16 +303,17 @@ describe('library async thunks', () => {
     });
   });
 
-  describe('deleteNote', () => {
-    it('removes the note from the list', async () => {
+  describe('deleteNote (soft delete)', () => {
+    it('hides the note and keeps it as the pending delete without calling IPC', async () => {
       const a = noteDTO({ id: 'a' });
       const b = noteDTO({ id: 'b' });
       store = makeStore(stateWith({ notes: [a, b], selectedId: 'a' }));
 
       await store.dispatch(deleteNote('b'));
 
-      expect(api.notes.delete).toHaveBeenCalledWith('b');
+      expect(api.notes.delete).not.toHaveBeenCalled();
       expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a']);
+      expect(store.getState().library.pendingDelete).toEqual({ note: b, index: 1 });
     });
 
     it('reassigns selection to the next remaining note when the selected one is deleted', async () => {
@@ -340,6 +344,122 @@ describe('library async thunks', () => {
       await store.dispatch(deleteNote('b'));
 
       expect(store.getState().library.selectedId).toBe('a');
+    });
+
+    it('commits a still-pending previous delete before staging the next one', async () => {
+      const a = noteDTO({ id: 'a' });
+      const b = noteDTO({ id: 'b' });
+      const c = noteDTO({ id: 'c' });
+      store = makeStore(stateWith({ notes: [a, b, c], selectedId: 'a' }));
+
+      await store.dispatch(deleteNote('a'));
+      await store.dispatch(deleteNote('b'));
+
+      expect(api.notes.delete).toHaveBeenCalledTimes(1);
+      expect(api.notes.delete).toHaveBeenCalledWith('a');
+      expect(store.getState().library.notes.map((n) => n.id)).toEqual(['c']);
+      expect(store.getState().library.pendingDelete?.note.id).toBe('b');
+    });
+
+    it('ignores an id that is not in the list', async () => {
+      const a = noteDTO({ id: 'a' });
+      store = makeStore(stateWith({ notes: [a], selectedId: 'a' }));
+
+      await store.dispatch(deleteNote('ghost'));
+
+      expect(store.getState().library.notes).toEqual([a]);
+      expect(store.getState().library.pendingDelete).toBeNull();
+    });
+  });
+
+  describe('commitDelete', () => {
+    it('deletes the pending note over IPC and clears the pending slot', async () => {
+      const a = noteDTO({ id: 'a' });
+      store = makeStore(stateWith({ pendingDelete: { note: a, index: 0 } }));
+
+      await store.dispatch(commitDelete('a'));
+
+      expect(api.notes.delete).toHaveBeenCalledWith('a');
+      expect(store.getState().library.pendingDelete).toBeNull();
+    });
+
+    it('is a no-op for an id that is not pending (undone or already committed)', async () => {
+      const a = noteDTO({ id: 'a' });
+      store = makeStore(stateWith({ pendingDelete: { note: a, index: 0 } }));
+
+      await store.dispatch(commitDelete('other'));
+      expect(api.notes.delete).not.toHaveBeenCalled();
+      expect(store.getState().library.pendingDelete?.note.id).toBe('a');
+
+      store = makeStore(stateWith({ pendingDelete: null }));
+      await store.dispatch(commitDelete('a'));
+      expect(api.notes.delete).not.toHaveBeenCalled();
+    });
+
+    it('commits only once when two triggers race (timer + unload)', async () => {
+      const a = noteDTO({ id: 'a' });
+      store = makeStore(stateWith({ pendingDelete: { note: a, index: 0 } }));
+
+      await Promise.all([store.dispatch(commitDelete('a')), store.dispatch(commitDelete('a'))]);
+
+      expect(api.notes.delete).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('undoDelete', () => {
+    it('puts the note back at its old index, selects it and resyncs the list', async () => {
+      const a = noteDTO({ id: 'a' });
+      const b = noteDTO({ id: 'b' });
+      const c = noteDTO({ id: 'c' });
+      (api.notes.list as ReturnType<typeof vi.fn>).mockResolvedValueOnce([a, b, c]);
+      store = makeStore(stateWith({ notes: [a, b, c], selectedId: 'a' }));
+      await store.dispatch(deleteNote('b'));
+
+      const restored = store.dispatch(undoDelete());
+      // The optimistic restore lands before the refetch resolves.
+      expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
+      expect(store.getState().library.selectedId).toBe('b');
+      expect(store.getState().library.pendingDelete).toBeNull();
+      await restored;
+
+      expect(api.notes.list).toHaveBeenCalledWith('all');
+      expect(api.notes.delete).not.toHaveBeenCalled();
+      expect(store.getState().library.selectedId).toBe('b');
+    });
+
+    it('clamps the restore index when the list shrank meanwhile', () => {
+      const a = noteDTO({ id: 'a' });
+      const z = noteDTO({ id: 'z' });
+      const next = libraryReducer(
+        stateWith({ notes: [a], pendingDelete: { note: z, index: 5 } }),
+        libraryActions.restoreDeleted(),
+      );
+      expect(next.notes.map((n) => n.id)).toEqual(['a', 'z']);
+    });
+
+    it('does nothing when there is no pending delete', async () => {
+      const a = noteDTO({ id: 'a' });
+      store = makeStore(stateWith({ notes: [a], selectedId: 'a' }));
+
+      await store.dispatch(undoDelete());
+
+      expect(api.notes.list).not.toHaveBeenCalled();
+      expect(store.getState().library.notes).toEqual([a]);
+    });
+  });
+
+  describe('fetchNotes while a delete is pending', () => {
+    it('keeps the pending note out of a refreshed list', async () => {
+      const a = noteDTO({ id: 'a' });
+      const b = noteDTO({ id: 'b' });
+      (api.notes.list as ReturnType<typeof vi.fn>).mockResolvedValueOnce([a, b]);
+      store = makeStore(
+        stateWith({ notes: [a], selectedId: 'a', pendingDelete: { note: b, index: 1 } }),
+      );
+
+      await store.dispatch(fetchNotes());
+
+      expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a']);
     });
   });
 });

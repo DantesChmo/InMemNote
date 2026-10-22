@@ -216,7 +216,7 @@ describe('LibraryEditor (shallow)', () => {
       expect(savesIn(dispatch.mock.calls)).toEqual([]);
     });
 
-    it('drops the pending save of a note that is being deleted', () => {
+    it('flushes the pending save of a note being deleted, so undo restores the latest text', () => {
       vi.useFakeTimers();
       try {
         state = { notes: [note({ id: 'n1' }), note({ id: 'n2' })], selectedId: 'n1' };
@@ -224,14 +224,23 @@ describe('LibraryEditor (shallow)', () => {
         fireEvent.click(screen.getByTestId('stub-editor'));
         fireEvent.click(screen.getByTestId('lib-delete-btn'));
 
-        // deleteNote.fulfilled moves the selection to the next note.
+        const types = dispatch.mock.calls.map(([a]) => (a as { type: string }).type);
+        expect(types).toEqual([
+          'library/patchSelectedContent',
+          'library/saveNote',
+          'library/deleteNote',
+        ]);
+
+        // The soft delete moves the selection to the next note.
         state = { notes: [note({ id: 'n2' })], selectedId: 'n2' };
         rerender(<LibraryEditor />);
         act(() => {
           vi.advanceTimersByTime(600);
         });
 
-        expect(savesIn(dispatch.mock.calls)).toEqual([]);
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
       } finally {
         vi.useRealTimers();
       }

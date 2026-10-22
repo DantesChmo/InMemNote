@@ -3,6 +3,19 @@ import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/tool
 import type { NoteDTO, NoteListFilterDTO } from '@shared/ipc';
 
 /**
+ * A note the user deleted but can still take back.
+ *
+ * Deletion is deferred, not reversed: the note leaves the list at once but
+ * stays in the store (and in SQLite) until `commitDelete` runs — when the
+ * undo toast times out, the window unloads, or another note is deleted.
+ * `index` is where the note sat in `notes`, so undo can put it back in place.
+ */
+export interface PendingDelete {
+  note: NoteDTO;
+  index: number;
+}
+
+/**
  * Library view-state.
  *
  * The renderer keeps an authoritative copy of the visible notes; mutations go
@@ -17,6 +30,7 @@ export interface LibraryState {
   selectedId: string | null;
   loading: boolean;
   error: string | null;
+  pendingDelete: PendingDelete | null;
 }
 
 const initialState: LibraryState = {
@@ -26,6 +40,7 @@ const initialState: LibraryState = {
   selectedId: null,
   loading: false,
   error: null,
+  pendingDelete: null,
 };
 
 // ---------- Thunks ----------
@@ -53,9 +68,34 @@ export const toggleNotePin = createAsyncThunk<NoteDTO, string>(
   async (id) => window.inmemnote.notes.togglePin(id),
 );
 
-export const deleteNote = createAsyncThunk<string, string>('library/deleteNote', async (id) => {
-  await window.inmemnote.notes.delete(id);
-  return id;
+type ThunkApi = { state: { library: LibraryState } };
+
+/**
+ * Soft-delete: hide the note and make it the pending delete. Only one delete
+ * is undoable at a time, so a still-pending previous one is committed here.
+ */
+export const deleteNote = createAsyncThunk<void, string, ThunkApi>(
+  'library/deleteNote',
+  async (_id) => {
+    throw new Error('not implemented');
+  },
+);
+
+/**
+ * Make the pending delete of `id` permanent. A no-op when `id` is no longer
+ * pending (undone, or already committed by another trigger), so the toast
+ * timer and the `beforeunload` hook can both fire safely.
+ */
+export const commitDelete = createAsyncThunk<void, string, ThunkApi>(
+  'library/commitDelete',
+  async (_id) => {
+    throw new Error('not implemented');
+  },
+);
+
+/** Bring the pending delete back, reselect it, and resync the list. */
+export const undoDelete = createAsyncThunk<void, void, ThunkApi>('library/undoDelete', async () => {
+  throw new Error('not implemented');
 });
 
 // ---------- Slice ----------
@@ -84,6 +124,12 @@ export const librarySlice = createSlice({
       const note = state.notes.find((n) => n.id === state.selectedId);
       if (note) note.content = action.payload;
     },
+    /** Hide a note and remember it as the pending delete (see `deleteNote`). */
+    stageDelete(_state, _action: PayloadAction<string>) {},
+    /** Put the pending delete back at its old index and select it. */
+    restoreDeleted(_state) {},
+    /** Forget the pending delete of the given id (it is being committed). */
+    clearPendingDelete(_state, _action: PayloadAction<string>) {},
   },
   extraReducers: (builder) => {
     builder
@@ -116,12 +162,6 @@ export const librarySlice = createSlice({
       .addCase(toggleNotePin.fulfilled, (state, action) => {
         const idx = state.notes.findIndex((n) => n.id === action.payload.id);
         if (idx >= 0) state.notes[idx] = action.payload;
-      })
-      .addCase(deleteNote.fulfilled, (state, action) => {
-        state.notes = state.notes.filter((n) => n.id !== action.payload);
-        if (state.selectedId === action.payload) {
-          state.selectedId = state.notes[0]?.id ?? null;
-        }
       });
   },
 });
