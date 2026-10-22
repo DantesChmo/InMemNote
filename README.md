@@ -155,12 +155,11 @@ declarations, mismatched native ABI, etc.). Only reach for `npm install`
 when you are deliberately adding or removing a dependency; commit the
 updated lockfile in the same change.
 
-After install, rebuild the native module against the Electron ABI
-(do this once, and again after every Electron upgrade):
-
-```sh
-npx @electron/rebuild -f -w better-sqlite3
-```
+No rebuild against the Electron ABI is needed: both native addons
+(`better-sqlite3`, which ships prebuilt binaries, and
+`@inmemnote/window-events`, compiled by `npm ci`) are N-API and load in
+Node and Electron alike. Compiling `window-events` needs Xcode or the
+Command Line Tools (`swift`).
 
 The Electron binary itself is no longer fetched during install (Electron
 42+): it downloads on the first `require('electron')` / `npx electron`.
