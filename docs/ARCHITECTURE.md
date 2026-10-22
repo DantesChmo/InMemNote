@@ -29,7 +29,9 @@ domain depends on nothing
 
 | Port | Declared in | Adapters | Notes |
 |---|---|---|---|
-| `DraftRepository` | `src/domain/draft/DraftRepository.ts` | SQLite (`infrastructure/persistence/sqlite/**`); in-memory (tests) | |
+| `DraftRepository` | `src/domain/draft/DraftRepository.ts` | SQLite (`infrastructure/persistence/sqlite/**`); in-memory (`infrastructure/persistence/**`) | |
+| `NoteRepository` | `src/domain/note/NoteRepository.ts` | SQLite (`infrastructure/persistence/sqlite/**`); in-memory (`infrastructure/persistence/**`) | |
+| `SettingsRepository` | `src/domain/settings/SettingsRepository.ts` | SQLite (`infrastructure/persistence/sqlite/**`); in-memory (`infrastructure/persistence/**`) | |
 
 ## Cross-process topology (Electron)
 
@@ -49,10 +51,26 @@ IPC contracts are documented in [`IPC.md`](./IPC.md).
 
 ## Persistence
 
-- `better-sqlite3` (synchronous).
-- One DB file under the Electron `userData` directory.
-- Repositories wrap prepared statements; multi-statement writes are
-  transactional.
+- `better-sqlite3` (synchronous), WAL journal mode.
+- One DB file, `inmemnote.db`, under the Electron `userData` directory,
+  opened through **one connection** owned by the composition root
+  (`infrastructure/electron/main/composition.ts`).
+- `infrastructure/persistence/sqlite/openDatabase.ts` — opens the file, sets
+  WAL, runs migrations; on failure closes the handle and rethrows.
+- `infrastructure/persistence/sqlite/migrations.ts` — ordered, contiguous
+  `MIGRATIONS` (`{ version, name, up(db) }`) and `runMigrations`. Schema
+  version lives in `PRAGMA user_version`; each step runs in its own
+  transaction together with the version bump. Migration 1 is the baseline
+  schema (`drafts`, `notes`, `settings` + indexes) and adopts pre-migration
+  DBs (`user_version = 0`). A DB with a version newer than the app knows is
+  refused. Released migrations are never edited.
+- `Sqlite{Draft,Note,Settings}Repository` take an open `Database` in their
+  constructor; they wrap prepared statements and own no pragmas, DDL, or
+  lifecycle. Multi-statement writes are transactional.
+- If opening/migrating fails, **all** repositories fall back to their
+  in-memory adapters together (one warning; the file on disk is untouched).
+- The connection is not yet closed on quit (follow-up).
+- Why: [ADR 0002](./adr/0002-single-sqlite-connection-and-schema-migrations.md).
 
 ## ADRs
 
