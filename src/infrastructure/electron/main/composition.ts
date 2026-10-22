@@ -38,9 +38,11 @@ import type { SettingsRepository } from '@domain/settings/SettingsRepository';
  *
  * Each SQLite repository constructor is independently try/catch'd: if
  * native bindings fail to load on a particular machine the app can still
- * boot against an in-memory store and surface a clear warning. We don't
- * fall ALL the repos to in-memory atomically because one failing
- * persistence layer shouldn't disable the others.
+ * boot against an in-memory store. We don't fall ALL the repos to
+ * in-memory atomically because one failing persistence layer shouldn't
+ * disable the others. Every fallback is recorded in `Container.storage`
+ * so main can tell the renderer — an in-memory store silently loses
+ * everything on quit, so the user must be warned (bug #03).
  */
 
 export interface UseCases {
@@ -65,10 +67,22 @@ export interface UseCases {
   updateSettings: UpdateSettingsUseCase;
 }
 
+/** A repository that fell back to in-memory, with the SQLite error message. */
+export interface StorageDegradation {
+  store: 'drafts' | 'notes' | 'settings';
+  reason: string;
+}
+
+/** Which repositories are NOT persisted to disk. Empty = everything is. */
+export interface StorageHealth {
+  degraded: readonly StorageDegradation[];
+}
+
 export interface Container {
   drafts: DraftRepository;
   notes: NoteRepository;
   settings: SettingsRepository;
+  storage: StorageHealth;
   uc: UseCases;
 }
 
@@ -101,7 +115,7 @@ export function buildContainer(): Container {
     updateSettings: new UpdateSettingsUseCase(settings),
   };
 
-  return { drafts, notes, settings, uc };
+  return { drafts, notes, settings, storage: { degraded: [] }, uc };
 }
 
 function buildDraftRepo(): DraftRepository {

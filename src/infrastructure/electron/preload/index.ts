@@ -6,6 +6,7 @@ import {
   type DraftDTO,
   type NoteDTO,
   type NoteListFilterDTO,
+  type StorageStatusDTO,
 } from '@infrastructure/electron/ipc-channels';
 import { contextBridge, ipcRenderer } from 'electron';
 
@@ -198,6 +199,13 @@ const api = {
       ipcRenderer.on(IPC.UpdateProgress, listener);
       return () => ipcRenderer.removeListener(IPC.UpdateProgress, listener);
     },
+  },
+  storage: {
+    /**
+     * Which repositories fell back to in-memory at boot (SQLite failed to
+     * open). Non-empty means user data is NOT being persisted.
+     */
+    status: (): Promise<StorageStatusDTO> => ipcRenderer.invoke(IPC.StorageStatus),
   },
 };
 

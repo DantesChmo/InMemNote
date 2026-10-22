@@ -75,6 +75,14 @@ export const IPC = {
   UpdateAvailable: 'update:available',
   /** Main broadcast: download progress during an install, as a 0..1 fraction. */
   UpdateProgress: 'update:progress',
+
+  // Storage health
+  /**
+   * Renderer asks main which persistence layers fell back to in-memory at
+   * boot. The answer is fixed for the process lifetime (the container is
+   * built once), so there is no broadcast counterpart — a pull is enough.
+   */
+  StorageStatus: 'storage:status',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -131,4 +139,22 @@ export interface AvailableUpdateDTO {
   version: string;
   downloadUrl: string;
   notesUrl: string;
+}
+
+/** A persistence layer that can independently fall back to in-memory. */
+export type StoreNameDTO = 'drafts' | 'notes' | 'settings';
+
+/**
+ * One repository that failed to open SQLite and is running in-memory —
+ * i.e. everything written to it is lost on quit. `reason` is the raw error
+ * message, shown to the user as a diagnostic hint.
+ */
+export interface DegradedStoreDTO {
+  store: StoreNameDTO;
+  reason: string;
+}
+
+/** Answer to `storage:status`. An empty `degraded` list means "all on disk". */
+export interface StorageStatusDTO {
+  degraded: DegradedStoreDTO[];
 }
