@@ -21,10 +21,10 @@ The rule for **where artefacts live**:
 | `qa` | sonnet | `.agents/qa/regression-checklist.md` | own checklist; `docs/TZ.md`; `design/` |
 | `apple-developer` | opus | `native/**` (addon sources); `docs/NATIVE.md` | `docs/NATIVE.md`; `CLAUDE.md §9`; Electron version in `package.json` |
 | `react-electron-developer` | sonnet | `src/presentation/**`; `src/infrastructure/electron/**`; co-owns `docs/IPC.md` | `design/`; `docs/IPC.md`; relevant slice + tests |
-| `nodejs-backend-developer` | sonnet | `src/application/**`; `src/infrastructure/{persistence,config}/**`; main-side IPC; co-owns `docs/IPC.md` | `docs/HOTKEYS.md`; `docs/IPC.md`; port interfaces in `domain/` |
+| `nodejs-backend-developer` | sonnet | `src/application/**`; `src/infrastructure/{persistence,config,update}/**`; main-side IPC; co-owns `docs/IPC.md` | `docs/HOTKEYS.md`; `docs/IPC.md`; port interfaces in `domain/` |
 | `code-reviewer` | opus | `.agents/code-reviewer/patterns.md` | own patterns file; `CLAUDE.md`; full diff under review |
 | `test-specialist` | sonnet | `docs/TESTING.md`; all `*.spec.ts(x)` for unit / integration | `docs/TESTING.md`; port interfaces being tested |
-| `playwright-specialist` | sonnet | `.agents/playwright/test-plan.md`; all `e2e/**/*.spec.ts` | `.agents/playwright/test-plan.md` (every session); `.agents/qa/regression-checklist.md` |
+| `playwright-specialist` | sonnet | `.agents/playwright/test-plan.md`; all `e2e/**/*.spec.ts` and `e2e/helpers/**` (`e2e/TEST-PLAN.md` is generated from the specs) | `.agents/playwright/test-plan.md` (every session); `.agents/qa/regression-checklist.md` |
 | `executor` | haiku | — | only the command handed by the caller |
 | `validator` | haiku | — | `package.json` scripts |
 | `tech-writer` | sonnet | `docs/**` (polishing pass); JSDoc on public surfaces; `README.md` | current diff; existing language of the target doc |
