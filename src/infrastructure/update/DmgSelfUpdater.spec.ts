@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AppVersion } from '@domain/update/AppVersion';
@@ -21,6 +22,7 @@ import {
 import {
   DmgSelfUpdater,
   HELPER_SCRIPT,
+  nodeSha256File,
   nodeSpawnDetached,
   type SelfUpdaterDeps,
 } from './DmgSelfUpdater';
@@ -33,8 +35,19 @@ const release: ReleaseInfo = {
   notesUrl: 'https://example.test/0.6.0',
 };
 
+const DMG_SHA256 = 'a'.repeat(64);
+
+const verifiedRelease: ReleaseInfo = {
+  ...release,
+  checksumUrl: 'https://example.test/0.6.0.dmg.sha256',
+};
+
 const makeDeps = (over: Partial<SelfUpdaterDeps> = {}): SelfUpdaterDeps => ({
   download: vi.fn(async () => undefined),
+  fetchText: vi.fn(async () => `${DMG_SHA256}  Inmemnote-macos-arm64.dmg\n`),
+  sha256File: vi.fn(async () => DMG_SHA256),
+  removeFile: vi.fn(async () => undefined),
+  warn: vi.fn(),
   writeScript: vi.fn(async () => undefined),
   spawnDetached: vi.fn(async () => undefined),
   quit: vi.fn(),
@@ -105,6 +118,96 @@ describe('DmgSelfUpdater', () => {
     });
     await expect(new DmgSelfUpdater(deps).install(release)).rejects.toThrow('EACCES');
     expect(deps.quit).not.toHaveBeenCalled();
+  });
+});
+
+describe('DmgSelfUpdater checksum verification', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('installs when the DMG matches the published SHA-256', async () => {
+    const deps = makeDeps();
+    await new DmgSelfUpdater(deps).install(verifiedRelease);
+
+    expect(deps.fetchText).toHaveBeenCalledWith(verifiedRelease.checksumUrl);
+    expect(deps.sha256File).toHaveBeenCalledWith('/tmp/upd/Inmemnote-update.dmg');
+    expect(deps.spawnDetached).toHaveBeenCalledOnce();
+    expect(deps.quit).toHaveBeenCalledOnce();
+    expect(deps.warn).not.toHaveBeenCalled();
+  });
+
+  it('fetches the checksum before spending time on the DMG download', async () => {
+    const calls: string[] = [];
+    const deps = makeDeps({
+      fetchText: vi.fn(async () => (calls.push('checksum'), DMG_SHA256)),
+      download: vi.fn(async () => void calls.push('download')),
+      sha256File: vi.fn(async () => (calls.push('hash'), DMG_SHA256)),
+    });
+    await new DmgSelfUpdater(deps).install(verifiedRelease);
+    expect(calls).toEqual(['checksum', 'download', 'hash']);
+  });
+
+  it('accepts a bare, upper-case digest', async () => {
+    const deps = makeDeps({ fetchText: vi.fn(async () => DMG_SHA256.toUpperCase()) });
+    await new DmgSelfUpdater(deps).install(verifiedRelease);
+    expect(deps.quit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a corrupted download, deletes it, and keeps the app running', async () => {
+    const deps = makeDeps({ sha256File: vi.fn(async () => 'b'.repeat(64)) });
+
+    await expect(new DmgSelfUpdater(deps).install(verifiedRelease)).rejects.toThrow(
+      /checksum mismatch/i,
+    );
+    expect(deps.removeFile).toHaveBeenCalledWith('/tmp/upd/Inmemnote-update.dmg');
+    expect(deps.writeScript).not.toHaveBeenCalled();
+    expect(deps.spawnDetached).not.toHaveBeenCalled();
+    expect(deps.quit).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed checksum file without downloading the DMG', async () => {
+    const deps = makeDeps({ fetchText: vi.fn(async () => '<html>Not Found</html>') });
+
+    await expect(new DmgSelfUpdater(deps).install(verifiedRelease)).rejects.toThrow(/checksum/i);
+    expect(deps.download).not.toHaveBeenCalled();
+    expect(deps.quit).not.toHaveBeenCalled();
+  });
+
+  it('fails the install when a published checksum cannot be fetched', async () => {
+    // The feed listed a checksum, so skipping it would silently drop the check.
+    const deps = makeDeps({
+      fetchText: vi.fn(async () => {
+        throw new Error('Download failed: HTTP 503');
+      }),
+    });
+
+    await expect(new DmgSelfUpdater(deps).install(verifiedRelease)).rejects.toThrow('503');
+    expect(deps.download).not.toHaveBeenCalled();
+    expect(deps.quit).not.toHaveBeenCalled();
+  });
+
+  it('installs a release without a checksum (≤ v0.6.0) but logs a warning', async () => {
+    const deps = makeDeps();
+    await new DmgSelfUpdater(deps).install(release);
+
+    expect(deps.fetchText).not.toHaveBeenCalled();
+    expect(deps.sha256File).not.toHaveBeenCalled();
+    expect(deps.warn).toHaveBeenCalledWith(expect.stringMatching(/without.*checksum/i));
+    expect(deps.quit).toHaveBeenCalledOnce();
+  });
+});
+
+describe('nodeSha256File', () => {
+  it('streams the file through SHA-256 and returns the hex digest', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'inmemnote-sha-'));
+    try {
+      const file = join(dir, 'abc.bin');
+      writeFileSync(file, 'abc');
+      await expect(nodeSha256File(file)).resolves.toBe(
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { LATEST_ASSET_URL, UPDATE_ASSET } from './config';
+import { LATEST_ASSET_URL, UPDATE_ASSET, UPDATE_CHECKSUM_ASSET } from './config';
 import { GithubReleaseGateway } from './GithubReleaseGateway';
 
 const jsonResponse = (body: unknown, ok = true, status = 200): Response =>
@@ -36,6 +36,34 @@ describe('GithubReleaseGateway', () => {
     );
     const info = await new GithubReleaseGateway(fetchFn).fetchLatest();
     expect(info.downloadUrl).toBe(LATEST_ASSET_URL);
+  });
+
+  it('resolves the checksum asset published next to the DMG', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse({
+        tag_name: 'v0.7.0',
+        html_url: 'https://x',
+        assets: [
+          { name: UPDATE_ASSET, browser_download_url: 'https://x/0.7.0.dmg' },
+          { name: UPDATE_CHECKSUM_ASSET, browser_download_url: 'https://x/0.7.0.dmg.sha256' },
+        ],
+      }),
+    );
+    const info = await new GithubReleaseGateway(fetchFn).fetchLatest();
+    expect(UPDATE_CHECKSUM_ASSET).toBe(`${UPDATE_ASSET}.sha256`);
+    expect(info.checksumUrl).toBe('https://x/0.7.0.dmg.sha256');
+  });
+
+  it('leaves the checksum URL unset for a release without one (≤ v0.6.0)', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse({
+        tag_name: 'v0.6.0',
+        html_url: 'https://x',
+        assets: [{ name: UPDATE_ASSET, browser_download_url: 'https://x/0.6.0.dmg' }],
+      }),
+    );
+    const info = await new GithubReleaseGateway(fetchFn).fetchLatest();
+    expect(info.checksumUrl).toBeUndefined();
   });
 
   it('throws on a non-OK HTTP status', async () => {

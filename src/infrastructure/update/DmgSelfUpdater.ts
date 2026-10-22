@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { chmod, writeFile } from 'node:fs/promises';
+import { chmod, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -39,6 +39,14 @@ import type { UpdateInstaller } from '@domain/update/UpdateInstaller';
 export interface SelfUpdaterDeps {
   /** Stream `url` into `dest`, reporting 0..1 completion when size is known. */
   download(url: string, dest: string, onProgress?: (fraction: number) => void): Promise<void>;
+  /** Fetch a small text resource (the checksum file); rejects on non-2xx. */
+  fetchText(url: string): Promise<string>;
+  /** Lower-case hex SHA-256 of the file at `path`, read as a stream. */
+  sha256File(path: string): Promise<string>;
+  /** Delete a file; a missing file is not an error. */
+  removeFile(path: string): Promise<void>;
+  /** Log a non-fatal problem (main-process console). */
+  warn(message: string): void;
   /** Persist the helper script and make it executable. */
   writeScript(path: string, contents: string): Promise<void>;
   /**
@@ -163,6 +171,18 @@ async function nodeDownload(
   await pipeline(source, createWriteStream(dest));
 }
 
+async function nodeFetchText(url: string): Promise<string> {
+  throw new Error(`not implemented: ${url}`);
+}
+
+export async function nodeSha256File(path: string): Promise<string> {
+  throw new Error(`not implemented: ${path}`);
+}
+
+async function nodeRemoveFile(path: string): Promise<void> {
+  await rm(path, { force: true });
+}
+
 async function nodeWriteScript(path: string, contents: string): Promise<void> {
   await writeFile(path, contents, 'utf8');
   await chmod(path, 0o755);
@@ -189,6 +209,10 @@ export function nodeSpawnDetached(command: string, args: string[]): Promise<void
 export function createDmgSelfUpdater(onProgress?: (fraction: number) => void): DmgSelfUpdater {
   return new DmgSelfUpdater({
     download: nodeDownload,
+    fetchText: nodeFetchText,
+    sha256File: nodeSha256File,
+    removeFile: nodeRemoveFile,
+    warn: (message) => console.warn(message),
     writeScript: nodeWriteScript,
     spawnDetached: nodeSpawnDetached,
     quit: () => app.quit(),
