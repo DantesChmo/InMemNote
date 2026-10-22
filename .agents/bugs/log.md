@@ -27,6 +27,6 @@
 ### #04 — Self-update can delete the app and quit without relaunching            2026-10-22            severity: major
 **Surface**: build
 **Root cause**: The update helper (and `scripts/install.sh`) ran `rm -rf` on the installed bundle before `cp -R` of the new one, and `DmgSelfUpdater` quit right after `spawn` without waiting for the helper to start or handling its `error` event.
-**Fix**: Copy to a hidden staging path in the install dir, rename old → backup, staged → app, drop the backup; any failure restores the backup and relaunches it. `spawnDetached` resolves on `spawn` / rejects on `error`, and `install()` quits only after it resolves (commit <pending>).
+**Fix**: Copy to a hidden staging path in the install dir, rename old → backup, staged → app, drop the backup; any failure restores the backup and relaunches it. `spawnDetached` resolves on `spawn` / rejects on `error`, and `install()` quits only after it resolves (commit b1f5242).
 **Regression test**: `src/infrastructure/update/DmgSelfUpdater.spec.ts` ("does NOT quit if the helper fails to start", "HELPER_SCRIPT (run against a sandbox)"), `scripts/install.spec.ts`
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-updater-unsafe-swap.md`
