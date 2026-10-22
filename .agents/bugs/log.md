@@ -20,6 +20,6 @@
 ### #01 — Library drops the last <500 ms of typing on note switch / close / quit            2026-10-22            severity: major
 **Surface**: Library
 **Root cause**: `LibraryEditor` cancelled the pending autosave debounce on selection change instead of flushing it, and had no hook for window close or app quit at all.
-**Fix**: The pending edit is kept as `{ id, content }` and flushed on selection change and on `beforeunload`; deleting a note drops its pending edit (commit pending).
+**Fix**: The pending edit is kept as `{ id, content }` and flushed on selection change and on `beforeunload`; deleting a note drops its pending edit (commit 2ffe4d2).
 **Regression test**: `src/presentation/library/LibraryEditor.spec.tsx` ("pending autosave is flushed, never dropped")
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-library-autosave-dropped.md`
