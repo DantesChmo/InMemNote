@@ -99,7 +99,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] `Tab` / `Shift+Tab` nest lists via `indentMore`/`indentLess`.
 
 ### 2.5 Persistence
-- [x] Debounced autosave (500 ms after the last keystroke).
+- [x] Debounced autosave (500 ms after the last keystroke). A pending edit
+  is flushed (never dropped) on app quit, auto-update relaunch and Draft
+  window destroy — bug #02, 2026-10-22.
 - [x] Storage: SQLite (`better-sqlite3`), path `userData/inmemnote.db`.
 - [x] Schema: `drafts(id TEXT PK, content TEXT, pinned INT, created_at,
   updated_at)` with an index on `updated_at DESC`.
