@@ -1,0 +1,4 @@
+# CLAUDE.md §9: staged files are linted/formatted, and the whole project must
+# type-check (tsc can't check staged files in isolation — types cross files).
+npx lint-staged
+npm run typecheck
