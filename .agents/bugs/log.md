@@ -44,3 +44,9 @@
 **Fix**: Copy to a hidden staging path in the install dir, rename old → backup, staged → app, drop the backup; any failure restores the backup and relaunches it. `spawnDetached` resolves on `spawn` / rejects on `error`, and `install()` quits only after it resolves (commit b1f5242).
 **Regression test**: `src/infrastructure/update/DmgSelfUpdater.spec.ts` ("does NOT quit if the helper fails to start", "HELPER_SCRIPT (run against a sandbox)"), `scripts/install.spec.ts`
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-updater-unsafe-swap.md`
+
+### #05 — A second launch starts a second process on the same DB and hotkey            2026-10-22            severity: minor
+**Surface**: other (main-process lifecycle)
+**Root cause**: The main process never called `app.requestSingleInstanceLock()`, so a second launch opened the same `inmemnote.db` and tried to register the same global hotkey.
+**Fix**: `claimSingleInstance` takes the lock right after the `userData` override (the lock is per userData directory, so parallel E2E instances are unaffected); a second launch quits before any initialisation and the first instance resurfaces the Library on `second-instance` (commit 26da971).
+**Regression test**: `src/infrastructure/electron/main/__tests__/singleInstance.spec.ts`

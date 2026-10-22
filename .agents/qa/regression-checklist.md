@@ -34,6 +34,9 @@
 - [ ] Library — if SQLite can't be opened, a non-dismissable banner says notes aren't saved and shows the reason; with a healthy DB no banner shows (container + IPC + banner ✅-unit; the real boot against a broken DB still needs a manual check)
        repro: quit the app, `chmod 000 ~/Library/Application\ Support/Inmemnote/inmemnote.db` (or replace it with a directory), launch — banner under the toolbar; restore permissions, relaunch — no banner
        added: 2026-10-22 (after bug #03)
+- [ ] Library — a second launch of the app does not start a second process: the running instance brings the Library forward (or reopens it if closed), and the global hotkey keeps working (guard ✅-unit; the real two-process launch still needs a manual check)
+       repro: with the app running, close the Library, run `open -n /Applications/Inmemnote.app` — one process in Activity Monitor, the Library is back, ⌘⇧Space still opens Draft
+       added: 2026-10-22 (after bug #05)
 
 ## Hotkeys / global shortcuts
 
