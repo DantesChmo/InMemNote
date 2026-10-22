@@ -32,15 +32,15 @@ No cloud. No backend. Everything is stored locally.
 | Layer              | Tech                                                  |
 |--------------------|-------------------------------------------------------|
 | Language           | TypeScript (strict)                                   |
-| Runtime            | Electron + Node.js                                    |
-| Bundler            | Electron Forge with the Vite template                 |
+| Runtime            | Electron 45 + Node.js 22 (macOS 13 Ventura or later)  |
+| Bundler            | Electron Forge 8 with the Vite plugin (Vite 8)        |
 | UI                 | React 18                                              |
 | Styling            | Tailwind CSS (+ CSS custom properties)                |
 | State              | Redux Toolkit                                         |
 | Markdown editor    | CodeMirror 6                                          |
-| Cold storage       | SQLite (`better-sqlite3`)                             |
+| Cold storage       | SQLite (`better-sqlite3` 13, N-API)                   |
 | Config validation  | Zod                                                   |
-| Unit / component   | Vitest + React Testing Library                        |
+| Unit / component   | Vitest 5 + React Testing Library                      |
 | E2E                | Playwright (Electron driver)                          |
 | Linter             | ESLint (typescript-eslint, react-hooks)               |
 | Formatter          | Prettier                                              |
@@ -234,11 +234,13 @@ Details in `docs/HOTKEYS.md`.
   decomposition.
 - **Dependency installs go through `npm ci`, never `npm install`.**
   `npm ci` rebuilds `node_modules` strictly from the lockfile and is the
-  only mode that guarantees reproducibility — critical here because we
-  have a native addon (`@inmemnote/window-events`) whose ABI must match
-  the installed Electron exactly. `npm install` is reserved for the
-  single case of adding or removing a dependency; the resulting
-  lockfile change is committed in the same step.
+  only mode that guarantees reproducibility — it also (re)compiles the
+  native addon `@inmemnote/window-events` exactly as CI does. Both native
+  addons (`window-events` and `better-sqlite3`) are N-API, so their ABI is
+  stable across Node and Electron versions and needs no
+  `@electron/rebuild` step. `npm install` is reserved for adding,
+  removing or upgrading a dependency; the resulting lockfile change is
+  committed in the same step.
 
 ---
 

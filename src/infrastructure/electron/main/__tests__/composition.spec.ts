@@ -22,13 +22,21 @@ vi.mock('@infrastructure/persistence/sqlite/openDatabase', () => ({
   openDatabase: vi.fn((...args: unknown[]) => OpenDatabaseMock(...args)),
 }));
 vi.mock('@infrastructure/persistence/sqlite/SqliteDraftRepository', () => ({
-  SqliteDraftRepository: vi.fn((...args: unknown[]) => SqliteDraftMock(...args)),
+  // `function`, not an arrow: Vitest 4+ mocks are only `new`-able when the
+  // implementation is.
+  SqliteDraftRepository: vi.fn(function (...args: unknown[]) {
+    return SqliteDraftMock(...args);
+  }),
 }));
 vi.mock('@infrastructure/persistence/sqlite/SqliteNoteRepository', () => ({
-  SqliteNoteRepository: vi.fn((...args: unknown[]) => SqliteNoteMock(...args)),
+  SqliteNoteRepository: vi.fn(function (...args: unknown[]) {
+    return SqliteNoteMock(...args);
+  }),
 }));
 vi.mock('@infrastructure/persistence/sqlite/SqliteSettingsRepository', () => ({
-  SqliteSettingsRepository: vi.fn((...args: unknown[]) => SqliteSettingsMock(...args)),
+  SqliteSettingsRepository: vi.fn(function (...args: unknown[]) {
+    return SqliteSettingsMock(...args);
+  }),
 }));
 
 let buildContainer: typeof BuildContainerFn;

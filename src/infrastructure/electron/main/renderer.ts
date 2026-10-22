@@ -25,8 +25,9 @@ export function loadRenderer(w: BrowserWindow, view: 'draft' | 'library'): void 
   // Diagnostic plumbing: surface renderer-side console + load failures into
   // the main process stdout. Without this, a blank window after `loadFile`
   // looks identical to a successful load.
-  w.webContents.on('console-message', (_e, level, message, line, source) => {
-    console.log(`[renderer:${view}][${level}] ${source}:${line} ${message}`);
+  // Event-object form (Electron 35+); the positional arguments are deprecated.
+  w.webContents.on('console-message', ({ level, message, lineNumber, sourceId }) => {
+    console.log(`[renderer:${view}][${level}] ${sourceId}:${lineNumber} ${message}`);
   });
   w.webContents.on('did-fail-load', (_e, errCode, errDesc, url) => {
     console.error(`[renderer:${view}] did-fail-load ${errCode} ${errDesc} url=${url}`);

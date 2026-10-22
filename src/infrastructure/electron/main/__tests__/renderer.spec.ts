@@ -35,6 +35,16 @@ describe('loadRenderer', () => {
     expect(events).toEqual(['console-message', 'did-fail-load', 'render-process-gone']);
   });
 
+  it('reads console-message details from the event object', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const w = makeWindow();
+    loadRenderer(w as unknown as Electron.BrowserWindow, 'library');
+    const [, handler] = w.webContents.on.mock.calls.find(([name]) => name === 'console-message')!;
+    handler({ level: 'warning', message: 'hello', lineNumber: 12, sourceId: 'app.js' });
+    expect(log).toHaveBeenCalledWith('[renderer:library][warning] app.js:12 hello');
+    log.mockRestore();
+  });
+
   it('loads dev URL with ?view= when the Vite server URL is present', () => {
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
     const w = makeWindow();

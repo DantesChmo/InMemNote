@@ -47,6 +47,13 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   `package.json` `engines` declares `node >=22`.
 - [x] Vitest + RTL.
 - [x] Playwright (electron) — config in place, smoke test in V2.
+- [~] Runtime/toolchain upgrade (2026-10-22): Electron 33 → 45,
+  better-sqlite3 11 → 13, Electron Forge 7 → 8 (+ Vite 8, Vitest 5,
+  `@vitejs/plugin-react` 6, `@electron/fuses` 2). tsc/ESLint/Vitest and
+  `electron-forge package` green locally; E2E pending (see §5 entry).
+- [x] Content-Security-Policy in the renderer (`<meta>` injected by the
+  `inmemnote:csp` plugin in `vite.renderer.config.ts`; strict in prod,
+  relaxed for Vite HMR in dev). Covered by `e2e/cross-window/csp.spec.ts`.
 - [x] DDD directory structure (domain/application/infrastructure/presentation).
 
 ---
@@ -190,6 +197,11 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - Storage degradation is only detected when SQLite fails to *open*. Should
   a later write failure (disk full, DB file removed) also flip the app into
   the persistent "not saved" state? (bug #03 follow-up)
+- `npm audit` (2026-10-22, after the Electron 45 upgrade) still reports
+  high-severity advisories, mostly in dev tooling (Tailwind 3's
+  chokidar/micromatch, `electron-installer-dmg` → `appdmg`), but also in
+  the runtime dependency `js-yaml` (quadratic CPU on merge-key chains in
+  the hotkeys YAML). Worth a dedicated dependency pass.
 
 ---
 
@@ -508,3 +520,25 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   main-side — the trust boundary is main, and keeping `shared` dependency-
   free means neither preload nor the renderer bundle Zod; the cost is that
   schemas `satisfies` the shared DTOs rather than being their source.
+- **2026-10-22** — Electron 33 → 45 and toolchain upgrade, done in two
+  commits so a regression can be pinned to either the runtime or the build:
+  (1) Electron 45 + better-sqlite3 13 on Forge 7, (2) Forge 8 + Vite 8 +
+  Vitest 5 + fuses 2. Decisions and consequences:
+  - **macOS 13 Ventura is the new floor** (Electron 38 dropped macOS 11,
+    Electron 44 dropped macOS 12). Accepted by the user.
+  - **No more Electron-ABI rebuilds.** better-sqlite3 13 is N-API with
+    bundled prebuilds (no `bindings` dep any more), and `window-events` was
+    already N-API — so the `@electron/rebuild` / `npm rebuild` steps are gone
+    from CI. Packaging copies only the target's better-sqlite3 prebuild.
+  - **Electron 42+ downloads its binary lazily**; CI runs
+    `npx install-electron --no` so the binary is cached and shipped in the
+    e2e tarball.
+  - **Forge 8**: main/preload bundles are `.cjs`
+    (`package.json#main` = `.vite/build/main.cjs`); packager hooks take one
+    object; `.node` files are asar-unpacked by default (auto-unpack-natives
+    plugin dropped); `npm run publish` → `npm run release`; DMGs land in
+    `out/make/dmg/<arch>/`.
+  - **Vitest 4+** only `new`s mocks with a `function` implementation —
+    constructor doubles were updated accordingly.
+  - **CSP** added; production forbids inline scripts and `eval`, inline
+    styles stay allowed for CodeMirror/React `style` props.

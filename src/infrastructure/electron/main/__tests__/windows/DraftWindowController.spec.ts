@@ -85,7 +85,9 @@ const display = {
 };
 
 vi.mock('electron', () => ({
-  BrowserWindow: vi.fn(() => {
+  // `function`, not an arrow: Vitest 4+ mocks are only `new`-able when the
+  // implementation is.
+  BrowserWindow: vi.fn(function () {
     win = makeWin();
     return win;
   }),

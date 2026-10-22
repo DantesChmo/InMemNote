@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Total scenarios: **75**
-- By priority: **P0** = 27, **P1** = 43, **P2** = 5
-- By type: **positive** = 37, **negative** = 11, **edge** = 10, **race** = 11, **persistence** = 6
-- By area: **Cross-window** = 10, **Draft** = 34, **Library** = 30, **Visual** = 1
+- Total scenarios: **76**
+- By priority: **P0** = 28, **P1** = 43, **P2** = 5
+- By type: **positive** = 38, **negative** = 11, **edge** = 10, **race** = 11, **persistence** = 6
+- By area: **Cross-window** = 11, **Draft** = 34, **Library** = 30, **Visual** = 1
 
 ## Table of contents
 
@@ -74,6 +74,7 @@
   - [Promote / Selection stability](#cross-window-promote-selection-stability) (1)
   - [Promote / Title derivation](#cross-window-promote-title-derivation) (1)
   - [Promote / Validation](#cross-window-promote-validation) (2)
+  - [Security / Content-Security-Policy](#cross-window-security-content-security-policy) (1)
 - [Visual](#visual)
   - [Design tokens / Bootstrap](#visual-design-tokens-bootstrap) (1)
 
@@ -671,6 +672,7 @@
 **Expected:**
 - The API is present on the window.
 - The recorded calls do NOT include any `false` argument.
+- `isContentProtected()` on the Draft window is `true` after the cycle.
 
 ---
 
@@ -1471,6 +1473,30 @@
 
 **Expected:**
 - Library still has 0 cards.
+
+---
+
+### Security / Content-Security-Policy <a id="cross-window-security-content-security-policy"></a>
+
+#### [P0] Both windows enforce the CSP: inline scripts are blocked, editor and inline styles work without violations
+
+- **File**: `e2e/cross-window/csp.spec.ts`
+- **Test**: `both windows enforce the renderer CSP without breaking the editor`
+- **Type**: positive
+
+**Steps:**
+1. Launch app; read the CSP meta tag in Library.
+2. Record `securitypolicyviolation` events in Library.
+3. Append an inline `<script>` that sets a window flag.
+4. Create a note and type into the CodeMirror editor.
+5. Summon Draft; repeat steps 1–3 there and type into its editor.
+
+**Expected:**
+- The meta tag exists in both windows with `script-src 'self'` and no
+- `'unsafe-inline'` / `'unsafe-eval'` for scripts.
+- The inline script does not execute.
+- The editor renders the typed text; the only recorded violation is
+- the deliberate inline script.
 
 ---
 

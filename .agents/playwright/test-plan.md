@@ -21,10 +21,11 @@
 | 5 | Draft `⌘↵` promotes into Library | `e2e/cross-window/draft-promote.spec.ts` (all 10); `e2e/draft/lifecycle.spec.ts` — "empty draft promote (⌘↵) does not create a note…" | Empty / whitespace-only drafts create nothing; `notes:changed` refreshes an open Library. |
 | 6 | Library search and filters | `e2e/library/search-filter.spec.ts` | `⌘F`, live search + highlight, `Esc` reset, Pinned filter, case / Unicode / body match. |
 | 7 | Renderer boots with design tokens | `e2e/visual-smoke.spec.ts` | Tokens resolve, Tailwind utilities ship, React mounted. |
+| 8 | Renderer CSP enforced in both windows, editor works under it | `e2e/cross-window/csp.spec.ts` | Prod policy only (E2E runs the built renderer); the dev policy is relaxed for Vite HMR. |
 
 ## Spec inventory
 
-75 scenarios in 12 files (matches the summary in `e2e/TEST-PLAN.md`).
+76 scenarios in 13 files (matches the summary in `e2e/TEST-PLAN.md`).
 
 | Spec file | Scenarios | Covers |
 |---|---|---|
@@ -39,6 +40,7 @@
 | `e2e/library/pin.spec.ts` | 6 | pin marker, ordering, restart persistence, Pinned filter, pin spam |
 | `e2e/library/search-filter.spec.ts` | 12 | see flow 6 |
 | `e2e/cross-window/draft-promote.spec.ts` | 10 | see flow 5, plus promote under filter / search, selection stability, title derivation |
+| `e2e/cross-window/csp.spec.ts` | 1 | see flow 8 |
 | `e2e/visual-smoke.spec.ts` | 1 | see flow 7 |
 
 Helpers: `e2e/helpers/app.ts` (launch with tmp `userData` + `INMEMNOTE_E2E=1`),

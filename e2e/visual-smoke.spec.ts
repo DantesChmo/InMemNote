@@ -9,7 +9,7 @@ import { _electron as electron, test, expect } from '@playwright/test';
  *
  * We launch the stock Electron binary that ships with the project's
  * `node_modules` and point it at the project root; Electron then reads
- * `package.json#main` (= `.vite/build/main.js`) just like the packaged
+ * `package.json#main` (= `.vite/build/main.cjs`) just like the packaged
  * variant would. The difference is that Playwright owns the argv vector and
  * adds the `--remote-debugging-port` it needs to attach.
  */

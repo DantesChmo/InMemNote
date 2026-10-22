@@ -13,11 +13,12 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
-      // Force the output filename so `package.json#main` (`.vite/build/main.js`)
+    rolldownOptions: {
+      // Force the output filename so `package.json#main` (`.vite/build/main.cjs`)
       // resolves; by default Vite names the bundle after the entry file.
-      output: { entryFileNames: 'main.js' },
-      // Native modules — must not be bundled by Rollup; they're loaded at
+      // `.cjs` (Forge 8 convention) keeps Electron parsing it as CommonJS.
+      output: { entryFileNames: 'main.cjs' },
+      // Native modules — must not be bundled by Rolldown; they're loaded at
       // runtime from `node_modules` inside the packaged app.
       external: ['electron', 'better-sqlite3', '@inmemnote/window-events'],
     },

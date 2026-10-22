@@ -10,31 +10,27 @@
  */
 import { execFileSync } from 'node:child_process';
 import { cp } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join, sep } from 'node:path';
 
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
-import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 /**
  * Native modules that `vite-plugin` leaves as `external` AND that Forge does
  * not currently copy into the packaged app on its own. We hand-stamp them
- * (plus their runtime deps) via an `afterCopy` hook, then let
- * `AutoUnpackNativesPlugin` move the resulting `.node` files out of asar.
+ * (plus their runtime deps) via an `afterCopy` hook. Moving the `.node`
+ * files out of asar needs no plugin: since @electron/packager 19 `asar: true`
+ * unpacks every `.node` file by default.
  *
- * Walk the closure manually instead of pulling in `flora-colossus` — three
- * tiny packages don't justify another dev dependency.
+ * Walk the closure manually instead of pulling in `flora-colossus`. Since
+ * better-sqlite3 13 (N-API + bundled prebuilds) neither package has runtime
+ * dependencies — `node-addon-api` is compile-time headers only.
  */
-const NATIVE_DEP_CLOSURE = [
-  'better-sqlite3',
-  'bindings',
-  'file-uri-to-path',
-  '@inmemnote/window-events',
-];
+const NATIVE_DEP_CLOSURE = ['better-sqlite3', '@inmemnote/window-events'];
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -43,23 +39,27 @@ const config: ForgeConfig = {
     appBundleId: 'com.inmemnote.app',
     appCategoryType: 'public.app-category.productivity',
     afterCopy: [
-      async (buildPath, _electronVersion, _platform, _arch, callback) => {
-        try {
-          for (const dep of NATIVE_DEP_CLOSURE) {
-            const src = join(process.cwd(), 'node_modules', dep);
-            const dest = join(buildPath, 'node_modules', dep);
-            // `dereference: true` is load-bearing: `@inmemnote/window-events`
-            // is a `file:` dependency, so npm links it into node_modules as a
-            // symlink pointing at the checkout. Without dereferencing, `cp`
-            // copies the symlink verbatim, asar records it as a link to the
-            // build machine's absolute path, and the packaged app crashes at
-            // startup with ENOENT on a `/Users/runner/...` path that only ever
-            // existed on the CI runner.
-            await cp(src, dest, { recursive: true, dereference: true });
-          }
-          callback();
-        } catch (e) {
-          callback(e as Error);
+      // @electron/packager 19+ hooks take one args object and may return a
+      // promise; the old positional `(buildPath, …, callback)` form is gone.
+      async ({ buildPath, platform, arch }) => {
+        // better-sqlite3 ships prebuilt binaries for every OS/arch
+        // (`prebuilds/<platform>-<arch>.node`); only the target's is loadable,
+        // the rest is ~14 MB of dead weight in the bundle.
+        const ownPrebuild = `${platform}-${arch}.node`;
+        const keep = (path: string): boolean =>
+          !path.includes(`${sep}prebuilds${sep}`) || basename(path) === ownPrebuild;
+
+        for (const dep of NATIVE_DEP_CLOSURE) {
+          const src = join(process.cwd(), 'node_modules', dep);
+          const dest = join(buildPath, 'node_modules', dep);
+          // `dereference: true` is load-bearing: `@inmemnote/window-events`
+          // is a `file:` dependency, so npm links it into node_modules as a
+          // symlink pointing at the checkout. Without dereferencing, `cp`
+          // copies the symlink verbatim, asar records it as a link to the
+          // build machine's absolute path, and the packaged app crashes at
+          // startup with ENOENT on a `/Users/runner/...` path that only ever
+          // existed on the CI runner.
+          await cp(src, dest, { recursive: true, dereference: true, filter: keep });
         }
       },
     ],
@@ -96,12 +96,8 @@ const config: ForgeConfig = {
       }
     },
   },
-  makers: [
-    new MakerDMG({}, ['darwin']),
-    new MakerZIP({}, ['darwin']),
-  ],
+  makers: [new MakerDMG({}, ['darwin']), new MakerZIP({}, ['darwin'])],
   plugins: [
-    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       build: [
         {

@@ -20,7 +20,8 @@ No cloud, no backend. Everything lives in a local SQLite file
 
 ## Install on macOS
 
-Apple Silicon only. One command downloads the latest release, installs it to
+Apple Silicon only, macOS 13 Ventura or later (the floor set by Electron 44+).
+One command downloads the latest release, installs it to
 `/Applications` and launches it:
 
 ```sh
@@ -154,12 +155,16 @@ declarations, mismatched native ABI, etc.). Only reach for `npm install`
 when you are deliberately adding or removing a dependency; commit the
 updated lockfile in the same change.
 
-After install, rebuild the native module against the Electron ABI
-(do this once, and again after every Electron upgrade):
+No rebuild against the Electron ABI is needed: both native addons
+(`better-sqlite3`, which ships prebuilt binaries, and
+`@inmemnote/window-events`, compiled by `npm ci`) are N-API and load in
+Node and Electron alike. Compiling `window-events` needs Xcode or the
+Command Line Tools (`swift`).
 
-```sh
-npx @electron/rebuild -f -w better-sqlite3
-```
+The Electron binary itself is no longer fetched during install (Electron
+42+): it downloads on the first `require('electron')` / `npx electron`.
+To fetch it up front — e.g. before going offline — run
+`npx install-electron --no`.
 
 ---
 

@@ -11,11 +11,14 @@
 
 ## Build & rebuild
 
-- The addon must be built against the **bundled Node ABI shipped with the
-  Electron version pinned in `package.json`** — not the system Node.
-- After installing or upgrading Electron, rebuild with the project's
-  configured electron-rebuild step (typically `npm run rebuild` or via
-  Electron Forge).
+- The addon is **N-API** (`node-addon-api`), so its ABI is stable across
+  Node and Electron versions: the binary `npm ci` compiles for the host
+  Node loads unchanged in Electron, and an Electron upgrade needs no
+  rebuild. (Forge still runs `@electron/rebuild` while packaging; for
+  N-API addons it is a no-op.) The same holds for `better-sqlite3` 13+,
+  which also ships prebuilt binaries.
+- New addons must stay on N-API — an addon using the raw V8/NAN API would
+  reintroduce per-Electron-version rebuilds.
 - `npm ci` is the default install mode (CLAUDE.md §9). `npm install` is
   reserved for adding/removing deps in one explicit commit.
 - For addons with a Swift half: `binding.gyp` runs `swift build -c release`
