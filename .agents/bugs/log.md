@@ -23,3 +23,10 @@
 **Fix**: The pending edit is kept as `{ id, content }` and flushed on selection change and on `beforeunload`; deleting a note drops its pending edit (commit 2ffe4d2).
 **Regression test**: `src/presentation/library/LibraryEditor.spec.tsx` ("pending autosave is flushed, never dropped")
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-library-autosave-dropped.md`
+
+### #03 — SQLite fallback to in-memory is silent; every note is lost on quit            2026-10-22            severity: major
+**Surface**: Library, Draft
+**Root cause**: `buildDraftRepo` / `buildNoteRepo` / `buildSettingsRepo` in `composition.ts` swallowed the SQLite error into a `console.warn` and nothing else knew the store was in-memory.
+**Fix**: The container records each fallback with its reason (`Container.storage`), main answers `storage:status`, Library shows a persistent non-dismissable banner and Draft a one-line strip when drafts or notes are in memory (commit da537e6).
+**Regression test**: `src/infrastructure/electron/main/__tests__/composition.spec.ts` ("records each in-memory fallback…"), `src/infrastructure/electron/main/__tests__/ipc/storage.spec.ts`, `src/presentation/storage/StorageBanner.spec.tsx`, `src/presentation/storage/slice.spec.ts`
+**Postmortem**: `.agents/bugs/postmortems/2026-10-22-silent-storage-fallback.md`

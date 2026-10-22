@@ -21,7 +21,7 @@
 
 | Channel | Direction | Payload | Response | Owner (main-side) | Notes |
 |---|---|---|---|---|---|
-| _(none documented yet)_ | | | | | |
+| `storage:status` | renderer → main (invoke) | — | `StorageStatusDTO` — `{ degraded: { store: 'drafts' \| 'notes' \| 'settings'; reason: string }[] }` | `ipc/storage.ts` | Which repositories fell back to in-memory at boot. Fixed for the process lifetime, so pull-only (no broadcast). Empty list = all persisted. Bug #03. |
 
 ## Anti-patterns
 

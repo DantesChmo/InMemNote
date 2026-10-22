@@ -247,7 +247,9 @@ See `docs/HOTKEYS.md`.
     debounced autosave.
   - `notes` — every promoted library item.
 - If SQLite fails to initialize, the app falls back to an in-memory
-  repository (notes survive the session but not a restart).
+  repository (notes survive the session but not a restart). This is never
+  silent: Library shows a persistent "notes aren't being saved" banner with
+  the error reason, and Draft a one-line "Not saved" strip.
 
 ---
 

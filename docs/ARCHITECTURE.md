@@ -53,6 +53,10 @@ IPC contracts are documented in [`IPC.md`](./IPC.md).
 - One DB file under the Electron `userData` directory.
 - Repositories wrap prepared statements; multi-statement writes are
   transactional.
+- If a SQLite repository can't be opened, the composition root falls back
+  to its in-memory twin for that store only and records it in
+  `Container.storage`; the renderer reads it over `storage:status` and
+  shows a persistent warning (bug #03).
 
 ## ADRs
 

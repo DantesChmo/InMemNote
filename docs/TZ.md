@@ -104,6 +104,11 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Schema: `drafts(id TEXT PK, content TEXT, pinned INT, created_at,
   updated_at)` with an index on `updated_at DESC`.
 - [x] Falls back to an in-memory repository if SQLite init fails.
+- [x] The fallback is never silent: the container records which stores
+  degraded and why, main answers `storage:status`, Library shows a
+  persistent banner and Draft a one-line strip when drafts/notes are in
+  memory — bug #03, 2026-10-22. Write-time SQLite errors (after a
+  successful open) are not covered by the banner.
 
 ### 2.6 Theme
 - [x] Dark (primary) and light. Driven by the macOS system theme via
@@ -149,6 +154,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   affects how the process is laid out.)
 - Hotkey behavior on macOS when focus is on a fullscreen app: confirm
   there's no conflict with Spotlight (`⌘Space`).
+- Storage degradation is only detected when SQLite fails to *open*. Should
+  a later write failure (disk full, DB file removed) also flip the app into
+  the persistent "not saved" state? (bug #03 follow-up)
 
 ---
 
