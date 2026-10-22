@@ -32,12 +32,33 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
  */
 const NATIVE_DEP_CLOSURE = ['better-sqlite3', '@inmemnote/window-events'];
 
+/**
+ * Developer ID signing is opt-in, driven by the release workflow
+ * (`.github/workflows/release.yml`), which sets these only when the Apple
+ * secrets exist. Unset (local builds, and every release so far) → ad-hoc.
+ */
+const SIGN_IDENTITY = process.env.MACOS_SIGN_IDENTITY || undefined;
+const SIGN_KEYCHAIN = process.env.MACOS_SIGN_KEYCHAIN || undefined;
+
 const config: ForgeConfig = {
   packagerConfig: {
     name: 'Inmemnote',
     asar: true,
     appBundleId: 'com.inmemnote.app',
     appCategoryType: 'public.app-category.productivity',
+    // The packager signs after `afterCopy` and after the Fuses plugin flips
+    // its fuses, so the signature covers the final bytes. Notarization needs
+    // hardened runtime on every binary; V8 needs `allow-jit` under it.
+    osxSign: SIGN_IDENTITY
+      ? {
+          identity: SIGN_IDENTITY,
+          keychain: SIGN_KEYCHAIN,
+          optionsForFile: () => ({
+            hardenedRuntime: true,
+            entitlements: 'packaging/macos/entitlements.plist',
+          }),
+        }
+      : undefined,
     afterCopy: [
       // @electron/packager 19+ hooks take one args object and may return a
       // promise; the old positional `(buildPath, …, callback)` form is gone.
@@ -85,9 +106,12 @@ const config: ForgeConfig = {
     // plugin — so this is the last touch and reseals the entire bundle,
     // Info.plist included. It's ad-hoc (`--sign -`), so still not notarized:
     // good enough for local/side-loaded installs, not for frictionless
-    // distribution (that needs an Apple Developer ID — see docs/TZ.md).
+    // distribution (that needs an Apple Developer ID — see docs/RELEASING.md).
+    //
+    // Skipped when signing with Developer ID: the packager has already
+    // signed the final bundle, and an ad-hoc pass would throw that away.
     postPackage: async (_forgeConfig, { platform, outputPaths }) => {
-      if (platform !== 'darwin') return;
+      if (platform !== 'darwin' || SIGN_IDENTITY) return;
       for (const outputPath of outputPaths) {
         const appPath = join(outputPath, 'Inmemnote.app');
         execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
@@ -126,7 +150,9 @@ const config: ForgeConfig = {
       // binary, leaving the bundle's Info.plist unbound. The whole bundle is
       // resealed afterwards by the `postPackage` hook above, which is what
       // actually keeps Gatekeeper from flagging the app as "damaged".
-      resetAdHocDarwinSignature: true,
+      // With Developer ID the packager signs everything after the fuses
+      // flip, so the ad-hoc pass would only be overwritten.
+      resetAdHocDarwinSignature: !SIGN_IDENTITY,
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,

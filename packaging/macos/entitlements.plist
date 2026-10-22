@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for the Developer ID build (forge.config.ts,
+  osxSign). Used only when release.yml signs with Developer ID; ad-hoc builds
+  have no hardened runtime and ignore this file.
+
+  allow-jit: V8 generates code at runtime; hardened runtime forbids it without
+  this. Nothing else is granted: the app uses no camera, microphone, location
+  or other protected resources.
+-->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+  </dict>
+</plist>
