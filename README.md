@@ -21,31 +21,50 @@ No cloud, no backend. Everything lives in a local SQLite file
 ## Install on macOS
 
 Apple Silicon only, macOS 13 Ventura or later (the floor set by Electron 44+).
-One command downloads the latest release, installs it to
-`/Applications` and launches it:
+
+### DMG
+
+Download the latest `Inmemnote-X.Y.Z-arm64.dmg` from the
+[Releases](https://github.com/DantesChmo/InMemNote/releases/latest) page,
+open it and drag **Inmemnote** into `Applications`.
+
+### Homebrew
+
+```sh
+brew install --cask dantesChmo/tap/inmemnote
+```
+
+The app updates itself (see [Auto-update](#auto-update)), so `brew upgrade`
+skips it unless you pass `--greedy`.
+
+### First launch: allowing the app
+
+Inmemnote is not notarized by Apple, so macOS blocks it the first time you
+open it, whether it came from the DMG or Homebrew. Allow it once:
+
+1. Open **Inmemnote**. When macOS says it can't verify the developer, click
+   **Done**.
+2. Open **System Settings → Privacy & Security** and scroll down to the
+   **Security** section.
+3. Next to the message about Inmemnote, click **Open Anyway**, then confirm
+   with your password or Touch ID.
+
+After that it opens normally, and later versions installed by the built-in
+updater open without asking again. (Right-click → **Open** no longer bypasses
+this on macOS 15 Sequoia and later.)
+
+### Alternative: one-line installer
+
+To skip the Open Anyway step, install from the terminal instead. This
+downloads the latest DMG, copies the app to `/Applications` and launches it:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/DantesChmo/InMemNote/main/scripts/install.sh | bash
 ```
 
-**Why `curl` and not the browser.** A browser stamps every download with a
-`com.apple.quarantine` flag. Because the app isn't notarized by an Apple
-Developer ID, that flag makes Gatekeeper block the first launch — you'd have
-to approve it in *System Settings → Privacy & Security*. `curl` (like `git`
-or a USB copy) doesn't set the flag, so the app opens on a normal
-double-click, no prompts. Only the first install is manual; the built-in
-auto-updater (below) handles later versions the same quarantine-free way.
-
-**Prefer to do it by hand?** Grab `Inmemnote-macos-arm64.dmg` from the
-[latest release](https://github.com/DantesChmo/InMemNote/releases/latest),
-open it, drag **Inmemnote** into Applications, then run once:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Inmemnote.app
-```
-
-That `xattr` line is only needed when the DMG came from a browser — it strips
-the quarantine flag so the app launches without the Gatekeeper prompt.
+A browser (and Homebrew) stamps downloads with a `com.apple.quarantine` flag,
+which is what makes Gatekeeper block an app that isn't notarized. `curl`
+doesn't set that flag, so the app opens on a normal double-click.
 
 ---
 
@@ -191,6 +210,9 @@ For a distributable (DMG/ZIP):
 npm run make
 ```
 
+Releases are built by CI from a `v*` tag; see
+[docs/RELEASING.md](docs/RELEASING.md).
+
 ---
 
 ## Tests
@@ -297,8 +319,9 @@ The app checks the GitHub Releases feed on launch and every few hours (and
 whenever you open the Library). When a newer version is out, a banner appears
 at the top of the Library window — **Update & restart** downloads the new DMG
 and swaps the app in place, then relaunches. No Squirrel, no Apple Developer
-ID: it reproduces the `curl` install flow from inside the app, so updates
-stay quarantine-free just like the first install. Everything runs against the
+ID: it reproduces the `curl` install flow from inside the app, so updated
+versions never hit the Gatekeeper prompt, however the first copy was
+installed. Everything runs against the
 public GitHub release — no backend of our own.
 
 ## Out of scope

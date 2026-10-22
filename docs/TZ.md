@@ -55,6 +55,11 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   `inmemnote:csp` plugin in `vite.renderer.config.ts`; strict in prod,
   relaxed for Vite HMR in dev). Covered by `e2e/cross-window/csp.spec.ts`.
 - [x] DDD directory structure (domain/application/infrastructure/presentation).
+- [x] Release pipeline (2026-10-22, ADR 0006): `release.yml` on `v*` tags,
+  gated on `ci.yml` (reusable); versioned + stable DMG assets; optional
+  Developer ID signing/notarization; Homebrew cask via `homebrew.yml`.
+  DMG is the primary install channel, `curl` the alternative. See
+  `docs/RELEASING.md`.
 
 ---
 
@@ -354,10 +359,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 ### 4d.1 Approach and constraint
 - [x] **No Apple Developer ID, no Squirrel.** `update-electron-app` /
   Squirrel.Mac refuse to apply an update whose code signature isn't a valid,
-  matching Developer ID. This app ships ad-hoc-signed and installs via `curl`
-  to dodge Gatekeeper's quarantine (see README), so Squirrel is a non-starter.
+  matching Developer ID. This app ships ad-hoc-signed (see README), so
+  Squirrel is a non-starter.
   Instead we reproduce `scripts/install.sh` from inside the app.
-- [x] The update feed IS the GitHub Release the CI `build` job already
+- [x] The update feed IS the GitHub Release `release.yml` already
   publishes — no backend of our own, keeping the "no cloud" promise.
 
 ### 4d.2 Detection
@@ -542,3 +547,12 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
     constructor doubles were updated accordingly.
   - **CSP** added; production forbids inline scripts and `eval`, inline
     styles stay allowed for CodeMirror/React `style` props.
+- **2026-10-22** — Release policy aligned with SuperLaunchpad (ADR 0006).
+  The DMG from the Releases page is the primary install channel (first launch
+  via Open Anyway), Homebrew (`dantesChmo/tap/inmemnote`) the second, the
+  `curl` installer an alternative. The DMG build moved from `ci.yml`'s
+  `build` job to `release.yml`, which calls `ci.yml` as its test gate, takes
+  the version from the tag, marks `-suffix` tags as prereleases, and signs +
+  notarizes when the Apple secrets exist (never exercised yet). Every release
+  still carries the stable `Inmemnote-macos-arm64.dmg`, because installed
+  updaters and `install.sh` fetch that exact name.

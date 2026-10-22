@@ -3,7 +3,8 @@
 - **Status**: Accepted
 - **Date**: 2026-07-01 (V2.3; recorded retroactively on 2026-10-22)
 - **Related**: `docs/TZ.md` §4d and decision log §5; `CLAUDE.md` §2
-  (auto-update note)
+  (auto-update note); ADR 0006 (the DMG, not `curl`, is now the primary
+  install channel — the updater is unchanged)
 
 ## Context
 

@@ -53,8 +53,8 @@ this section.
 > **Auto-update note.** The stack originally named `update-electron-app`, but
 > it was never wired in: Squirrel.Mac (its engine) requires a valid Apple
 > Developer ID signature, which this app deliberately lacks (it ships
-> ad-hoc-signed and installs via `curl` to dodge Gatekeeper's quarantine).
-> V2.3 instead ships an in-house updater that reads the same GitHub Releases
+> ad-hoc-signed; see `docs/RELEASING.md` and ADR 0006 for how it is
+> distributed). V2.3 instead ships an in-house updater that reads the same GitHub Releases
 > feed and applies updates by reproducing `scripts/install.sh` from a
 > detached helper. The dead `update-electron-app` dependency was removed
 > from `package.json` on 2026-10-22. Details: `docs/TZ.md` §4d.
