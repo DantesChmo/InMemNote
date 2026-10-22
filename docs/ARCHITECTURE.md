@@ -74,10 +74,11 @@ Expected failures come back as `Result`, never as a throw across layers.
 ## Composition
 
 - `src/infrastructure/electron/main/composition.ts` — `buildContainer()` is
-  the composition root for the Draft, Note and Settings contexts. Each SQLite
-  repository is constructed in its own `try/catch` and falls back to its
-  in-memory twin **independently**: one broken table doesn't take the others
-  down.
+  the composition root for the Draft, Note and Settings contexts. It opens
+  the single SQLite connection (`openDatabase`) and hands it to each
+  repository. If opening or migrating the file fails, **all three**
+  repositories fall back to their in-memory twins together; a repository
+  whose own constructor throws still falls back on its own.
 - The Update context is wired separately in `main/index.ts`
   (`setupAutoUpdate()`), because its adapters depend on `app.getVersion()`,
   the E2E switch and the progress broadcast to all windows.
@@ -149,19 +150,29 @@ and logs. Under E2E the `globalShortcut` registration is disabled entirely.
 
 ## Persistence
 
-- `better-sqlite3` (synchronous), one file: `<userData>/inmemnote.db`.
-- Each SQLite repository opens its own connection to that file in WAL mode
-  and creates its table with `CREATE TABLE IF NOT EXISTS` in its constructor:
-  - `drafts(id, content, pinned, created_at, updated_at)`
-  - `notes(...)` with indexes on `updated_at DESC` and `(pinned DESC, updated_at DESC)`
-  - `settings(key TEXT PK, value TEXT NOT NULL)` — one JSON-encoded row per `AppSettings` field
-- There is no migration runner on this branch: schema changes rely on
-  `IF NOT EXISTS` plus additive, JSON-encoded settings values.
-- Repositories wrap prepared statements. Multi-row writes inside one
-  repository are transactional (`SqliteSettingsRepository.save`).
-  `PromoteDraftToNoteUseCase` spans two repositories — and therefore two
-  connections — so "save note, then delete draft" is two separate writes,
-  not one transaction.
+- `better-sqlite3` (synchronous), WAL journal mode.
+- One DB file, `inmemnote.db`, under the Electron `userData` directory,
+  opened through **one connection** owned by the composition root
+  (`infrastructure/electron/main/composition.ts`).
+- `infrastructure/persistence/sqlite/openDatabase.ts` — opens the file, sets
+  WAL, runs migrations; on failure closes the handle and rethrows.
+- `infrastructure/persistence/sqlite/migrations.ts` — ordered, contiguous
+  `MIGRATIONS` (`{ version, name, up(db) }`) and `runMigrations`. Schema
+  version lives in `PRAGMA user_version`; each step runs in its own
+  transaction together with the version bump. Migration 1 is the baseline
+  schema (`drafts`, `notes`, `settings` + indexes) and adopts pre-migration
+  DBs (`user_version = 0`). A DB with a version newer than the app knows is
+  refused. Released migrations are never edited.
+- `Sqlite{Draft,Note,Settings}Repository` take an open `Database` in their
+  constructor; they wrap prepared statements and own no pragmas, DDL, or
+  lifecycle. Multi-statement writes are transactional.
+- If opening/migrating fails, **all** repositories fall back to their
+  in-memory adapters together (the open error is shared, not retried per
+  repository; the file on disk is untouched).
+- The connection is not yet closed on quit (follow-up).
+- Why: [ADR 0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md).
+- `PromoteDraftToNoteUseCase` spans two repositories, so "save note, then
+  delete draft" is still two separate writes, not one transaction.
 
 ## Test-mode hooks
 
@@ -202,3 +213,4 @@ ADRs are not deleted, only marked `Superseded by NNNN`.
 | [0001](./adr/0001-record-architecture-decisions.md) | Record architecture decisions |
 | [0002](./adr/0002-signing-free-self-updater.md) | Signing-free self-updater instead of Squirrel / `update-electron-app` |
 | [0003](./adr/0003-two-windows-one-renderer-bundle.md) | Two windows in one renderer bundle, routed by `?view=` |
+| [0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md) | One SQLite connection with versioned schema migrations (`user_version`) |

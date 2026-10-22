@@ -13,7 +13,12 @@
 //     returns null and warns;
 //   - unknown keys on disk are silently ignored (forward-compat);
 //   - save() upserts all four canonical keys, idempotently;
-//   - concurrent saves resolve to a self-consistent end-state.
+//   - concurrent saves resolve to a self-consistent end-state;
+//   - saved settings survive closing and reopening the file.
+
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { AppSettingsParse } from '@domain/settings/AppSettings';
 import { Hotkey } from '@domain/settings/Hotkey';
@@ -21,12 +26,23 @@ import { PaletteOverrides } from '@domain/settings/PaletteOverrides';
 import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { openDatabase } from './openDatabase';
 import { SqliteSettingsRepository } from './SqliteSettingsRepository';
 
 import type Database from 'better-sqlite3';
 
 function makeRepo() {
-  return new SqliteSettingsRepository(':memory:');
+  return new SqliteSettingsRepository(openDatabase(':memory:'));
+}
+
+// Run `fn` against a real file in a throwaway directory (docs/TESTING.md).
+async function withTempFile(fn: (file: string) => Promise<void>): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), 'inmemnote-settings-'));
+  try {
+    await fn(join(dir, 'inmemnote.db'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function rawHandle(repo: SqliteSettingsRepository): Database.Database {
@@ -50,7 +66,7 @@ function readRows(repo: SqliteSettingsRepository): Map<string, string> {
 describe('SqliteSettingsRepository — schema', () => {
   let repo: SqliteSettingsRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('creates the key-value `settings` table', () => {
     const cols = rawHandle(repo).prepare("PRAGMA table_info('settings')").all() as Array<{
@@ -63,21 +79,12 @@ describe('SqliteSettingsRepository — schema', () => {
     expect(byName.key).toMatchObject({ type: 'TEXT', pk: 1 });
     expect(byName.value).toMatchObject({ type: 'TEXT', notnull: 1 });
   });
-
-  it('opening twice against the same file is safe (CREATE IF NOT EXISTS)', () => {
-    const tmp = `/tmp/inmemnote-settings-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`;
-    const a = new SqliteSettingsRepository(tmp);
-    const b = new SqliteSettingsRepository(tmp);
-    expect(() => rawHandle(b).prepare('SELECT * FROM settings').all()).not.toThrow();
-    a.close();
-    b.close();
-  });
 });
 
 describe('SqliteSettingsRepository — load', () => {
   let repo: SqliteSettingsRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('returns null when the table is empty (first-launch path)', async () => {
     expect(await repo.load()).toBeNull();
@@ -201,7 +208,7 @@ describe('SqliteSettingsRepository — load', () => {
 describe('SqliteSettingsRepository — save', () => {
   let repo: SqliteSettingsRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('writes exactly the four canonical keys, each as a JSON-encoded value', async () => {
     const settings = unwrap(AppSettingsParse.fromPlain({}));
@@ -271,23 +278,26 @@ describe('SqliteSettingsRepository — concurrent writes', () => {
       // succeed (the row set is consistent — every key has a valid JSON value).
       expect(loaded).not.toBeNull();
     } finally {
-      repo.close();
+      rawHandle(repo).close();
     }
   });
 
-  it('multi-connection: a save through one repo is visible to a second repo on the same file', async () => {
-    const file = `/tmp/inmemnote-settings-multi-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`;
-    const writer = new SqliteSettingsRepository(file);
-    const reader = new SqliteSettingsRepository(file);
-    try {
-      await writer.save(unwrap(AppSettingsParse.fromPlain({ themeMode: 'dark', language: 'ru' })));
+  it('saved settings survive closing and reopening the file', async () => {
+    await withTempFile(async (file) => {
+      const first = openDatabase(file);
+      await new SqliteSettingsRepository(first).save(
+        unwrap(AppSettingsParse.fromPlain({ themeMode: 'dark', language: 'ru' })),
+      );
+      first.close();
 
-      const seen = await reader.load();
-      expect(seen?.themeMode).toBe('dark');
-      expect(seen?.language).toBe('ru');
-    } finally {
-      writer.close();
-      reader.close();
-    }
+      const second = openDatabase(file);
+      try {
+        const seen = await new SqliteSettingsRepository(second).load();
+        expect(seen?.themeMode).toBe('dark');
+        expect(seen?.language).toBe('ru');
+      } finally {
+        second.close();
+      }
+    });
   });
 });

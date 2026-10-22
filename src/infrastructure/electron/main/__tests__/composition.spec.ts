@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
 import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
 import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
@@ -5,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { buildContainer as BuildContainerFn } from '../composition';
 
+const OpenDatabaseMock = vi.fn();
 const SqliteDraftMock = vi.fn();
 const SqliteNoteMock = vi.fn();
 const SqliteSettingsMock = vi.fn();
@@ -15,6 +18,9 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('@infrastructure/persistence/sqlite/openDatabase', () => ({
+  openDatabase: vi.fn((...args: unknown[]) => OpenDatabaseMock(...args)),
+}));
 vi.mock('@infrastructure/persistence/sqlite/SqliteDraftRepository', () => ({
   SqliteDraftRepository: vi.fn((...args: unknown[]) => SqliteDraftMock(...args)),
 }));
@@ -29,6 +35,7 @@ let buildContainer: typeof BuildContainerFn;
 
 beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  OpenDatabaseMock.mockReset();
   SqliteDraftMock.mockReset();
   SqliteNoteMock.mockReset();
   SqliteSettingsMock.mockReset();
@@ -40,14 +47,8 @@ afterEach(() => {
 });
 
 describe('buildContainer', () => {
-  it('falls back to in-memory repos when every SQLite constructor throws', () => {
-    SqliteDraftMock.mockImplementation(() => {
-      throw new Error('no native');
-    });
-    SqliteNoteMock.mockImplementation(() => {
-      throw new Error('no native');
-    });
-    SqliteSettingsMock.mockImplementation(() => {
+  it('falls back to in-memory repos when the database cannot be opened', () => {
+    OpenDatabaseMock.mockImplementation(() => {
       throw new Error('no native');
     });
 
@@ -74,7 +75,20 @@ describe('buildContainer', () => {
     expect(uc.updateSettings).toBeDefined();
   });
 
-  it('falls back per-repo, not atomically (one failure does not knock the others over)', () => {
+  it('hands the same connection, opened from userData, to every SQLite repository', () => {
+    const connection = { tag: 'shared-connection' };
+    OpenDatabaseMock.mockReturnValue(connection);
+
+    buildContainer();
+
+    expect(OpenDatabaseMock).toHaveBeenCalledWith(join('/tmp/userData', 'inmemnote.db'));
+    expect(SqliteDraftMock).toHaveBeenCalledWith(connection);
+    expect(SqliteNoteMock).toHaveBeenCalledWith(connection);
+    expect(SqliteSettingsMock).toHaveBeenCalledWith(connection);
+  });
+
+  it('a failing repository constructor falls back only that repository', () => {
+    OpenDatabaseMock.mockReturnValue({});
     SqliteDraftMock.mockImplementation(() => {
       throw new Error('drafts broken');
     });

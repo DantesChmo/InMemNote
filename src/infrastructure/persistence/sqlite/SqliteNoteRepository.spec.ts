@@ -16,12 +16,13 @@ import { NoteId } from '@domain/note/NoteId';
 import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { openDatabase } from './openDatabase';
 import { SqliteNoteRepository } from './SqliteNoteRepository';
 
 import type Database from 'better-sqlite3';
 
 function makeRepo() {
-  return new SqliteNoteRepository(':memory:');
+  return new SqliteNoteRepository(openDatabase(':memory:'));
 }
 
 function makeNote(opts: {
@@ -47,7 +48,7 @@ function rawHandle(repo: SqliteNoteRepository): Database.Database {
 describe('SqliteNoteRepository — schema', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('creates the `notes` table with the expected columns', () => {
     const cols = rawHandle(repo).prepare("PRAGMA table_info('notes')").all() as Array<{
@@ -70,21 +71,12 @@ describe('SqliteNoteRepository — schema', () => {
       .all() as Array<{ name: string }>).map((r) => r.name);
     expect(names).toEqual(expect.arrayContaining(['idx_notes_updated_at', 'idx_notes_pinned']));
   });
-
-  it('CREATE TABLE IF NOT EXISTS — opening a second instance against the same file is safe', () => {
-    const tmp = `/tmp/inmemnote-notes-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`;
-    const a = new SqliteNoteRepository(tmp);
-    const b = new SqliteNoteRepository(tmp);
-    expect(() => rawHandle(b).prepare('SELECT * FROM notes').all()).not.toThrow();
-    a.close();
-    b.close();
-  });
 });
 
 describe('SqliteNoteRepository — save (INSERT / UPSERT)', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('persists a fresh note with boolean encoded as 0/1', async () => {
     await repo.save(makeNote({ content: 'hello', pinned: true }));
@@ -118,7 +110,7 @@ describe('SqliteNoteRepository — save (INSERT / UPSERT)', () => {
 describe('SqliteNoteRepository — read paths', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('findById returns null for an unknown id', async () => {
     const ghost = unwrap(NoteId.create('99999999-9999-4999-8999-999999999999'));
@@ -206,7 +198,7 @@ describe('SqliteNoteRepository — read paths', () => {
 describe('SqliteNoteRepository — search', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('matches case-insensitively on any substring of content', async () => {
     await repo.save(makeNote({ id: '11111111-1111-4111-8111-111111111111', content: 'Hello World' }));
@@ -276,7 +268,7 @@ describe('SqliteNoteRepository — search', () => {
 describe('SqliteNoteRepository — delete', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('removes a row by id and leaves others untouched', async () => {
     await repo.save(makeNote({ id: '11111111-1111-4111-8111-111111111111', content: 'gone' }));
@@ -297,7 +289,7 @@ describe('SqliteNoteRepository — delete', () => {
 describe('SqliteNoteRepository — corruption guards', () => {
   let repo: SqliteNoteRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('list() throws when a row holds an invalid UUID', async () => {
     rawHandle(repo)
@@ -342,7 +334,7 @@ describe('SqliteNoteRepository — concurrent writes', () => {
       const { c } = rawHandle(repo).prepare('SELECT COUNT(*) AS c FROM notes').get() as { c: number };
       expect(c).toBe(1);
     } finally {
-      repo.close();
+      rawHandle(repo).close();
     }
   });
 
@@ -360,7 +352,7 @@ describe('SqliteNoteRepository — concurrent writes', () => {
       const { c } = rawHandle(repo).prepare('SELECT COUNT(*) AS c FROM notes').get() as { c: number };
       expect(c).toBe(count);
     } finally {
-      repo.close();
+      rawHandle(repo).close();
     }
   });
 });

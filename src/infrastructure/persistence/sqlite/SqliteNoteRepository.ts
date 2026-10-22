@@ -2,14 +2,15 @@
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
 import { NoteId } from '@domain/note/NoteId';
-import Database from 'better-sqlite3';
 
 import type { NoteListFilter, NoteRepository } from '@domain/note/NoteRepository';
+import type Database from 'better-sqlite3';
 
 /**
  * SQLite-backed `NoteRepository`.
  *
- * Lives in the same db file as `SqliteDraftRepository`. Tables are independent
+ * Shares the connection with `SqliteDraftRepository` (see `openDatabase`);
+ * the `notes` table comes from `migrations.ts`. Tables are independent
  * — drafts is the single scratch slot, notes is the library. Promoting a
  * draft is a use-case (`PromoteDraftToNoteUseCase`), not a single SQL move.
  *
@@ -18,23 +19,7 @@ import type { NoteListFilter, NoteRepository } from '@domain/note/NoteRepository
  * yet. If perf becomes a problem we'll wrap the body in `notes_fts` later.
  */
 export class SqliteNoteRepository implements NoteRepository {
-  private readonly db: Database.Database;
-
-  public constructor(dbPath: string) {
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS notes (
-        id          TEXT PRIMARY KEY,
-        content     TEXT NOT NULL,
-        pinned      INTEGER NOT NULL DEFAULT 0,
-        created_at  TEXT NOT NULL,
-        updated_at  TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes (updated_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes (pinned DESC, updated_at DESC);
-    `);
-  }
+  public constructor(private readonly db: Database.Database) {}
 
   public async list(filter: NoteListFilter): Promise<readonly Note[]> {
     const sql =
@@ -85,10 +70,6 @@ export class SqliteNoteRepository implements NoteRepository {
       )
       .all(`%${escaped}%`) as Row[];
     return rows.map(rowToNote);
-  }
-
-  public close(): void {
-    this.db.close();
   }
 }
 

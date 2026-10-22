@@ -3,14 +3,15 @@ import {
   type AppSettings,
   type AppSettingsPlain,
 } from '@domain/settings/AppSettings';
-import Database from 'better-sqlite3';
 
 import type { SettingsRepository } from '@domain/settings/SettingsRepository';
+import type Database from 'better-sqlite3';
 
 /**
  * SQLite-backed `SettingsRepository`.
  *
- * Lives in the same db file as drafts and notes. Schema is key-value rather
+ * Shares the connection with drafts and notes (see `openDatabase`); the
+ * `settings` table comes from `migrations.ts`. Schema is key-value rather
  * than column-per-field so that adding a new preference later is a runtime
  * insert, not a `ALTER TABLE` migration the user has to live through. Each
  * row is `(key, value)` where `value` is the JSON serialization of that one
@@ -24,19 +25,10 @@ import type { SettingsRepository } from '@domain/settings/SettingsRepository';
  *     read-then-write lock on the entire settings blob.
  */
 export class SqliteSettingsRepository implements SettingsRepository {
-  private readonly db: Database.Database;
   private readonly readStmt: Database.Statement<[]>;
   private readonly upsertStmt: Database.Statement<[string, string]>;
 
-  public constructor(dbPath: string) {
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key   TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `);
+  public constructor(private readonly db: Database.Database) {
     this.readStmt = this.db.prepare('SELECT key, value FROM settings');
     this.upsertStmt = this.db.prepare(
       `INSERT INTO settings (key, value) VALUES (?, ?)
@@ -76,10 +68,6 @@ export class SqliteSettingsRepository implements SettingsRepository {
       this.upsertStmt.run('openDraftHotkey', JSON.stringify(plain.openDraftHotkey));
     });
     tx();
-  }
-
-  public close(): void {
-    this.db.close();
   }
 }
 

@@ -2,9 +2,9 @@
 import { DraftId } from '@domain/draft/DraftId';
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
-import Database from 'better-sqlite3';
 
 import type { DraftRepository } from '@domain/draft/DraftRepository';
+import type Database from 'better-sqlite3';
 
 /**
  * SQLite-backed `DraftRepository`.
@@ -15,26 +15,11 @@ import type { DraftRepository } from '@domain/draft/DraftRepository';
  * is async — the abstraction must let us swap in network-backed implementations
  * later if needed.
  *
- * Schema migrations are inlined here for V1 (just one CREATE). Once we have
- * more than one version we'll move to a dedicated migrations file.
+ * The connection is opened and migrated by `openDatabase` and owned by the
+ * composition root; the `drafts` table comes from `migrations.ts`.
  */
 export class SqliteDraftRepository implements DraftRepository {
-  private readonly db: Database.Database;
-
-  public constructor(dbPath: string) {
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS drafts (
-        id          TEXT PRIMARY KEY,
-        content     TEXT NOT NULL,
-        pinned      INTEGER NOT NULL DEFAULT 0,
-        created_at  TEXT NOT NULL,
-        updated_at  TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_drafts_updated_at ON drafts (updated_at DESC);
-    `);
-  }
+  public constructor(private readonly db: Database.Database) {}
 
   public async save(note: DraftNote): Promise<void> {
     this.db
@@ -69,10 +54,6 @@ export class SqliteDraftRepository implements DraftRepository {
 
   public async delete(id: DraftId): Promise<void> {
     this.db.prepare('DELETE FROM drafts WHERE id = ?').run(id);
-  }
-
-  public close(): void {
-    this.db.close();
   }
 }
 

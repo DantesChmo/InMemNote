@@ -110,6 +110,12 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Schema: `drafts(id TEXT PK, content TEXT, pinned INT, created_at,
   updated_at)` with an index on `updated_at DESC`.
 - [x] Falls back to an in-memory repository if SQLite init fails.
+- [x] One shared connection to `inmemnote.db`, opened and migrated in the
+  composition root; repositories receive it and own no DDL (ADR 0004).
+- [x] Versioned schema: ordered migrations in
+  `infrastructure/persistence/sqlite/migrations.ts`, version stored in
+  `PRAGMA user_version`. Migration 1 = baseline schema; it adopts v0.6.0
+  files (tables present, `user_version = 0`) without data loss.
 
 ### 2.6 Theme
 - [x] Dark (primary) and light. Driven by the macOS system theme via
@@ -165,6 +171,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   no owner to `src/domain/**`, `src/shared/**`,
   `src/infrastructure/SystemClock.ts` or `scripts/**`. Which agent owns
   them?
+- The shared SQLite connection is never closed explicitly on quit (the
+  OS reclaims it; WAL keeps the file consistent). Closing it belongs after
+  the pending-autosave flush in the quit sequence — follow-up, see ADR 0004.
 
 ---
 
@@ -463,3 +472,16 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   `CLAUDE.md` §3 tree, README and `docs/HOTKEYS.md` updated. ADRs recorded
   retroactively: 0002 (signing-free self-updater), 0003 (two windows, one
   renderer bundle).
+- **2026-10-22** — Persistence refactor: single SQLite connection +
+  versioned migrations (ADR 0004). The three repositories used to open
+  their own connections and run inline `CREATE TABLE IF NOT EXISTS`, with
+  no schema version — any future schema change was unsafe for existing
+  files. Now `openDatabase` (WAL + `runMigrations`) is called once from the
+  composition root and the connection is passed into each repository.
+  Migrations are append-only, each applied in its own `IMMEDIATE`
+  transaction together with the `user_version` bump; a file from a newer
+  app version is refused (in-memory fallback, file untouched). Migration 1
+  reuses the v0.6.0 DDL verbatim with `IF NOT EXISTS`, which is what makes
+  the adoption of existing user files lossless — covered by a spec that
+  seeds a v0.6.0-shaped file. A failed open now degrades all three stores
+  together; per-repository try/catch is kept.

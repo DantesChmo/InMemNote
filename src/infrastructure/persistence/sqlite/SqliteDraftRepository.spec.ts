@@ -2,11 +2,13 @@
 //
 // Unit tests for SqliteDraftRepository.
 //
-// We open against `:memory:` so each test gets a pristine database and the
-// suite stays hermetic — no temp files, no leftover WAL journals.
+// We open against `:memory:` (through `openDatabase`, so the real migrations
+// build the schema) so each test gets a pristine database and the suite stays
+// hermetic. Pragmas and migrations themselves are covered by
+// openDatabase.spec.ts / migrations.spec.ts.
 //
 // Topics covered (per request):
-//   - schema creation (table, columns, index, WAL pragma);
+//   - schema the repository relies on (table, columns, index);
 //   - INSERT vs UPSERT semantics on `save`;
 //   - update correctness (`updated_at` advances, `created_at` is preserved);
 //   - data validation (`rowToNote` rejects corrupted rows);
@@ -14,18 +16,33 @@
 //   - concurrent writes — better-sqlite3 is synchronous so the "race" here is
 //     about ordering of awaited Promises producing a well-defined final state.
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { DraftId } from '@domain/draft/DraftId';
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
 import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { openDatabase } from './openDatabase';
 import { SqliteDraftRepository } from './SqliteDraftRepository';
 
 import type Database from 'better-sqlite3';
 
 function makeRepo() {
-  return new SqliteDraftRepository(':memory:');
+  return new SqliteDraftRepository(openDatabase(':memory:'));
+}
+
+// Run `fn` against a real file in a throwaway directory (docs/TESTING.md).
+async function withTempFile(fn: (file: string) => Promise<void>): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), 'inmemnote-draft-'));
+  try {
+    await fn(join(dir, 'inmemnote.db'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function makeDraft(opts: {
@@ -45,8 +62,8 @@ function makeDraft(opts: {
   });
 }
 
-// Open a parallel read-only handle on the same db so we can inspect the raw
-// rows without going through the repo's typed API.
+// Reach the repo's connection so we can inspect the raw rows without going
+// through its typed API.
 function rawHandle(repo: SqliteDraftRepository): Database.Database {
   return (repo as unknown as { db: Database.Database }).db;
 }
@@ -54,7 +71,7 @@ function rawHandle(repo: SqliteDraftRepository): Database.Database {
 describe('SqliteDraftRepository — schema', () => {
   let repo: SqliteDraftRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('creates the `drafts` table with the expected columns', () => {
     const cols = rawHandle(repo).prepare("PRAGMA table_info('drafts')").all() as Array<{
@@ -78,31 +95,12 @@ describe('SqliteDraftRepository — schema', () => {
       .all() as Array<{ name: string }>;
     expect(indexes.some((i) => i.name === 'idx_drafts_updated_at')).toBe(true);
   });
-
-  it('opens the database in WAL journal mode', () => {
-    const mode = rawHandle(repo).pragma('journal_mode', { simple: true });
-    // `:memory:` databases force `memory` mode regardless of the requested
-    // `WAL`. The point of the assertion is that the pragma is at least *applied
-    // without throwing* — meaning the constructor wired it up.
-    expect(['wal', 'memory']).toContain(String(mode).toLowerCase());
-  });
-
-  it('CREATE TABLE IF NOT EXISTS is idempotent — a second instance against the same db reuses the table', () => {
-    // Mimic two separate repo instances pointing at the same file by opening a
-    // second one against a shared file path.
-    const tmp = `/tmp/inmemnote-draft-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`;
-    const a = new SqliteDraftRepository(tmp);
-    const b = new SqliteDraftRepository(tmp);
-    expect(() => rawHandle(b).prepare('SELECT * FROM drafts').all()).not.toThrow();
-    a.close();
-    b.close();
-  });
 });
 
 describe('SqliteDraftRepository — save (INSERT / UPSERT)', () => {
   let repo: SqliteDraftRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('persists a fresh draft as a new row with the boolean encoded as 0/1', async () => {
     await repo.save(makeDraft({ content: 'hello', pinned: true }));
@@ -162,7 +160,7 @@ describe('SqliteDraftRepository — save (INSERT / UPSERT)', () => {
 describe('SqliteDraftRepository — read paths', () => {
   let repo: SqliteDraftRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('findById returns null when the id is unknown', async () => {
     const missing = unwrap(DraftId.create('99999999-9999-4999-8999-999999999999'));
@@ -214,7 +212,7 @@ describe('SqliteDraftRepository — read paths', () => {
 describe('SqliteDraftRepository — delete', () => {
   let repo: SqliteDraftRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('removes the row by id', async () => {
     const id = unwrap(DraftId.create('11111111-1111-4111-8111-111111111111'));
@@ -242,7 +240,7 @@ describe('SqliteDraftRepository — delete', () => {
 describe('SqliteDraftRepository — corruption guards', () => {
   let repo: SqliteDraftRepository;
   beforeEach(() => { repo = makeRepo(); });
-  afterEach(() => { repo.close(); });
+  afterEach(() => { rawHandle(repo).close(); });
 
   it('findById throws when the stored id is not a valid UUID v4', async () => {
     // Bypass the repo to write a row that violates the domain invariant.
@@ -301,7 +299,7 @@ describe('SqliteDraftRepository — concurrent writes', () => {
       expect(row.id).toBe(id);
       expect(row.content).toMatch(/^v\d+$/);
     } finally {
-      repo.close();
+      rawHandle(repo).close();
     }
   });
 
@@ -319,23 +317,24 @@ describe('SqliteDraftRepository — concurrent writes', () => {
       const { c } = rawHandle(repo).prepare('SELECT COUNT(*) AS c FROM drafts').get() as { c: number };
       expect(c).toBe(count);
     } finally {
-      repo.close();
+      rawHandle(repo).close();
     }
   });
 
-  it('multi-connection: a write through one repo is visible to a second repo on the same file', async () => {
-    const file = `/tmp/inmemnote-draft-multi-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`;
-    const writer = new SqliteDraftRepository(file);
-    const reader = new SqliteDraftRepository(file);
-    try {
-      const id = unwrap(DraftId.create('11111111-1111-4111-8111-111111111111'));
-      await writer.save(makeDraft({ content: 'shared' }));
+  it('a saved draft survives closing and reopening the file', async () => {
+    await withTempFile(async (file) => {
+      const first = openDatabase(file);
+      await new SqliteDraftRepository(first).save(makeDraft({ content: 'persisted' }));
+      first.close();
 
-      const seen = await reader.findById(id);
-      expect(seen?.content.value).toBe('shared');
-    } finally {
-      writer.close();
-      reader.close();
-    }
+      const second = openDatabase(file);
+      try {
+        const id = unwrap(DraftId.create('11111111-1111-4111-8111-111111111111'));
+        const seen = await new SqliteDraftRepository(second).findById(id);
+        expect(seen?.content.value).toBe('persisted');
+      } finally {
+        second.close();
+      }
+    });
   });
 });
