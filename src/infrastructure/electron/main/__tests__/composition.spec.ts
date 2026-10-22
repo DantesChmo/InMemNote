@@ -104,4 +104,59 @@ describe('buildContainer', () => {
     expect(notes).not.toBeInstanceOf(InMemoryNoteRepository);
     expect(settings).not.toBeInstanceOf(InMemorySettingsRepository);
   });
+
+  it('reports a healthy storage when every SQLite repo opens', () => {
+    SqliteDraftMock.mockReturnValue(undefined);
+    SqliteNoteMock.mockReturnValue(undefined);
+    SqliteSettingsMock.mockReturnValue(undefined);
+
+    const { storage } = buildContainer();
+
+    expect(storage.degraded).toEqual([]);
+  });
+
+  it('records each in-memory fallback with the SQLite error as its reason', () => {
+    SqliteDraftMock.mockImplementation(() => {
+      throw new Error('drafts broken');
+    });
+    SqliteNoteMock.mockImplementation(() => {
+      throw new Error('notes broken');
+    });
+    SqliteSettingsMock.mockImplementation(() => {
+      throw new Error('settings broken');
+    });
+
+    const { storage } = buildContainer();
+
+    expect(storage.degraded).toEqual([
+      { store: 'drafts', reason: 'drafts broken' },
+      { store: 'notes', reason: 'notes broken' },
+      { store: 'settings', reason: 'settings broken' },
+    ]);
+  });
+
+  it('records only the repo that actually fell back', () => {
+    SqliteDraftMock.mockReturnValue(undefined);
+    SqliteNoteMock.mockImplementation(() => {
+      throw new Error('SQLITE_CANTOPEN');
+    });
+    SqliteSettingsMock.mockReturnValue(undefined);
+
+    const { storage } = buildContainer();
+
+    expect(storage.degraded).toEqual([{ store: 'notes', reason: 'SQLITE_CANTOPEN' }]);
+  });
+
+  it('stringifies a non-Error throw into the reason', () => {
+    SqliteDraftMock.mockImplementation(() => {
+      // Native bindings occasionally throw plain strings.
+      throw 'dlopen failed';
+    });
+    SqliteNoteMock.mockReturnValue(undefined);
+    SqliteSettingsMock.mockReturnValue(undefined);
+
+    const { storage } = buildContainer();
+
+    expect(storage.degraded).toEqual([{ store: 'drafts', reason: 'dlopen failed' }]);
+  });
 });

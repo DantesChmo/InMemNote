@@ -2,6 +2,7 @@ import { DraftChannels } from './draft';
 import { E2eChannels } from './e2e';
 import { NotesChannels } from './notes';
 import { SettingsChannels } from './settings';
+import { StorageChannels } from './storage';
 import { UpdateChannels } from './update';
 
 /**
@@ -18,6 +19,7 @@ export const IPC = {
   ...NotesChannels,
   ...SettingsChannels,
   ...UpdateChannels,
+  ...StorageChannels,
   ...E2eChannels,
 } as const;
 
@@ -29,5 +31,6 @@ export const CHANNEL_GROUPS = {
   NotesChannels,
   SettingsChannels,
   UpdateChannels,
+  StorageChannels,
   E2eChannels,
 } as const;

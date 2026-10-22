@@ -31,6 +31,13 @@
 **Regression test**: `src/presentation/draft/DraftPanel.spec.tsx` ("pending autosave is flushed on unload, never dropped or doubled")
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-draft-autosave-dropped-on-quit.md`
 
+### #03 — SQLite fallback to in-memory is silent; every note is lost on quit            2026-10-22            severity: major
+**Surface**: Library, Draft
+**Root cause**: `buildDraftRepo` / `buildNoteRepo` / `buildSettingsRepo` in `composition.ts` swallowed the SQLite error into a `console.warn` and nothing else knew the store was in-memory.
+**Fix**: The container records each fallback with its reason (`Container.storage`), main answers `storage:status`, Library shows a persistent non-dismissable banner and Draft a one-line strip when drafts or notes are in memory (commit da537e6).
+**Regression test**: `src/infrastructure/electron/main/__tests__/composition.spec.ts` ("records each in-memory fallback…"), `src/infrastructure/electron/main/__tests__/ipc/storage.spec.ts`, `src/presentation/storage/StorageBanner.spec.tsx`, `src/presentation/storage/slice.spec.ts`
+**Postmortem**: `.agents/bugs/postmortems/2026-10-22-silent-storage-fallback.md`
+
 ### #04 — Self-update can delete the app and quit without relaunching            2026-10-22            severity: major
 **Surface**: build
 **Root cause**: The update helper (and `scripts/install.sh`) ran `rm -rf` on the installed bundle before `cp -R` of the new one, and `DmgSelfUpdater` quit right after `spawn` without waiting for the helper to start or handling its `error` event.

@@ -87,4 +87,11 @@ export const ru: Messages = {
   'update.notes': 'Что нового',
   'update.downloading': 'Загрузка… {percent}%',
   'update.failed': 'Не удалось обновить. Попробуйте позже.',
+
+  'storage.notesNotSaved':
+    'Заметки не сохраняются: не удалось открыть базу данных. Всё, что вы напишете, пропадёт после выхода.',
+  'storage.settingsNotSaved':
+    'Настройки не сохраняются: не удалось открыть базу данных. Изменения сбросятся после выхода.',
+  'storage.draftNotSaved': 'Не сохраняется: хранилище недоступно',
+  'storage.reason': 'Причина: {reason}',
 };

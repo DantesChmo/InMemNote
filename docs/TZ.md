@@ -116,6 +116,11 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   `infrastructure/persistence/sqlite/migrations.ts`, version stored in
   `PRAGMA user_version`. Migration 1 = baseline schema; it adopts v0.6.0
   files (tables present, `user_version = 0`) without data loss.
+- [x] The fallback is never silent: the container records which stores
+  degraded and why, main answers `storage:status`, Library shows a
+  persistent banner and Draft a one-line strip when drafts/notes are in
+  memory — bug #03, 2026-10-22. Write-time SQLite errors (after a
+  successful open) are not covered by the banner.
 
 ### 2.6 Theme
 - [x] Dark (primary) and light. Driven by the macOS system theme via
@@ -178,6 +183,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   adapters from `@infrastructure` (exempted from the boundary lint). Move
   the in-memory repositories/`FixedClock` to `src/test/` so the exemption
   can be dropped? (ADR 0005.)
+- Storage degradation is only detected when SQLite fails to *open*. Should
+  a later write failure (disk full, DB file removed) also flip the app into
+  the persistent "not saved" state? (bug #03 follow-up)
 
 ---
 

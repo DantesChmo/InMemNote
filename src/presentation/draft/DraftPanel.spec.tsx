@@ -77,6 +77,15 @@ vi.mock('./editor/CodeMirrorEditor', () => ({
   ),
 }));
 
+vi.mock('@presentation/storage/StorageBanner', () => ({
+  StorageBanner: (props: { variant?: string }) => (
+    <div data-testid="stub-storage-banner" data-variant={props.variant ?? 'full'} />
+  ),
+}));
+vi.mock('@presentation/storage/slice', () => ({
+  fetchStorageStatus: () => ({ type: 'storage/fetchStatus' }),
+}));
+
 vi.mock('./slice', () => ({
   draftActions: {
     setLoading: (v: boolean) => ({ type: 'draft/setLoading', payload: v }),
@@ -119,6 +128,15 @@ describe('DraftPanel (shallow)', () => {
     expect(editor).toHaveAttribute('data-placeholder', 'draft.placeholder');
     // No ResizeHandle while un-pinned.
     expect(screen.queryByTestId('stub-resize-handle')).toBeNull();
+  });
+
+  it('asks main for the storage status on mount and renders the compact storage banner', async () => {
+    await act(async () => {
+      render(<DraftPanel />);
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({ type: 'storage/fetchStatus' });
+    expect(screen.getByTestId('stub-storage-banner')).toHaveAttribute('data-variant', 'compact');
   });
 
   it('calls draft.open on mount and seeds Redux from the result', async () => {

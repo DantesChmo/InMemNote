@@ -40,9 +40,11 @@ import type Database from 'better-sqlite3';
  *
  * All SQLite repositories share ONE connection to `inmemnote.db`, opened
  * and migrated here (ADR 0004). Each repository is still independently
- * try/catch'd so the app can boot against an in-memory store and surface
- * a clear warning — but a failure to open the file reaches every
- * repository, so in practice they fall back together.
+ * try/catch'd so the app can boot against an in-memory store — but a
+ * failure to open the file reaches every repository, so in practice they
+ * fall back together. Every fallback is recorded in `Container.storage`
+ * so main can tell the renderer — an in-memory store silently loses
+ * everything on quit, so the user must be warned (bug #03).
  */
 
 export interface UseCases {
@@ -67,10 +69,22 @@ export interface UseCases {
   updateSettings: UpdateSettingsUseCase;
 }
 
+/** A repository that fell back to in-memory, with the SQLite error message. */
+export interface StorageDegradation {
+  store: 'drafts' | 'notes' | 'settings';
+  reason: string;
+}
+
+/** Which repositories are NOT persisted to disk. Empty = everything is. */
+export interface StorageHealth {
+  degraded: readonly StorageDegradation[];
+}
+
 export interface Container {
   drafts: DraftRepository;
   notes: NoteRepository;
   settings: SettingsRepository;
+  storage: StorageHealth;
   uc: UseCases;
 }
 
@@ -80,9 +94,10 @@ export interface Container {
  */
 export function buildContainer(): Container {
   const db = lazyDatabase(join(app.getPath('userData'), 'inmemnote.db'));
-  const drafts = buildDraftRepo(db);
-  const notes = buildNoteRepo(db);
-  const settings = buildSettingsRepo(db);
+  const degraded: StorageDegradation[] = [];
+  const drafts = buildDraftRepo(db, degraded);
+  const notes = buildNoteRepo(db, degraded);
+  const settings = buildSettingsRepo(db, degraded);
   const clock = new SystemClock();
 
   const uc: UseCases = {
@@ -104,32 +119,35 @@ export function buildContainer(): Container {
     updateSettings: new UpdateSettingsUseCase(settings),
   };
 
-  return { drafts, notes, settings, uc };
+  return { drafts, notes, settings, storage: { degraded }, uc };
 }
 
-function buildDraftRepo(db: SharedDatabase): DraftRepository {
+function buildDraftRepo(db: SharedDatabase, degraded: StorageDegradation[]): DraftRepository {
   try {
     return new SqliteDraftRepository(db());
   } catch (e) {
     console.warn('SQLite (drafts) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'drafts', reason: errorMessage(e) });
     return new InMemoryDraftRepository();
   }
 }
 
-function buildNoteRepo(db: SharedDatabase): NoteRepository {
+function buildNoteRepo(db: SharedDatabase, degraded: StorageDegradation[]): NoteRepository {
   try {
     return new SqliteNoteRepository(db());
   } catch (e) {
     console.warn('SQLite (notes) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'notes', reason: errorMessage(e) });
     return new InMemoryNoteRepository();
   }
 }
 
-function buildSettingsRepo(db: SharedDatabase): SettingsRepository {
+function buildSettingsRepo(db: SharedDatabase, degraded: StorageDegradation[]): SettingsRepository {
   try {
     return new SqliteSettingsRepository(db());
   } catch (e) {
     console.warn('SQLite (settings) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'settings', reason: errorMessage(e) });
     return new InMemorySettingsRepository();
   }
 }
@@ -154,4 +172,8 @@ function lazyDatabase(path: string): SharedDatabase {
     if ('error' in opened) throw opened.error;
     return opened.db;
   };
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }

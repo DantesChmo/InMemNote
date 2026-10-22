@@ -15,4 +15,11 @@ export {
   type AppSettingsPatchDTO,
   type SettingsBridge,
 } from './settings';
+export {
+  StorageChannels,
+  type DegradedStoreDTO,
+  type StorageBridge,
+  type StorageStatusDTO,
+  type StoreNameDTO,
+} from './storage';
 export { UpdateChannels, type AvailableUpdateDTO, type UpdateBridge } from './update';

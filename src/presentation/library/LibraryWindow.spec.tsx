@@ -38,6 +38,15 @@ vi.mock('./slice', () => ({
   fetchNotes: () => ({ type: 'library/fetchNotes' }),
 }));
 
+vi.mock('@presentation/storage/StorageBanner', () => ({
+  StorageBanner: (props: { variant?: string }) => (
+    <div data-testid="stub-storage-banner" data-variant={props.variant ?? 'full'} />
+  ),
+}));
+vi.mock('@presentation/storage/slice', () => ({
+  fetchStorageStatus: () => ({ type: 'storage/fetchStatus' }),
+}));
+
 vi.mock('@presentation/update/UpdateBanner', () => ({
   UpdateBanner: () => <div data-testid="stub-update-banner" />,
 }));
@@ -69,6 +78,15 @@ describe('LibraryWindow (shallow)', () => {
     expect(screen.getByTestId('stub-list')).toBeInTheDocument();
     expect(screen.getByTestId('stub-editor')).toBeInTheDocument();
     expect(screen.getByTestId('stub-settings-popup')).toBeInTheDocument();
+  });
+
+  it('asks main for the storage status on mount and renders the full storage banner', async () => {
+    await act(async () => {
+      render(<LibraryWindow />);
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({ type: 'storage/fetchStatus' });
+    expect(screen.getByTestId('stub-storage-banner')).toHaveAttribute('data-variant', 'full');
   });
 
   it('kicks the initial fetchNotes + fetchSettings on mount and subscribes to notes:changed', async () => {

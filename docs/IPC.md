@@ -134,6 +134,12 @@ Main-side paths are relative to `src/infrastructure/electron/main/`.
 | `update:available` | M→R | `AvailableUpdateDTO` | — | `ipc/update.ts` | From startup / periodic / explicit check. |
 | `update:progress` | M→R | `number` (0..1) | — | `index.ts` | Download progress during install. |
 
+### Storage (`window.inmemnote.storage`)
+
+| Channel | Direction | Payload | Response | Owner (main-side) | Notes |
+|---|---|---|---|---|---|
+| `storage:status` | R→M | — | `StorageStatusDTO` | `ipc/storage.ts` | Which repositories fell back to in-memory at boot. Fixed for the process lifetime, so pull-only (no broadcast). Empty list = all persisted. Bug #03. |
+
 ### E2E only (`window.__inmemnote_test__`, `INMEMNOTE_E2E=1`)
 
 | Channel | Direction | Payload | Response | Owner (main-side) | Notes |

@@ -1,5 +1,7 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { useTranslation } from '@presentation/i18n/useTranslation';
+import { fetchStorageStatus } from '@presentation/storage/slice';
+import { StorageBanner } from '@presentation/storage/StorageBanner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DraftFooter } from './DraftFooter';
@@ -56,6 +58,10 @@ export function DraftPanel(): JSX.Element {
     dispatch(draftActions.setLoading(true));
     const dto = await window.inmemnote.draft.open();
     dispatch(draftActions.setDraft(dto));
+  }, [dispatch]);
+
+  useEffect(() => {
+    void dispatch(fetchStorageStatus());
   }, [dispatch]);
 
   useEffect(() => {
@@ -384,6 +390,10 @@ export function DraftPanel(): JSX.Element {
         />
         {pinned && <ResizeHandle pinnedCorner={pinnedCorner} />}
         <div className="h-px bg-line" />
+        {/* Shown in BOTH modes: Draft is the hotkey-only entry point, so a
+            user who never reopens Library would otherwise lose everything
+            they type here without a single hint (bug #03). */}
+        <StorageBanner variant="compact" />
         <div
           className="draft-no-drag overflow-y-auto"
           style={{

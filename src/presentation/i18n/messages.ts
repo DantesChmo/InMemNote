@@ -109,6 +109,12 @@ export type Messages = {
   'update.notes': string;
   'update.downloading': string; // {percent}
   'update.failed': string;
+
+  // Storage-degraded warning (SQLite failed to open, data lives in memory).
+  'storage.notesNotSaved': string;
+  'storage.settingsNotSaved': string;
+  'storage.draftNotSaved': string;
+  'storage.reason': string; // {reason}
 };
 
 export type MessageKey = keyof Messages;

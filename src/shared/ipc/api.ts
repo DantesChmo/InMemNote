@@ -1,6 +1,7 @@
 import type { DraftBridge } from './draft';
 import type { NotesBridge } from './notes';
 import type { SettingsBridge } from './settings';
+import type { StorageBridge } from './storage';
 import type { UpdateBridge } from './update';
 
 /**
@@ -15,4 +16,5 @@ export interface InmemnoteAPI {
   notes: NotesBridge;
   settings: SettingsBridge;
   update: UpdateBridge;
+  storage: StorageBridge;
 }

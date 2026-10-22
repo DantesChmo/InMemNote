@@ -12,6 +12,7 @@ import { HotkeyService } from './hotkey';
 import { registerDraftIpc } from './ipc/draft';
 import { registerNotesIpc } from './ipc/notes';
 import { registerSettingsIpc } from './ipc/settings';
+import { registerStorageIpc } from './ipc/storage';
 import { registerUpdateIpc } from './ipc/update';
 import { DraftWindowController } from './windows/DraftWindowController';
 import { LibraryWindowController } from './windows/LibraryWindowController';
@@ -70,7 +71,7 @@ function emitNotesChanged(): void {
 // ---------- App lifecycle ----------
 
 app.whenReady().then(async () => {
-  const { drafts, settings, uc } = buildContainer();
+  const { drafts, settings, storage, uc } = buildContainer();
 
   // Resolve the effective accelerator BEFORE creating windows so the
   // global-hotkey registration below uses the persisted user choice (DB
@@ -95,6 +96,7 @@ app.whenReady().then(async () => {
 
   registerDraftIpc({ controller: draftController, drafts, uc, emitNotesChanged });
   registerNotesIpc({ uc, emitNotesChanged });
+  registerStorageIpc({ storage });
   const settingsIpc = registerSettingsIpc({ initial: currentSettings, uc, hotkey });
 
   // Push the loaded settings into both windows once they're done loading

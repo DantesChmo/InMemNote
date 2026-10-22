@@ -72,7 +72,7 @@ describe('preload bridge', () => {
   describe('exposed surface', () => {
     it('exposes the typed API as window.inmemnote with exactly four namespaces', () => {
       expect(api).toBeDefined();
-      expect(Object.keys(api).sort()).toEqual(['draft', 'notes', 'settings', 'update']);
+      expect(Object.keys(api).sort()).toEqual(['draft', 'notes', 'settings', 'storage', 'update']);
     });
 
     it('does not leak raw ipcRenderer or Node primitives through the bridge', () => {

@@ -88,6 +88,9 @@ export function createInmemnoteApiMock(): InmemnoteAPI {
       onAvailable: vi.fn(() => noopUnsub),
       onProgress: vi.fn(() => noopUnsub),
     },
+    storage: {
+      status: vi.fn(async () => ({ degraded: [] })),
+    },
   };
 
   return api;

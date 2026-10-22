@@ -279,9 +279,10 @@ See `docs/HOTKEYS.md`.
     debounced autosave.
   - `notes` — every library item (created in Library or promoted from Draft).
   - `settings` — theme, palette, hotkey and language, one JSON value per key.
-- If SQLite fails to initialize, the affected store falls back to an
-  in-memory repository (data survives the session but not a restart). Each
-  store falls back independently.
+- If SQLite fails to open or migrate, the stores fall back to in-memory
+  repositories (data survives the session but not a restart). This is never
+  silent: Library shows a persistent "notes aren't being saved" banner with
+  the error reason, and Draft a one-line "Not saved" strip.
 
 ---
 
