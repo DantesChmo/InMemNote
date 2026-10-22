@@ -5,7 +5,7 @@ import { emptyDraftDTO, installInmemnoteApiMock } from '../../test/mockInmemnote
 
 import { DraftPanel } from './DraftPanel';
 
-import type { InmemnoteAPI } from '@shared/ipc';
+import type { InmemnoteAPI, StorageStatusDTO } from '@shared/ipc';
 
 // ---- Module-level mocks ----
 //
@@ -84,6 +84,9 @@ vi.mock('@presentation/storage/StorageBanner', () => ({
 }));
 vi.mock('@presentation/storage/slice', () => ({
   fetchStorageStatus: () => ({ type: 'storage/fetchStatus' }),
+  storageActions: {
+    setStatus: (s: unknown) => ({ type: 'storage/setStatus', payload: s }),
+  },
 }));
 
 vi.mock('./slice', () => ({
@@ -137,6 +140,30 @@ describe('DraftPanel (shallow)', () => {
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'storage/fetchStatus' });
     expect(screen.getByTestId('stub-storage-banner')).toHaveAttribute('data-variant', 'compact');
+  });
+
+  it('applies storage:changed broadcasts and unsubscribes on unmount', async () => {
+    let push: ((s: StorageStatusDTO) => void) | null = null;
+    const unsubscribe = vi.fn();
+    (api.storage.onChanged as ReturnType<typeof vi.fn>).mockImplementation(
+      (h: (s: StorageStatusDTO) => void) => {
+        push = h;
+        return unsubscribe;
+      },
+    );
+    const status: StorageStatusDTO = {
+      degraded: [{ store: 'drafts', reason: 'database or disk is full' }],
+    };
+
+    let unmount: () => void = () => undefined;
+    await act(async () => {
+      ({ unmount } = render(<DraftPanel />));
+    });
+    await act(async () => push!(status));
+
+    expect(dispatch).toHaveBeenCalledWith({ type: 'storage/setStatus', payload: status });
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it('calls draft.open on mount and seeds Redux from the result', async () => {
@@ -332,9 +359,9 @@ describe('DraftPanel (shallow)', () => {
       try {
         await typeMidDebounce();
         await act(async () => {
-          screen.getByTestId('stub-editor').dispatchEvent(
-            new MouseEvent('dblclick', { bubbles: true }),
-          );
+          screen
+            .getByTestId('stub-editor')
+            .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
         });
         await unload();
         await act(async () => {
@@ -353,9 +380,9 @@ describe('DraftPanel (shallow)', () => {
       try {
         await typeMidDebounce();
         await act(async () => {
-          screen.getByTestId('stub-editor').dispatchEvent(
-            new MouseEvent('contextmenu', { bubbles: true }),
-          );
+          screen
+            .getByTestId('stub-editor')
+            .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
         });
         await unload();
         await act(async () => {

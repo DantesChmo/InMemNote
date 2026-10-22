@@ -122,6 +122,7 @@ describe('preload bridge', () => {
       ['settings.save', (a) => a.settings.save(patch), IPC.SettingsSave, [patch]],
       ['update.check', (a) => a.update.check(), IPC.UpdateCheck, []],
       ['update.install', (a) => a.update.install(), IPC.UpdateInstall, []],
+      ['storage.status', (a) => a.storage.status(), IPC.StorageStatus, []],
     ];
 
     it.each(cases)('%s', async (_name, call, channel, args) => {
@@ -178,6 +179,12 @@ describe('preload bridge', () => {
         [{ version: '0.7.0', downloadUrl: 'https://x/dl', notesUrl: 'https://x/notes' }],
       ],
       ['update.onProgress', (a, h) => a.update.onProgress(h), IPC.UpdateProgress, [0.42]],
+      [
+        'storage.onChanged',
+        (a, h) => a.storage.onChanged(h),
+        IPC.StorageChanged,
+        [{ degraded: [{ store: 'notes', reason: 'database or disk is full' }] }],
+      ],
     ];
 
     it.each(cases)(

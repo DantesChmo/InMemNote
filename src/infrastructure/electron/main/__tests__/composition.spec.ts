@@ -1,8 +1,12 @@
 import { join } from 'node:path';
 
+import { NoteContent } from '@domain/draft/NoteContent';
+import { Note } from '@domain/note/Note';
+import { NoteId } from '@domain/note/NoteId';
 import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
 import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
 import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
+import { unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { buildContainer as BuildContainerFn } from '../composition';
@@ -167,4 +171,61 @@ describe('buildContainer', () => {
 
     expect(storage.degraded).toEqual([{ store: 'drafts', reason: 'dlopen failed' }]);
   });
+
+  it('reports a write that fails after boot: the store degrades and listeners hear it', async () => {
+    OpenDatabaseMock.mockReturnValue({});
+    SqliteDraftMock.mockReturnValue(undefined);
+    SqliteSettingsMock.mockReturnValue(undefined);
+    SqliteNoteMock.mockReturnValue({
+      save: async () => {
+        throw new Error('database or disk is full');
+      },
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const { notes, storage } = buildContainer();
+    const listener = vi.fn();
+    storage.onChange(listener);
+
+    await expect(notes.save(aNote())).rejects.toThrow('database or disk is full');
+
+    expect(storage.degraded).toEqual([{ store: 'notes', reason: 'database or disk is full' }]);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
 });
+
+describe('closeDatabase', () => {
+  it('closes the shared connection, once', () => {
+    const connection = { close: vi.fn() };
+    OpenDatabaseMock.mockReturnValue(connection);
+    SqliteDraftMock.mockReturnValue(undefined);
+    SqliteNoteMock.mockReturnValue(undefined);
+    SqliteSettingsMock.mockReturnValue(undefined);
+
+    const { closeDatabase } = buildContainer();
+    closeDatabase();
+    closeDatabase();
+
+    expect(connection.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when the database never opened', () => {
+    OpenDatabaseMock.mockImplementation(() => {
+      throw new Error('no native');
+    });
+
+    const { closeDatabase } = buildContainer();
+
+    expect(() => closeDatabase()).not.toThrow();
+  });
+});
+
+function aNote(): Note {
+  return Note.restore({
+    id: unwrap(NoteId.create('11111111-1111-4111-8111-111111111111')),
+    content: unwrap(NoteContent.create('body')),
+    pinned: false,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  });
+}

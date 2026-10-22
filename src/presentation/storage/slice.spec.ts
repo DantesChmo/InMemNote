@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
-import { fetchStorageStatus, storageReducer, type StorageState } from './slice';
+import { fetchStorageStatus, storageActions, storageReducer, type StorageState } from './slice';
 
 import type { StorageStatusDTO } from '@shared/ipc';
 
@@ -24,12 +24,42 @@ describe('storage slice — reducers', () => {
     expect(storageReducer(undefined, { type: '@@init' })).toEqual(initial);
   });
 
-  it('fetchStorageStatus.fulfilled replaces the degraded list', () => {
-    const next = storageReducer(
-      stateWith({ degraded: [{ store: 'settings', reason: 'old' }] }),
-      fetchStorageStatus.fulfilled(degraded, 'req'),
-    );
+  it('fetchStorageStatus.fulfilled takes the degraded list main reports', () => {
+    const next = storageReducer(stateWith(), fetchStorageStatus.fulfilled(degraded, 'req'));
     expect(next.degraded).toEqual(degraded.degraded);
+  });
+
+  it('setStatus takes a storage:changed snapshot', () => {
+    const next = storageReducer(stateWith(), storageActions.setStatus(degraded));
+    expect(next.degraded).toEqual(degraded.degraded);
+  });
+
+  // Degradation only grows within a process lifetime, so an older answer
+  // (a `storage:status` reply overtaken by a `storage:changed` push) must
+  // not hide a store that is already known to be failing.
+  it('never forgets a degraded store: an older, shorter snapshot is merged in', () => {
+    const known = stateWith({ degraded: [{ store: 'notes', reason: 'database or disk is full' }] });
+
+    const afterPull = storageReducer(known, fetchStorageStatus.fulfilled({ degraded: [] }, 'req'));
+    const afterPush = storageReducer(
+      known,
+      storageActions.setStatus({ degraded: [{ store: 'drafts', reason: 'gone' }] }),
+    );
+
+    expect(afterPull.degraded).toEqual(known.degraded);
+    expect(afterPush.degraded).toEqual([
+      { store: 'notes', reason: 'database or disk is full' },
+      { store: 'drafts', reason: 'gone' },
+    ]);
+  });
+
+  it('keeps the first known reason for a store', () => {
+    const known = stateWith({ degraded: [{ store: 'notes', reason: 'first' }] });
+    const next = storageReducer(
+      known,
+      storageActions.setStatus({ degraded: [{ store: 'notes', reason: 'second' }] }),
+    );
+    expect(next.degraded).toEqual([{ store: 'notes', reason: 'first' }]);
   });
 
   it('fetchStorageStatus.rejected keeps the previous answer', () => {

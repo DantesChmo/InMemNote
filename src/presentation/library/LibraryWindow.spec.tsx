@@ -5,7 +5,7 @@ import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
 import { LibraryWindow } from './LibraryWindow';
 
-import type { InmemnoteAPI } from '@shared/ipc';
+import type { InmemnoteAPI, StorageStatusDTO } from '@shared/ipc';
 
 const dispatch = vi.fn();
 
@@ -45,6 +45,9 @@ vi.mock('@presentation/storage/StorageBanner', () => ({
 }));
 vi.mock('@presentation/storage/slice', () => ({
   fetchStorageStatus: () => ({ type: 'storage/fetchStatus' }),
+  storageActions: {
+    setStatus: (s: unknown) => ({ type: 'storage/setStatus', payload: s }),
+  },
 }));
 
 vi.mock('@presentation/update/UpdateBanner', () => ({
@@ -116,5 +119,29 @@ describe('LibraryWindow (shallow)', () => {
     await act(async () => push!());
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchNotes' });
+  });
+
+  it('applies storage:changed broadcasts and unsubscribes on unmount', async () => {
+    let push: ((s: StorageStatusDTO) => void) | null = null;
+    const unsubscribe = vi.fn();
+    (api.storage.onChanged as ReturnType<typeof vi.fn>).mockImplementation(
+      (h: (s: StorageStatusDTO) => void) => {
+        push = h;
+        return unsubscribe;
+      },
+    );
+    const status: StorageStatusDTO = {
+      degraded: [{ store: 'notes', reason: 'database or disk is full' }],
+    };
+
+    let unmount: () => void = () => undefined;
+    await act(async () => {
+      ({ unmount } = render(<LibraryWindow />));
+    });
+    await act(async () => push!(status));
+
+    expect(dispatch).toHaveBeenCalledWith({ type: 'storage/setStatus', payload: status });
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
