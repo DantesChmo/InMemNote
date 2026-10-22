@@ -31,6 +31,7 @@
   "include": [
     "src/**/*",
     "e2e/**/*",
+    "scripts/**/*.ts",
     "vite.*.config.ts",
     "forge.config.ts",
     "vitest.config.ts",

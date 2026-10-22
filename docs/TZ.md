@@ -321,14 +321,36 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 
 ### 4d.3 Install
 - [x] `DmgSelfUpdater` downloads the DMG (streaming, with 0..1 progress),
-  writes a detached `/bin/bash` helper, spawns it un-tethered, and quits.
+  writes a detached `/bin/bash` helper, spawns it un-tethered and quits —
+  but only after the child has actually started. `spawnDetached` resolves on
+  the child's `spawn` event and rejects on `error`; a rejection skips the
+  quit and surfaces through `InstallUpdateUseCase` as
+  `UPDATE_INSTALL_FAILED`, so the banner shows the error and offers a retry
+  instead of the app closing with nothing to relaunch it (bug #04).
 - [x] The helper waits for the app's PID to exit (a live bundle can't be
-  replaced), then `hdiutil attach` → `rm -rf` + `cp -R` into `/Applications`
-  → `hdiutil detach` → `xattr -dr com.apple.quarantine` → `open`. Because
-  `cp` never quarantines, the relaunched build opens with no Gatekeeper
-  prompt.
-- [x] Target is hardcoded to `/Applications/Inmemnote.app` — the documented
-  install location, where the launcher and Dock already point.
+  replaced), then `hdiutil attach` → swap → `hdiutil detach` →
+  `xattr -dr com.apple.quarantine` → `open`. Because `cp` never quarantines,
+  the relaunched build opens with no Gatekeeper prompt.
+- [x] **The swap is atomic with rollback** (bug #04). The new bundle is
+  copied to a hidden `.Inmemnote.app.new-<pid>` *inside the install
+  directory* (same volume, so the following `mv`s are renames), checked for
+  `Contents/Info.plist`, the old bundle is renamed to `.Inmemnote.app.old-<pid>`,
+  the new one is renamed into place, and only then is the backup removed.
+  Any failure (mount, copy, incomplete bundle, rename) removes the staging
+  copy, restores the backup and relaunches the old version. The previous
+  `rm -rf` + `cp -R` left no app at all when the copy failed.
+  `scripts/install.sh` uses the same sequence (without the relaunch).
+- [x] Target is `/Applications/Inmemnote.app` — the documented install
+  location, where the launcher and Dock already point. The helper takes the
+  install directory as an optional `$3` (default `/Applications`) and
+  `install.sh` honours `INMEMNOTE_INSTALL_DIR`, purely so the unit tests can
+  run both scripts against a temp directory with fake `hdiutil`/`open`/
+  `xattr`/`curl` (`src/test/shellSandbox.ts`). The sandbox refuses to run a
+  script that mentions `/Applications` anywhere but that default.
+- [ ] **Open: DMG integrity check.** The downloaded DMG is not verified. The
+  proposal is for CI to publish `Inmemnote-macos-arm64.dmg.sha256` next to
+  the DMG and for the updater (and `install.sh`) to compare it before
+  mounting. Needs a CI change; waiting on a decision.
 
 ### 4d.4 UI
 - [x] `UpdateBanner` (Library window, under the toolbar): one line, hidden

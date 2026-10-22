@@ -33,4 +33,6 @@
 
 ## Build / packaging / autoupdate
 
-- [ ] (none yet)
+- [ ] autoupdate — a failed update never leaves `/Applications` without Inmemnote: a copy or rename failure restores and relaunches the old version, and a helper that fails to start keeps the app open with an error in the banner (✅-unit against a temp dir with fake `hdiutil`; the real DMG swap still needs a manual check on a release)
+       repro: install an older release, trigger "Update & restart" → the new version relaunches from `/Applications`, no `.Inmemnote.app.new-*` / `.old-*` left there; repeat with `/Applications/Inmemnote.app` made read-only for the update (e.g. a full disk) → the old version comes back
+       added: 2026-10-22 (after bug #04)
