@@ -58,6 +58,15 @@ module.exports = {
         'draft-panel': '560px',
         'pin-panel': '320px',
       },
+      keyframes: {
+        'toast-in': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'toast-in': 'toast-in 160ms ease-out',
+      },
     },
   },
   plugins: [],

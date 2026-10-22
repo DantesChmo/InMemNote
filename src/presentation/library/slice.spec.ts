@@ -407,7 +407,7 @@ describe('library async thunks', () => {
   });
 
   describe('undoDelete', () => {
-    it('puts the note back at its old index, selects it and resyncs the list', async () => {
+    it('puts the note back, selects it and resyncs the list without deleting it', async () => {
       const a = noteDTO({ id: 'a' });
       const b = noteDTO({ id: 'b' });
       const c = noteDTO({ id: 'c' });
@@ -415,16 +415,26 @@ describe('library async thunks', () => {
       store = makeStore(stateWith({ notes: [a, b, c], selectedId: 'a' }));
       await store.dispatch(deleteNote('b'));
 
-      const restored = store.dispatch(undoDelete());
-      // The optimistic restore lands before the refetch resolves.
-      expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
-      expect(store.getState().library.selectedId).toBe('b');
-      expect(store.getState().library.pendingDelete).toBeNull();
-      await restored;
+      await store.dispatch(undoDelete());
 
       expect(api.notes.list).toHaveBeenCalledWith('all');
       expect(api.notes.delete).not.toHaveBeenCalled();
+      expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
       expect(store.getState().library.selectedId).toBe('b');
+      expect(store.getState().library.pendingDelete).toBeNull();
+    });
+
+    it('restores optimistically at the old index before the refetch lands', () => {
+      const a = noteDTO({ id: 'a' });
+      const b = noteDTO({ id: 'b' });
+      const c = noteDTO({ id: 'c' });
+      const next = libraryReducer(
+        stateWith({ notes: [a, c], selectedId: 'a', pendingDelete: { note: b, index: 1 } }),
+        libraryActions.restoreDeleted(),
+      );
+      expect(next.notes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
+      expect(next.selectedId).toBe('b');
+      expect(next.pendingDelete).toBeNull();
     });
 
     it('clamps the restore index when the list shrank meanwhile', () => {

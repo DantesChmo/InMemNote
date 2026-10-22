@@ -76,8 +76,11 @@ type ThunkApi = { state: { library: LibraryState } };
  */
 export const deleteNote = createAsyncThunk<void, string, ThunkApi>(
   'library/deleteNote',
-  async (_id) => {
-    throw new Error('not implemented');
+  async (id, { dispatch, getState }) => {
+    const previous = getState().library.pendingDelete;
+    dispatch(librarySlice.actions.stageDelete(id));
+    // `stageDelete` already replaced the slot, so commit the old one directly.
+    if (previous && previous.note.id !== id) await window.inmemnote.notes.delete(previous.note.id);
   },
 );
 
@@ -88,15 +91,26 @@ export const deleteNote = createAsyncThunk<void, string, ThunkApi>(
  */
 export const commitDelete = createAsyncThunk<void, string, ThunkApi>(
   'library/commitDelete',
-  async (_id) => {
-    throw new Error('not implemented');
+  async (id, { dispatch, getState }) => {
+    if (getState().library.pendingDelete?.note.id !== id) return;
+    // Cleared before the IPC await so a second trigger in the same tick sees
+    // nothing pending and doesn't send a duplicate delete.
+    dispatch(librarySlice.actions.clearPendingDelete(id));
+    await window.inmemnote.notes.delete(id);
   },
 );
 
 /** Bring the pending delete back, reselect it, and resync the list. */
-export const undoDelete = createAsyncThunk<void, void, ThunkApi>('library/undoDelete', async () => {
-  throw new Error('not implemented');
-});
+export const undoDelete = createAsyncThunk<void, void, ThunkApi>(
+  'library/undoDelete',
+  async (_arg, { dispatch, getState }) => {
+    if (!getState().library.pendingDelete) return;
+    dispatch(librarySlice.actions.restoreDeleted());
+    // The old index is only a guess once the filter or search changed while
+    // the toast was up; the refetch puts the note where main says it belongs.
+    await dispatch(fetchNotes());
+  },
+);
 
 // ---------- Slice ----------
 
@@ -125,11 +139,30 @@ export const librarySlice = createSlice({
       if (note) note.content = action.payload;
     },
     /** Hide a note and remember it as the pending delete (see `deleteNote`). */
-    stageDelete(_state, _action: PayloadAction<string>) {},
+    stageDelete(state, action: PayloadAction<string>) {
+      const index = state.notes.findIndex((n) => n.id === action.payload);
+      const note = state.notes[index];
+      if (!note) return;
+      state.notes.splice(index, 1);
+      state.pendingDelete = { note, index };
+      if (state.selectedId === action.payload) {
+        state.selectedId = state.notes[0]?.id ?? null;
+      }
+    },
     /** Put the pending delete back at its old index and select it. */
-    restoreDeleted(_state) {},
+    restoreDeleted(state) {
+      const pending = state.pendingDelete;
+      if (!pending) return;
+      state.pendingDelete = null;
+      if (!state.notes.some((n) => n.id === pending.note.id)) {
+        state.notes.splice(Math.min(pending.index, state.notes.length), 0, pending.note);
+      }
+      state.selectedId = pending.note.id;
+    },
     /** Forget the pending delete of the given id (it is being committed). */
-    clearPendingDelete(_state, _action: PayloadAction<string>) {},
+    clearPendingDelete(state, action: PayloadAction<string>) {
+      if (state.pendingDelete?.note.id === action.payload) state.pendingDelete = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -138,7 +171,9 @@ export const librarySlice = createSlice({
         state.error = null;
       })
       .addCase(fetchNotes.fulfilled, (state, action) => {
-        state.notes = action.payload;
+        // A soft-deleted note still exists in main until it is committed.
+        const hidden = state.pendingDelete?.note.id;
+        state.notes = action.payload.filter((n) => n.id !== hidden);
         state.loading = false;
         // Preserve selection if still present; otherwise pick the first.
         if (!state.notes.some((n) => n.id === state.selectedId)) {

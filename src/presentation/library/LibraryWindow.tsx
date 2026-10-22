@@ -7,12 +7,12 @@ import { checkForUpdate, updateActions } from '@presentation/update/slice';
 import { UpdateBanner } from '@presentation/update/UpdateBanner';
 import { useEffect } from 'react';
 
-
 import { LibraryEditor } from './LibraryEditor';
 import { LibraryNoteList } from './LibraryNoteList';
 import { LibrarySidebar } from './LibrarySidebar';
 import { LibraryToolbar } from './LibraryToolbar';
 import { fetchNotes } from './slice';
+import { UndoDeleteToast } from './UndoDeleteToast';
 
 /**
  * Library window root.
@@ -61,12 +61,13 @@ export function LibraryWindow(): JSX.Element {
       <StorageBanner />
       <UpdateBanner />
       <div
-        className="flex-1 grid min-h-0"
+        className="relative flex-1 grid min-h-0"
         style={{ gridTemplateColumns: '208px 296px 1fr' }}
       >
         <LibrarySidebar />
         <LibraryNoteList />
         <LibraryEditor />
+        <UndoDeleteToast />
       </div>
       <SettingsPopup />
     </div>

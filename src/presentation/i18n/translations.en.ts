@@ -22,6 +22,10 @@ export const en: Messages = {
   'library.emptySection': 'This section is empty',
   'library.queryNoMatch': 'No matches for “{q}”',
   'library.untitled': 'Untitled',
+  'library.toast.noteDeleted': 'Note deleted',
+  'library.toast.undo': 'Undo',
+  'library.toast.undoAria': 'Undo delete',
+  'library.toast.dismiss': 'Dismiss',
 
   'editor.empty.title': 'No note selected',
   'editor.empty.hint': 'Pick a note on the left or press ⌘N for a new one',
