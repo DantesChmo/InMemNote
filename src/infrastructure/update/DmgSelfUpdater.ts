@@ -18,10 +18,9 @@ import type { UpdateInstaller } from '@domain/update/UpdateInstaller';
  *
  * Squirrel.Mac (what `update-electron-app` drives) refuses to apply an update
  * whose code signature isn't a valid, matching Developer ID — which this app
- * deliberately doesn't have (it ships ad-hoc-signed and installs via `curl`
- * to dodge Gatekeeper's quarantine; see README). So we don't use Squirrel at
- * all. Instead we reproduce exactly what `scripts/install.sh` does, but from
- * inside the app:
+ * deliberately doesn't have (it ships ad-hoc-signed; see docs/RELEASING.md).
+ * So we don't use Squirrel at all. Instead we reproduce exactly what
+ * `scripts/install.sh` does, but from inside the app:
  *
  *   1. download the release DMG to a temp dir (streaming, with progress);
  *   2. write a tiny detached helper shell script;
@@ -32,8 +31,8 @@ import type { UpdateInstaller } from '@domain/update/UpdateInstaller';
  *      quarantine flag, and relaunches.
  *
  * Because `curl`/`cp` never set `com.apple.quarantine`, the relaunched build
- * opens with no Gatekeeper prompt — the same reason the first-run installer
- * uses `curl` instead of a browser download.
+ * opens with no Gatekeeper prompt, even when the first copy came from a
+ * browser-downloaded DMG and needed Open Anyway.
  */
 
 /** Seams the orchestration talks to — swapped for fakes in unit tests. */

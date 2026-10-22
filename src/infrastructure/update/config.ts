@@ -1,9 +1,10 @@
 /**
  * Where the updater looks for new releases.
  *
- * These mirror the values baked into `scripts/install.sh` and the release job
- * in `.github/workflows/ci.yml` — the same repo, the same stable asset name
- * (`--clobber`ed onto every release). Kept in one module so a repo rename or
+ * These mirror the values baked into `scripts/install.sh` and
+ * `.github/workflows/release.yml` — the same repo, the same stable asset name
+ * (uploaded next to the versioned DMG on every release). Versions already in
+ * the wild look for exactly this name, so it must never change. Kept in one module so a repo rename or
  * an asset-name change is a single edit, not a scavenger hunt across the
  * shell installer, CI, and the app.
  */

@@ -11,7 +11,7 @@ import type { ReleaseInfo } from '@domain/update/ReleaseInfo';
  * No token, no cloud of our own — the anonymous endpoint is enough for a
  * per-machine check every few hours (well under GitHub's 60 req/h/IP limit).
  * This keeps the "no backend" promise in CLAUDE.md: the update feed IS the
- * GitHub release the CI `build` job already publishes.
+ * GitHub release `release.yml` already publishes.
  *
  * We resolve the download URL from the release's own asset list so we fetch
  * exactly the version we detected; if the asset is somehow absent we fall

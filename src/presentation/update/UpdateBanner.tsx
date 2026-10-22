@@ -9,8 +9,8 @@ import { installUpdate, updateActions } from './slice';
  *
  * The flow is deliberately one-click: "Update & restart" downloads the DMG
  * (progress shown inline) and hands off to the detached helper that swaps the
- * bundle and relaunches — so the user never re-runs the `curl` installer by
- * hand. "Later" hides the banner; the periodic check re-surfaces it next time.
+ * bundle and relaunches — so the user never downloads or installs a new
+ * version by hand. "Later" hides the banner; the periodic check re-surfaces it next time.
  */
 export function UpdateBanner(): JSX.Element | null {
   const dispatch = useAppDispatch();
