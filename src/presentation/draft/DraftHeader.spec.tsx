@@ -5,8 +5,7 @@ import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
 import { DraftHeader } from './DraftHeader';
 
-
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { InmemnoteAPI } from '@shared/ipc';
 
 // We only test DraftHeader in isolation — `useTranslation` is mocked so we
 // don't have to spin up the Redux store / settings slice just to read strings.
@@ -62,9 +61,7 @@ describe('DraftHeader', () => {
   it('invokes onTogglePin / onResetPinSize on click', () => {
     const onTogglePin = vi.fn();
     const onResetPinSize = vi.fn();
-    render(
-      <DraftHeader pinned={true} onTogglePin={onTogglePin} onResetPinSize={onResetPinSize} />,
-    );
+    render(<DraftHeader pinned={true} onTogglePin={onTogglePin} onResetPinSize={onResetPinSize} />);
 
     fireEvent.click(screen.getByTestId('draft-pin-btn'));
     fireEvent.click(screen.getByTestId('draft-reset-size-btn'));

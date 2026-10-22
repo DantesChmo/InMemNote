@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-import type { NoteDTO, NoteListFilterDTO } from '@infrastructure/electron/ipc-channels';
+import type { NoteDTO, NoteListFilterDTO } from '@shared/ipc';
 
 /**
  * Library view-state.

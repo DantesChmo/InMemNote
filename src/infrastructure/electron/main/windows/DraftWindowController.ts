@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
-import { IPC } from '@infrastructure/electron/ipc-channels';
 import * as windowEvents from '@inmemnote/window-events';
+import { IPC } from '@shared/ipc';
 import { BrowserWindow, screen } from 'electron';
 
 import { loadRenderer } from '../renderer';
@@ -123,7 +123,7 @@ export class DraftWindowController {
     this.centerOnCursorDisplay({ animate: false });
     this.win.show();
     this.win.focus();
-    this.win.webContents.send('draft:hotkey');
+    this.win.webContents.send(IPC.DraftHotkey);
   }
 
   /**
@@ -365,7 +365,7 @@ export class DraftWindowController {
       if (!this.cursorOverDragHeader()) return;
       if (this.dragging) return;
       this.dragging = true;
-      if (!this.win.isDestroyed()) this.win.webContents.send('draft:dragStart');
+      if (!this.win.isDestroyed()) this.win.webContents.send(IPC.DraftDragStart);
     });
 
     windowEvents.subscribeToMouseUp(() => {
@@ -394,7 +394,7 @@ export class DraftWindowController {
       if (moved) {
         this.snapToCorner(cornerForBounds(b, display), { animate: true });
       } else {
-        this.win.webContents.send('draft:dragEnd');
+        this.win.webContents.send(IPC.DraftDragEnd);
       }
     });
 
@@ -523,7 +523,7 @@ export class DraftWindowController {
       start.width === target.width &&
       start.height === target.height
     ) {
-      this.win.webContents.send('draft:animationDone');
+      this.win.webContents.send(IPC.DraftAnimationDone);
       return;
     }
 
@@ -532,7 +532,7 @@ export class DraftWindowController {
     // Tell the renderer to mute its ResizeObserver — otherwise every
     // intermediate frame AppKit produces would round-trip an IPC resize
     // request that competes with the running native animation.
-    this.win.webContents.send('draft:animationStart');
+    this.win.webContents.send(IPC.DraftAnimationStart);
     this.win.setBounds(target, true);
 
     // Fallback only — primary completion path is the bounds-equality
@@ -548,7 +548,7 @@ export class DraftWindowController {
       clearTimeout(this.pinAnimationFallback);
       this.pinAnimationFallback = null;
     }
-    if (!this.win.isDestroyed()) this.win.webContents.send('draft:animationDone');
+    if (!this.win.isDestroyed()) this.win.webContents.send(IPC.DraftAnimationDone);
   }
 
   /**
@@ -593,7 +593,7 @@ export class DraftWindowController {
     const target = cornerBounds(display, corner, size);
     if (corner !== this.lastPinnedCorner) {
       this.lastPinnedCorner = corner;
-      if (!this.win.isDestroyed()) this.win.webContents.send('draft:cornerChanged', corner);
+      if (!this.win.isDestroyed()) this.win.webContents.send(IPC.DraftCornerChanged, corner);
     }
     if (opts.animate) this.animateBounds(target);
     else this.setBoundsImmediate(target);

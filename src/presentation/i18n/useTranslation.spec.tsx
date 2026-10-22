@@ -4,10 +4,9 @@ import { renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it } from 'vitest';
 
-
 import { useTranslation } from './useTranslation';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 const dto = (language: AppSettingsDTO['language']): AppSettingsDTO => ({
   themeMode: 'system',

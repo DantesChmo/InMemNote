@@ -7,8 +7,8 @@ import { HotkeyInput } from './HotkeyInput';
 import { PaletteEditor } from './PaletteEditor';
 import { saveSettings, settingsActions } from './slice';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
 import type { MessageKey } from '@presentation/i18n/messages';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 /**
  * Settings — a modal popup over the Library window.
@@ -178,7 +178,15 @@ export function SettingsPopup(): JSX.Element | null {
             className="w-7 h-7 flex items-center justify-center rounded-icon text-text-2 hover:bg-[var(--hl)]"
             aria-label={t('common.close')}
           >
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            >
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </button>
@@ -282,10 +290,7 @@ function PaletteSection({ form, onForm, t }: SectionProps): JSX.Element {
       </Field>
 
       <Field label={t('settings.colors.label')} hint={t('settings.colors.hint')}>
-        <PaletteEditor
-          value={form.palette}
-          onChange={(palette) => onForm({ palette })}
-        />
+        <PaletteEditor value={form.palette} onChange={(palette) => onForm({ palette })} />
       </Field>
     </div>
   );
@@ -294,10 +299,7 @@ function PaletteSection({ form, onForm, t }: SectionProps): JSX.Element {
 function HotkeysSection({ form, onForm, t }: SectionProps): JSX.Element {
   return (
     <div className="flex flex-col gap-5">
-      <Field
-        label={t('settings.openDraft.label')}
-        hint={t('settings.openDraft.hint')}
-      >
+      <Field label={t('settings.openDraft.label')} hint={t('settings.openDraft.hint')}>
         <HotkeyInput
           value={form.openDraftHotkey}
           onChange={(openDraftHotkey) => onForm({ openDraftHotkey })}
@@ -315,10 +317,7 @@ function LanguageSection({ form, onForm, t }: SectionProps): JSX.Element {
   ];
   return (
     <div className="flex flex-col gap-5">
-      <Field
-        label={t('settings.language.label')}
-        hint={t('settings.language.hint')}
-      >
+      <Field label={t('settings.language.label')} hint={t('settings.language.hint')}>
         <div className="flex gap-1 p-1 rounded-icon bg-[var(--sink)] border border-line w-fit">
           {langOptions.map((opt) => (
             <button
@@ -353,7 +352,9 @@ function Field({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12px] uppercase tracking-[0.7px] text-text-3">{label}</span>
-        {hint ? <span className="text-[11px] text-text-3 text-right max-w-[60%]">{hint}</span> : null}
+        {hint ? (
+          <span className="text-[11px] text-text-3 text-right max-w-[60%]">{hint}</span>
+        ) : null}
       </div>
       {children}
     </div>

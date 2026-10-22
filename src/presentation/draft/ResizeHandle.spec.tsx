@@ -5,8 +5,7 @@ import { installInmemnoteApiMock } from '../../test/mockInmemnoteApi';
 
 import { ResizeHandle } from './ResizeHandle';
 
-
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { InmemnoteAPI } from '@shared/ipc';
 
 describe('ResizeHandle', () => {
   let api: InmemnoteAPI;

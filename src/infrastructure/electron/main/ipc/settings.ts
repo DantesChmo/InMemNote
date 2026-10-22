@@ -1,4 +1,4 @@
-import { IPC, type AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
+import { IPC, type AppSettingsDTO } from '@shared/ipc';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { settingsToDTO } from '../dto';

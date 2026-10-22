@@ -1,4 +1,4 @@
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { ok } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,7 +62,12 @@ afterEach(() => {
 });
 
 describe('registerDraftIpc', () => {
-  function setup(opts: { ucOverrides?: Record<string, unknown>; controllerOverrides?: Record<string, unknown> } = {}): {
+  function setup(
+    opts: {
+      ucOverrides?: Record<string, unknown>;
+      controllerOverrides?: Record<string, unknown>;
+    } = {},
+  ): {
     controller: Record<string, ReturnType<typeof vi.fn>>;
     uc: Record<string, { execute: ReturnType<typeof vi.fn> }>;
     drafts: { save: ReturnType<typeof vi.fn> };
@@ -186,9 +191,7 @@ describe('registerDraftIpc', () => {
       'DraftSave rejects non-string content %j without calling the use-case',
       async (content) => {
         const { uc } = setup();
-        await expect(handlers.get(IPC.DraftSave)!({}, VALID_ID, content)).rejects.toThrow(
-          invalid,
-        );
+        await expect(handlers.get(IPC.DraftSave)!({}, VALID_ID, content)).rejects.toThrow(invalid);
         expect(uc.saveDraft!.execute).not.toHaveBeenCalled();
       },
     );
@@ -217,9 +220,9 @@ describe('registerDraftIpc', () => {
       'DraftTogglePin rejects target height %j',
       async (targetHeight) => {
         const { uc, controller } = setup();
-        await expect(
-          handlers.get(IPC.DraftTogglePin)!({}, VALID_ID, targetHeight),
-        ).rejects.toThrow(invalid);
+        await expect(handlers.get(IPC.DraftTogglePin)!({}, VALID_ID, targetHeight)).rejects.toThrow(
+          invalid,
+        );
         expect(uc.togglePinDraft!.execute).not.toHaveBeenCalled();
         expect(controller.applyPinState).not.toHaveBeenCalled();
       },
@@ -249,9 +252,7 @@ describe('registerDraftIpc', () => {
 
     it('DraftPromote rejects a non-string id', async () => {
       const { uc, emitNotesChanged } = setup();
-      await expect(handlers.get(IPC.DraftPromote)!({}, { id: VALID_ID })).rejects.toThrow(
-        invalid,
-      );
+      await expect(handlers.get(IPC.DraftPromote)!({}, { id: VALID_ID })).rejects.toThrow(invalid);
       expect(uc.promote!.execute).not.toHaveBeenCalled();
       expect(emitNotesChanged).not.toHaveBeenCalled();
     });

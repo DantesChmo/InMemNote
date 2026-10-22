@@ -1,5 +1,5 @@
 import { AppVersion } from '@domain/update/AppVersion';
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { err, ok, unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -55,7 +55,11 @@ describe('registerUpdateIpc', () => {
 
     const dto = await handle.checkNow();
 
-    expect(dto).toEqual({ version: '0.6.0', downloadUrl: release.downloadUrl, notesUrl: release.notesUrl });
+    expect(dto).toEqual({
+      version: '0.6.0',
+      downloadUrl: release.downloadUrl,
+      notesUrl: release.notesUrl,
+    });
     expect(win.webContents.send).toHaveBeenCalledWith(IPC.UpdateAvailable, dto);
   });
 

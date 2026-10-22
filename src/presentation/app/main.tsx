@@ -8,7 +8,7 @@ import '@presentation/styles.css';
 import { App } from './App';
 import { store } from './store';
 
-import type { AppSettingsDTO } from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsDTO } from '@shared/ipc';
 
 // ---------- Appearance bootstrap ----------
 //
@@ -20,7 +20,10 @@ const themeMql = window.matchMedia('(prefers-color-scheme: light)');
 const applySystemTheme = (): void => {
   // Skip when explicit settings are already in effect — `applyAppearance`
   // owns the `data-theme` attribute in that case.
-  if (store.getState().settings.current && store.getState().settings.current!.themeMode !== 'system') {
+  if (
+    store.getState().settings.current &&
+    store.getState().settings.current!.themeMode !== 'system'
+  ) {
     return;
   }
   document.documentElement.dataset.theme = themeMql.matches ? 'light' : 'dark';

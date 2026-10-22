@@ -1,6 +1,6 @@
 import { AppSettings } from '@domain/settings/AppSettings';
 import { Hotkey } from '@domain/settings/Hotkey';
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { ok, unwrap } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -116,8 +116,8 @@ describe('registerSettingsIpc', () => {
     await ipcHandlers.get(IPC.SettingsSave)!({}, { openDraftHotkey: 'Alt+Space' });
     expect(hotkey.register).toHaveBeenCalledWith('Alt+Space');
     // Order: persist first, then re-register.
-    const persistCall = (uc.updateSettings.execute.mock.invocationCallOrder)[0]!;
-    const registerCall = (hotkey.register.mock.invocationCallOrder)[0]!;
+    const persistCall = uc.updateSettings.execute.mock.invocationCallOrder[0]!;
+    const registerCall = hotkey.register.mock.invocationCallOrder[0]!;
     expect(persistCall).toBeLessThan(registerCall);
   });
 
@@ -131,9 +131,7 @@ describe('registerSettingsIpc', () => {
       uc: failingUc as never,
       hotkey: { register: vi.fn() } as never,
     });
-    await expect(
-      ipcHandlers.get(IPC.SettingsSave)!({}, { themeMode: 'dark' }),
-    ).rejects.toThrow();
+    await expect(ipcHandlers.get(IPC.SettingsSave)!({}, { themeMode: 'dark' })).rejects.toThrow();
   });
 
   it('handle.pushTo sends settings to a live window and skips destroyed ones', () => {

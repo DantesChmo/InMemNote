@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { NoteListFilterDTO } from '@infrastructure/electron/ipc-channels';
+import type { NoteListFilterDTO } from '@shared/ipc';
 
 /**
  * Zod schemas for every renderer → main `notes:*` payload, one tuple per

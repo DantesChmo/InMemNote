@@ -2,14 +2,13 @@ import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { useTranslation } from '@presentation/i18n/useTranslation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-
 import { DraftFooter } from './DraftFooter';
 import { DraftHeader } from './DraftHeader';
 import { CodeMirrorEditor } from './editor/CodeMirrorEditor';
 import { ResizeHandle } from './ResizeHandle';
 import { draftActions } from './slice';
 
-type Corner = 'tl' | 'tr' | 'bl' | 'br';
+import type { Corner } from '@shared/ipc';
 
 /**
  * Top-level Draft panel.
@@ -153,9 +152,7 @@ export function DraftPanel(): JSX.Element {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
 
-    const targetHeight = Math.ceil(
-      panelRef.current?.getBoundingClientRect().height ?? 0,
-    );
+    const targetHeight = Math.ceil(panelRef.current?.getBoundingClientRect().height ?? 0);
 
     try {
       const dto = await window.inmemnote.draft.togglePin(draft.id, targetHeight);

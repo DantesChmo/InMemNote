@@ -1,5 +1,5 @@
 import { DraftId } from '@domain/draft/DraftId';
-import { IPC, type DraftDTO, type NoteDTO } from '@infrastructure/electron/ipc-channels';
+import { IPC, type DraftDTO, type NoteDTO } from '@shared/ipc';
 import { ipcMain } from 'electron';
 
 import { draftToDTO, noteToDTO } from '../dto';

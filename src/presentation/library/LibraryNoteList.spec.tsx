@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LibraryNoteList } from './LibraryNoteList';
 
-import type { NoteDTO } from '@infrastructure/electron/ipc-channels';
+import type { NoteDTO } from '@shared/ipc';
 
 const dispatch = vi.fn();
 let state: {
@@ -40,7 +40,6 @@ vi.mock('./slice', () => ({
     setSelected: (id: string) => ({ type: 'library/setSelected', payload: id }),
   },
 }));
-
 
 const note = (over: Partial<NoteDTO>): NoteDTO => ({
   id: '1',

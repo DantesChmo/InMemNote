@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { AppSettingsPatchDTO } from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsPatchDTO } from '@shared/ipc';
 
 /**
  * Zod schema for the `settings:save` patch.

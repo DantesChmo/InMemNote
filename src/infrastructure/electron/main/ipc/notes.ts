@@ -1,5 +1,5 @@
 import { NoteId } from '@domain/note/NoteId';
-import { IPC, type NoteDTO } from '@infrastructure/electron/ipc-channels';
+import { IPC, type NoteDTO } from '@shared/ipc';
 import { ipcMain } from 'electron';
 
 import { noteToDTO } from '../dto';

@@ -1,4 +1,4 @@
-import { IPC } from '@infrastructure/electron/ipc-channels';
+import { IPC } from '@shared/ipc';
 import { ok } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,7 +18,10 @@ let registerNotesIpc: typeof RegisterNotesIpcFn;
 
 const VALID_ID = '22222222-2222-4222-8222-222222222222';
 
-function makeNote(id: string = VALID_ID, content: string = '# Title\nbody'): {
+function makeNote(
+  id: string = VALID_ID,
+  content: string = '# Title\nbody',
+): {
   id: string;
   content: { value: string };
   pinned: boolean;
@@ -177,9 +180,7 @@ describe('registerNotesIpc', () => {
       'NotesSave rejects non-string content %j without persisting or broadcasting',
       async (content) => {
         const { uc, emitNotesChanged } = setup();
-        await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, content)).rejects.toThrow(
-          invalid,
-        );
+        await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, content)).rejects.toThrow(invalid);
         expect(uc.updateNote.execute).not.toHaveBeenCalled();
         expect(emitNotesChanged).not.toHaveBeenCalled();
       },

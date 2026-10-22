@@ -1,9 +1,5 @@
 import { AppSettingsParse, type AppSettings } from '@domain/settings/AppSettings';
-import {
-  type AppSettingsDTO,
-  type DraftDTO,
-  type NoteDTO,
-} from '@infrastructure/electron/ipc-channels';
+import { type AppSettingsDTO, type DraftDTO, type NoteDTO } from '@shared/ipc';
 
 import type { DraftNote } from '@domain/draft/DraftNote';
 import type { Note } from '@domain/note/Note';

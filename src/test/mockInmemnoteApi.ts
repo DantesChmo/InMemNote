@@ -7,12 +7,7 @@
 // in test-specific responses or `vi.fn()` spies.
 import { vi } from 'vitest';
 
-import type {
-  AppSettingsDTO,
-  DraftDTO,
-  NoteDTO,
-} from '@infrastructure/electron/ipc-channels';
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
+import type { AppSettingsDTO, DraftDTO, InmemnoteAPI, NoteDTO } from '@shared/ipc';
 
 export function emptyDraftDTO(overrides: Partial<DraftDTO> = {}): DraftDTO {
   return {

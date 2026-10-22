@@ -26,13 +26,7 @@ import {
   type SettingsState,
 } from './slice';
 
-import type {
-  AppSettingsDTO,
-  AppSettingsPatchDTO,
-} from '@infrastructure/electron/ipc-channels';
-import type { InmemnoteAPI } from '@infrastructure/electron/preload/index';
-
-
+import type { AppSettingsDTO, AppSettingsPatchDTO, InmemnoteAPI } from '@shared/ipc';
 
 function makeStore() {
   return configureStore({ reducer: { settings: settingsReducer } });
@@ -168,10 +162,12 @@ describe('settings async thunks', () => {
 
     it('flips saving to true on pending', async () => {
       let savingDuringPending: boolean | null = null;
-      (api.settings.save as ReturnType<typeof vi.fn>).mockImplementationOnce(async (patch: AppSettingsPatchDTO) => {
-        savingDuringPending = store.getState().settings.saving;
-        return settingsDTO(patch);
-      });
+      (api.settings.save as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        async (patch: AppSettingsPatchDTO) => {
+          savingDuringPending = store.getState().settings.saving;
+          return settingsDTO(patch);
+        },
+      );
 
       await store.dispatch(saveSettings({ language: 'en' }));
 

@@ -3,8 +3,8 @@
  * its pure geometry helpers, and the IPC layer.
  */
 
-/** The four corner slots the pinned Draft overlay can occupy. */
-export type Corner = 'tl' | 'tr' | 'bl' | 'br';
+/** The four corner slots the pinned Draft overlay can occupy (wire contract). */
+export type { Corner } from '@shared/ipc';
 
 export interface Bounds {
   x: number;

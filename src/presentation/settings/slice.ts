@@ -1,9 +1,6 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-import type {
-  AppSettingsDTO,
-  AppSettingsPatchDTO,
-} from '@infrastructure/electron/ipc-channels';
+import type { AppSettingsDTO, AppSettingsPatchDTO } from '@shared/ipc';
 
 /**
  * Settings view-state.
@@ -33,9 +30,8 @@ const initialState: SettingsState = {
   error: null,
 };
 
-export const fetchSettings = createAsyncThunk<AppSettingsDTO>(
-  'settings/fetch',
-  async () => window.inmemnote.settings.load(),
+export const fetchSettings = createAsyncThunk<AppSettingsDTO>('settings/fetch', async () =>
+  window.inmemnote.settings.load(),
 );
 
 export const saveSettings = createAsyncThunk<AppSettingsDTO, AppSettingsPatchDTO>(
