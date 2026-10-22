@@ -26,6 +26,13 @@ export const storageSlice = createSlice({
   name: 'storage',
   initialState,
   reducers: {},
+  extraReducers: (builder) => {
+    builder.addCase(fetchStorageStatus.fulfilled, (state, action) => {
+      state.degraded = action.payload.degraded;
+    });
+    // A failed status call is left alone: there is nothing actionable to
+    // show, and a false alarm would be worse than the (unlikely) miss.
+  },
 });
 
 export const storageReducer = storageSlice.reducer;

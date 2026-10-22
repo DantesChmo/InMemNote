@@ -91,9 +91,10 @@ export interface Container {
  * resolves — it touches `app.getPath('userData')`.
  */
 export function buildContainer(): Container {
-  const drafts = buildDraftRepo();
-  const notes = buildNoteRepo();
-  const settings = buildSettingsRepo();
+  const degraded: StorageDegradation[] = [];
+  const drafts = buildDraftRepo(degraded);
+  const notes = buildNoteRepo(degraded);
+  const settings = buildSettingsRepo(degraded);
   const clock = new SystemClock();
 
   const uc: UseCases = {
@@ -115,32 +116,39 @@ export function buildContainer(): Container {
     updateSettings: new UpdateSettingsUseCase(settings),
   };
 
-  return { drafts, notes, settings, storage: { degraded: [] }, uc };
+  return { drafts, notes, settings, storage: { degraded }, uc };
 }
 
-function buildDraftRepo(): DraftRepository {
+function buildDraftRepo(degraded: StorageDegradation[]): DraftRepository {
   try {
     return new SqliteDraftRepository(join(app.getPath('userData'), 'inmemnote.db'));
   } catch (e) {
     console.warn('SQLite (drafts) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'drafts', reason: errorMessage(e) });
     return new InMemoryDraftRepository();
   }
 }
 
-function buildNoteRepo(): NoteRepository {
+function buildNoteRepo(degraded: StorageDegradation[]): NoteRepository {
   try {
     return new SqliteNoteRepository(join(app.getPath('userData'), 'inmemnote.db'));
   } catch (e) {
     console.warn('SQLite (notes) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'notes', reason: errorMessage(e) });
     return new InMemoryNoteRepository();
   }
 }
 
-function buildSettingsRepo(): SettingsRepository {
+function buildSettingsRepo(degraded: StorageDegradation[]): SettingsRepository {
   try {
     return new SqliteSettingsRepository(join(app.getPath('userData'), 'inmemnote.db'));
   } catch (e) {
     console.warn('SQLite (settings) init failed; falling back to in-memory.', e);
+    degraded.push({ store: 'settings', reason: errorMessage(e) });
     return new InMemorySettingsRepository();
   }
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }

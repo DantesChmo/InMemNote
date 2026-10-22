@@ -11,6 +11,9 @@ import type { StorageHealth } from '../composition';
  * composition root and never changes, so the handler is a pure read with no
  * inbound payload to validate.
  */
-export function registerStorageIpc(_deps: { storage: StorageHealth }): void {
-  ipcMain.handle(IPC.StorageStatus, (): StorageStatusDTO => ({ degraded: [] }));
+export function registerStorageIpc(deps: { storage: StorageHealth }): void {
+  ipcMain.handle(
+    IPC.StorageStatus,
+    (): StorageStatusDTO => ({ degraded: deps.storage.degraded.map((d) => ({ ...d })) }),
+  );
 }
