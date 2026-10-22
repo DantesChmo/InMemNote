@@ -142,4 +142,97 @@ describe('registerNotesIpc', () => {
     expect(uc.searchNotes.execute).toHaveBeenCalledWith('query');
     expect(result).toHaveLength(1);
   });
+
+  // The renderer is untrusted input: every payload is Zod-validated before it
+  // reaches a use-case, so a malformed call fails with a readable error at the
+  // boundary instead of somewhere deep inside the domain or SQLite.
+  describe('payload validation', () => {
+    const invalid = /Invalid IPC payload for "notes:/;
+
+    it.each([['archived'], [42], [undefined], [{ filter: 'all' }]])(
+      'NotesList rejects filter %j without calling the use-case',
+      async (filter) => {
+        const { uc } = setup();
+        await expect(handlers.get(IPC.NotesList)!({}, filter)).rejects.toThrow(invalid);
+        expect(uc.listNotes.execute).not.toHaveBeenCalled();
+      },
+    );
+
+    it('NotesList accepts "all"', async () => {
+      const { uc } = setup();
+      await handlers.get(IPC.NotesList)!({}, 'all');
+      expect(uc.listNotes.execute).toHaveBeenCalledWith('all');
+    });
+
+    it.each([[123], [null], [undefined], [{ id: VALID_ID }]])(
+      'NotesGet rejects non-string id %j',
+      async (id) => {
+        const { uc } = setup();
+        await expect(handlers.get(IPC.NotesGet)!({}, id)).rejects.toThrow(invalid);
+        expect(uc.findNote.execute).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([[{ text: 'x' }], [42], [null], [undefined], [['a']]])(
+      'NotesSave rejects non-string content %j without persisting or broadcasting',
+      async (content) => {
+        const { uc, emitNotesChanged } = setup();
+        await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, content)).rejects.toThrow(
+          invalid,
+        );
+        expect(uc.updateNote.execute).not.toHaveBeenCalled();
+        expect(emitNotesChanged).not.toHaveBeenCalled();
+      },
+    );
+
+    it('NotesSave accepts an empty string as content', async () => {
+      const { uc } = setup();
+      await handlers.get(IPC.NotesSave)!({}, VALID_ID, '');
+      expect(uc.updateNote.execute).toHaveBeenCalled();
+    });
+
+    it('NotesSave rejects a non-string id', async () => {
+      const { uc } = setup();
+      await expect(handlers.get(IPC.NotesSave)!({}, 7, 'x')).rejects.toThrow(invalid);
+      expect(uc.updateNote.execute).not.toHaveBeenCalled();
+    });
+
+    it('NotesSave rejects unexpected extra arguments', async () => {
+      const { uc } = setup();
+      await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, 'x', 'extra')).rejects.toThrow(
+        invalid,
+      );
+      expect(uc.updateNote.execute).not.toHaveBeenCalled();
+    });
+
+    it('NotesTogglePin rejects a non-string id', async () => {
+      const { uc, emitNotesChanged } = setup();
+      await expect(handlers.get(IPC.NotesTogglePin)!({}, 1)).rejects.toThrow(invalid);
+      expect(uc.togglePinNote.execute).not.toHaveBeenCalled();
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
+
+    it('NotesDelete rejects a non-string id', async () => {
+      const { uc, emitNotesChanged } = setup();
+      await expect(handlers.get(IPC.NotesDelete)!({}, undefined)).rejects.toThrow(invalid);
+      expect(uc.deleteNote.execute).not.toHaveBeenCalled();
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
+
+    it.each([[null], [undefined], [5], [{ q: 'x' }]])(
+      'NotesSearch rejects non-string query %j',
+      async (query) => {
+        const { uc } = setup();
+        await expect(handlers.get(IPC.NotesSearch)!({}, query)).rejects.toThrow(invalid);
+        expect(uc.searchNotes.execute).not.toHaveBeenCalled();
+      },
+    );
+
+    it('names the offending argument in the error message', async () => {
+      setup();
+      await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, 42)).rejects.toThrow(
+        /notes:save.*\[1\]/,
+      );
+    });
+  });
 });
