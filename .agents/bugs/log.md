@@ -23,3 +23,9 @@
 **Fix**: The pending edit is kept as `{ id, content }` and flushed on selection change and on `beforeunload`; deleting a note drops its pending edit (commit 2ffe4d2).
 **Regression test**: `src/presentation/library/LibraryEditor.spec.tsx` ("pending autosave is flushed, never dropped")
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-library-autosave-dropped.md`
+
+### #05 — A second launch starts a second process on the same DB and hotkey            2026-10-22            severity: minor
+**Surface**: other (main-process lifecycle)
+**Root cause**: The main process never called `app.requestSingleInstanceLock()`, so a second launch opened the same `inmemnote.db` and tried to register the same global hotkey.
+**Fix**: `claimSingleInstance` takes the lock right after the `userData` override (the lock is per userData directory, so parallel E2E instances are unaffected); a second launch quits before any initialisation and the first instance resurfaces the Library on `second-instance` (commit 26da971).
+**Regression test**: `src/infrastructure/electron/main/__tests__/singleInstance.spec.ts`

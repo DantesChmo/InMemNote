@@ -132,6 +132,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   live in `infrastructure` (in-memory + SQLite).
 - [x] IPC between main and renderer — a narrow typed bridge through
   `preload` (`window.inmemnote.draft.*`).
+- [x] One app process per userData directory: a second launch quits
+  before any initialisation and the running instance resurfaces the
+  Library (`claimSingleInstance`, taken after the `userData` override so
+  parallel E2E instances still boot) — bug #05, 2026-10-22.
 
 ---
 

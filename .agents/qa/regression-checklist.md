@@ -26,6 +26,9 @@
 - [ ] Library — the last keystrokes survive a note switch, a window close and a quit made within 500 ms of typing (switch and unload ✅-unit; the real quit path still needs a manual or e2e check)
        repro: type in note A, within 0.5 s click note B (or ⌘W / ⌘Q), reopen — A has the full text
        added: 2026-10-22 (after bug #01)
+- [ ] Library — a second launch of the app does not start a second process: the running instance brings the Library forward (or reopens it if closed), and the global hotkey keeps working (guard ✅-unit; the real two-process launch still needs a manual check)
+       repro: with the app running, close the Library, run `open -n /Applications/Inmemnote.app` — one process in Activity Monitor, the Library is back, ⌘⇧Space still opens Draft
+       added: 2026-10-22 (after bug #05)
 
 ## Hotkeys / global shortcuts
 
