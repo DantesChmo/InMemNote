@@ -1,18 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { claimSingleInstance, type SingleInstanceApp } from '../singleInstance';
 
 function makeApp(opts: { gotLock: boolean; ready?: boolean }): SingleInstanceApp & {
   emitSecondInstance: () => void;
-  quit: ReturnType<typeof vi.fn>;
-  on: ReturnType<typeof vi.fn>;
+  quit: Mock<SingleInstanceApp['quit']>;
+  on: Mock<SingleInstanceApp['on']>;
 } {
   const listeners: Array<() => void> = [];
   return {
     requestSingleInstanceLock: vi.fn(() => opts.gotLock),
     isReady: vi.fn(() => opts.ready ?? true),
-    quit: vi.fn(),
-    on: vi.fn((_event: 'second-instance', listener: () => void) => {
+    quit: vi.fn<SingleInstanceApp['quit']>(),
+    on: vi.fn<SingleInstanceApp['on']>((_event, listener) => {
       listeners.push(listener);
     }),
     emitSecondInstance: () => listeners.forEach((l) => l()),
