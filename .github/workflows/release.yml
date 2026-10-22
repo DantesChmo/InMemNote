@@ -11,6 +11,9 @@ name: Release
 #     `releases/latest/download/…` always resolves. `scripts/install.sh` and
 #     the in-app updater of every version already shipped (≤ 0.6.0) fetch this
 #     exact name, so dropping it would strand them.
+# Each DMG gets a `<name>.sha256` next to it (`shasum -a 256` output), which
+# the updater and `install.sh` of every later version check before installing.
+# It guards against a corrupted download, not a tampered release (ADR 0007).
 #
 # Signing and notarization are optional: when the MACOS_* / APPLE_* /
 # APPSTORE_* secrets are configured the app is signed with Developer ID and
@@ -261,7 +264,8 @@ jobs:
           spctl -a -vv -t install "$DMG_PATH"
 
       # $DMG_PATH is final from here on (signed, notarized and stapled when
-      # secrets are set), so both names below are byte-identical.
+      # secrets are set), so both names below are byte-identical. The checksum
+      # must be taken last: stapling rewrites the DMG.
       - name: Collect release assets
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -270,7 +274,14 @@ jobs:
           mkdir -p release-assets
           cp "$DMG_PATH" "release-assets/Inmemnote-$VERSION-arm64.dmg"
           cp "$DMG_PATH" "release-assets/Inmemnote-macos-arm64.dmg"
-          ls -l release-assets
+          cd release-assets
+          # Relative names, so `shasum -a 256 -c <file>.sha256` works next to
+          # the downloaded DMG.
+          for DMG in *.dmg; do
+            shasum -a 256 "$DMG" > "$DMG.sha256"
+          done
+          cat ./*.sha256
+          ls -l
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -282,7 +293,10 @@ jobs:
 
       # Release assets, unlike Actions artifacts, have a stable anonymous
       # download URL and never expire. View/create/upload are split so
-      # re-running a tag build is idempotent.
+      # re-running a tag build is idempotent. The checksums go up before the
+      # DMGs: `releases/latest` is visible as soon as the release exists, and an
+      # updater that sees a DMG must also see its checksum, or it would install
+      # that release unverified.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -296,6 +310,7 @@ jobs:
             if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
             gh release create "$TAG" "${FLAGS[@]}"
           fi
+          gh release upload "$TAG" release-assets/*.dmg.sha256 --clobber
           gh release upload "$TAG" release-assets/*.dmg --clobber
 
       - name: Clean up signing keychain
