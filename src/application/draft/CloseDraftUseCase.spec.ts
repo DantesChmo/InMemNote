@@ -1,7 +1,6 @@
-
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
-import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
+import { FakeDraftRepository } from '@test/fakes/FakeDraftRepository';
 import { describe, expect, it } from 'vitest';
 
 import { CloseDraftUseCase } from './CloseDraftUseCase';
@@ -10,7 +9,7 @@ const T0 = new Date('2026-01-01T00:00:00Z');
 
 describe('CloseDraftUseCase', () => {
   it('deletes an empty draft so it does not linger in storage', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const draft = DraftNote.create(T0);
     await repo.save(draft);
 
@@ -19,7 +18,7 @@ describe('CloseDraftUseCase', () => {
   });
 
   it('preserves a non-empty draft on close', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const draft = DraftNote.create(T0);
     const content = NoteContent.create('keep me');
     if (!content.ok) throw content.error;
@@ -31,7 +30,9 @@ describe('CloseDraftUseCase', () => {
   });
 
   it('is idempotent for a non-existent id', async () => {
-    const repo = new InMemoryDraftRepository();
-    await expect(new CloseDraftUseCase(repo).execute(DraftNote.create(T0).id)).resolves.toBeUndefined();
+    const repo = new FakeDraftRepository();
+    await expect(
+      new CloseDraftUseCase(repo).execute(DraftNote.create(T0).id),
+    ).resolves.toBeUndefined();
   });
 });

@@ -1,9 +1,8 @@
-
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
-import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
-import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
-import { FixedClock } from '@infrastructure/SystemClock';
+import { FakeDraftRepository } from '@test/fakes/FakeDraftRepository';
+import { FakeNoteRepository } from '@test/fakes/FakeNoteRepository';
+import { FixedClock } from '@test/fakes/FixedClock';
 import { describe, expect, it } from 'vitest';
 
 import { PromoteDraftToNoteUseCase } from './PromoteDraftToNoteUseCase';
@@ -13,8 +12,8 @@ const T1 = new Date('2026-01-01T00:01:00Z');
 
 describe('PromoteDraftToNoteUseCase', () => {
   it('moves a non-empty draft into the notes store and clears the draft', async () => {
-    const drafts = new InMemoryDraftRepository();
-    const notes = new InMemoryNoteRepository();
+    const drafts = new FakeDraftRepository();
+    const notes = new FakeNoteRepository();
     const draft = DraftNote.create(T0);
     const next = NoteContent.create('keep this');
     if (!next.ok) throw next.error;
@@ -34,8 +33,8 @@ describe('PromoteDraftToNoteUseCase', () => {
   });
 
   it('returns null and clears the draft when the body is empty', async () => {
-    const drafts = new InMemoryDraftRepository();
-    const notes = new InMemoryNoteRepository();
+    const drafts = new FakeDraftRepository();
+    const notes = new FakeNoteRepository();
     const draft = DraftNote.create(T0);
     await drafts.save(draft);
 

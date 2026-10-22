@@ -1,7 +1,6 @@
-
 import { DraftNote } from '@domain/draft/DraftNote';
-import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
-import { FixedClock } from '@infrastructure/SystemClock';
+import { FakeDraftRepository } from '@test/fakes/FakeDraftRepository';
+import { FixedClock } from '@test/fakes/FixedClock';
 import { describe, expect, it } from 'vitest';
 
 import { TogglePinUseCase } from './TogglePinUseCase';
@@ -10,7 +9,7 @@ const T0 = new Date('2026-01-01T00:00:00Z');
 
 describe('TogglePinUseCase', () => {
   it('flips the pin flag back and forth', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const draft = DraftNote.create(T0);
     await repo.save(draft);
 

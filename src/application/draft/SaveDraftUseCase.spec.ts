@@ -1,8 +1,7 @@
-
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
-import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
-import { FixedClock } from '@infrastructure/SystemClock';
+import { FakeDraftRepository } from '@test/fakes/FakeDraftRepository';
+import { FixedClock } from '@test/fakes/FixedClock';
 import { describe, expect, it } from 'vitest';
 
 import { DraftNotFoundError } from './errors';
@@ -13,7 +12,7 @@ const T1 = new Date('2026-01-01T00:01:00Z');
 
 describe('SaveDraftUseCase', () => {
   it('persists the new content and bumps updatedAt', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const draft = DraftNote.create(T0);
     await repo.save(draft);
 
@@ -28,7 +27,7 @@ describe('SaveDraftUseCase', () => {
   });
 
   it('errors out when the draft does not exist', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const useCase = new SaveDraftUseCase(repo, new FixedClock(T0));
     const result = await useCase.execute(DraftNote.create(T0).id, 'x');
     expect(result.ok).toBe(false);
@@ -36,7 +35,7 @@ describe('SaveDraftUseCase', () => {
   });
 
   it('rejects content exceeding the length cap', async () => {
-    const repo = new InMemoryDraftRepository();
+    const repo = new FakeDraftRepository();
     const draft = DraftNote.create(T0);
     await repo.save(draft);
 
