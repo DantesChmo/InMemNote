@@ -18,7 +18,8 @@ type Corner = 'tl' | 'tr' | 'bl' | 'br';
  *   - On mount and every "hotkey pressed" event from main, we call `open()`
  *     over IPC and write the result into Redux.
  *   - Local edits update Redux immediately so the UI stays responsive, and
- *     are flushed to disk via a debounced save (500ms idle).
+ *     are flushed to disk via a debounced save (500ms idle). A save still
+ *     pending on quit / window destroy is written from `beforeunload`.
  *   - Pin/close go directly through IPC; main is the source of truth for the
  *     BrowserWindow's always-on-top flag.
  *   - A ResizeObserver on the panel root drives `window.inmemnote.draft.resize`
@@ -76,24 +77,49 @@ export function DraftPanel(): JSX.Element {
     [dispatch],
   );
 
+  // The edit waiting out the autosave debounce. It carries its own draft id
+  // so a flush always lands on the draft that was edited, even if a hotkey
+  // press has swapped in another one since.
+  const pending = useRef<{ id: string; content: string } | null>(null);
+
+  // Submit, cancel and pin each save the current content themselves; they
+  // drop the pending edit so it isn't written a second time later.
+  const cancelPending = useCallback(() => {
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    pending.current = null;
+  }, []);
+
+  const flushPending = useCallback(() => {
+    const edit = pending.current;
+    cancelPending();
+    if (edit) void flushSave(edit.id, edit.content);
+  }, [cancelPending, flushSave]);
+
   const onChange = useCallback(
     (next: string) => {
       dispatch(draftActions.editContent(next));
       if (!draft.id) return;
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => {
-        void flushSave(draft.id as string, next);
-      }, 500);
+      pending.current = { id: draft.id, content: next };
+      saveTimer.current = window.setTimeout(flushPending, 500);
     },
-    [dispatch, draft.id, flushSave],
+    [dispatch, draft.id, flushPending],
   );
+
+  // Quitting the app (including the auto-update relaunch) or destroying the
+  // Draft window doesn't unmount React, so nothing else would write the last
+  // <500 ms of typing. `beforeunload` fires in all those cases; the IPC
+  // message is posted before the renderer goes away, and main is still alive
+  // to write it.
+  useEffect(() => {
+    window.addEventListener('beforeunload', flushPending);
+    return () => window.removeEventListener('beforeunload', flushPending);
+  }, [flushPending]);
 
   const onSubmit = useCallback(async () => {
     if (!draft.id) return;
-    if (saveTimer.current !== null) {
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
+    cancelPending();
     try {
       await window.inmemnote.draft.save(draft.id, draft.content);
       await window.inmemnote.draft.promote(draft.id);
@@ -102,18 +128,18 @@ export function DraftPanel(): JSX.Element {
     }
     dispatch(draftActions.clear());
     await window.inmemnote.draft.hide();
-  }, [dispatch, draft.content, draft.id]);
+  }, [cancelPending, dispatch, draft.content, draft.id]);
 
   const onCancel = useCallback(async () => {
     if (!draft.id) {
       await window.inmemnote.draft.hide();
       return;
     }
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    cancelPending();
     await flushSave(draft.id, draft.content);
     await window.inmemnote.draft.close(draft.id);
     await window.inmemnote.draft.hide();
-  }, [draft.content, draft.id, flushSave]);
+  }, [cancelPending, draft.content, draft.id, flushSave]);
 
   const onTogglePin = useCallback(async () => {
     if (!draft.id) return;
@@ -122,10 +148,7 @@ export function DraftPanel(): JSX.Element {
     // if the user hit pin while the 500 ms debounce was still ticking — and
     // then sends that stale (empty) content back as the new draft DTO,
     // wiping the in-flight text on screen.
-    if (saveTimer.current !== null) {
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
+    cancelPending();
     try {
       await window.inmemnote.draft.save(draft.id, draft.content);
     } catch (e) {
@@ -163,7 +186,7 @@ export function DraftPanel(): JSX.Element {
     } catch (e) {
       console.error('Draft togglePin failed', e);
     }
-  }, [dispatch, draft.id, draft.content, draft.pinned, draft.updatedAt]);
+  }, [cancelPending, dispatch, draft.id, draft.content, draft.pinned, draft.updatedAt]);
 
   // Window-level keymap fallback for ⌘↵/Esc.
   useEffect(() => {

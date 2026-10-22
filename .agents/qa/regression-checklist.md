@@ -15,7 +15,9 @@
 
 ## Draft
 
-- [ ] (none yet)
+- [ ] Draft — the last keystrokes survive an app quit (incl. the auto-update relaunch) made within 500 ms of typing, and ⌘↵ / Esc / pin still save exactly once (unload flush and no-double-save ✅-unit; the real quit path still needs a manual or e2e check)
+       repro: open Draft, type, within 0.5 s press ⌘Q (or install an update), relaunch, open Draft — the text is all there
+       added: 2026-10-22 (after bug #02)
 
 ## Pin
 

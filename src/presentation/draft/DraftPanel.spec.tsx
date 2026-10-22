@@ -258,6 +258,120 @@ describe('DraftPanel (shallow)', () => {
     expect(api.draft.onCustomSizeChanged).toHaveBeenCalled();
   });
 
+  describe('pending autosave is flushed on unload, never dropped or doubled', () => {
+    // Types into the editor stub, leaving a 'typed' save waiting out the debounce.
+    const typeMidDebounce = async (): Promise<void> => {
+      await act(async () => {
+        render(<DraftPanel />);
+      });
+      await act(async () => {
+        screen.getByTestId('stub-editor').click();
+      });
+      expect(api.draft.save).not.toHaveBeenCalled();
+    };
+
+    const unload = async (): Promise<void> => {
+      await act(async () => {
+        window.dispatchEvent(new Event('beforeunload'));
+      });
+    };
+
+    it('flushes on beforeunload (app quit, update relaunch, window destroy)', async () => {
+      vi.useFakeTimers();
+      try {
+        await typeMidDebounce();
+        await unload();
+
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+        expect(api.draft.save).toHaveBeenCalledWith('draft-1', 'typed');
+
+        // The flushed debounce must not write a second time.
+        await act(async () => {
+          vi.advanceTimersByTime(600);
+        });
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('saves nothing on beforeunload when no edit is pending', async () => {
+      vi.useFakeTimers();
+      try {
+        await typeMidDebounce();
+        await act(async () => {
+          vi.advanceTimersByTime(600);
+        });
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+
+        await unload();
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('submit mid-debounce saves once; a later unload adds nothing', async () => {
+      vi.useFakeTimers();
+      try {
+        await typeMidDebounce();
+        await act(async () => {
+          screen.getByTestId('stub-editor').dispatchEvent(
+            new MouseEvent('dblclick', { bubbles: true }),
+          );
+        });
+        await unload();
+        await act(async () => {
+          vi.advanceTimersByTime(600);
+        });
+
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+        expect(api.draft.promote).toHaveBeenCalledWith('draft-1');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('cancel mid-debounce saves once; a later unload adds nothing', async () => {
+      vi.useFakeTimers();
+      try {
+        await typeMidDebounce();
+        await act(async () => {
+          screen.getByTestId('stub-editor').dispatchEvent(
+            new MouseEvent('contextmenu', { bubbles: true }),
+          );
+        });
+        await unload();
+        await act(async () => {
+          vi.advanceTimersByTime(600);
+        });
+
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+        expect(api.draft.close).toHaveBeenCalledWith('draft-1');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('pin toggle mid-debounce saves once; a later unload adds nothing', async () => {
+      vi.useFakeTimers();
+      try {
+        await typeMidDebounce();
+        await act(async () => {
+          screen.getByTestId('stub-draft-header').click();
+        });
+        await unload();
+        await act(async () => {
+          vi.advanceTimersByTime(600);
+        });
+
+        expect(api.draft.save).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('toggling pin via the header stub passes a measured target height', async () => {
     await act(async () => {
       render(<DraftPanel />);
