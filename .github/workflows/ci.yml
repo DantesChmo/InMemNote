@@ -138,7 +138,7 @@ jobs:
       # `native/window-events/build` carries the compiled native addon
       # (window_events.node). It's gitignored, produced by `npm ci`'s
       # postinstall (node-gyp rebuild) here on the prepare runner, and
-      # `main.js` requires it at startup — without it Electron throws
+      # `main.cjs` requires it at startup — without it Electron throws
       # "Cannot find module ./build/Release/window_events.node" and the
       # whole suite hangs at `electron.launch()` (run 27275066075).
       - name: Bundle prepared workspace

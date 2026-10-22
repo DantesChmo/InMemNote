@@ -23,13 +23,13 @@ export interface LaunchOptions {
  *
  * We launch in **unpackaged** mode: Playwright spawns the stock Electron
  * binary from `node_modules/electron` and points it at the project root, so
- * Electron reads `package.json#main` (`.vite/build/main.js`) just like the
+ * Electron reads `package.json#main` (`.vite/build/main.cjs`) just like the
  * packaged variant would. The reason we don't use the packaged `.app`: the
  * Playwright Electron driver controls the argv vector, and a custom
  * executable hides the remote-debugging port flag that Playwright needs to
  * attach. With unpackaged Electron, attachment is automatic.
  *
- * Pre-condition: `npm run e2e:prepare` must have produced `.vite/build/*.js`
+ * Pre-condition: `npm run e2e:prepare` must have produced `.vite/build/*.cjs`
  * and `.vite/renderer/main_window/index.html` at least once.
  */
 export async function launchApp(
@@ -38,7 +38,7 @@ export async function launchApp(
   const userDataDir = opts.reuseUserDataDir ?? mkdtempSync(join(tmpdir(), 'inmemnote-e2e-'));
   const ownsDir = !opts.reuseUserDataDir;
 
-  const viteBuild = join(process.cwd(), '.vite', 'build', 'main.js');
+  const viteBuild = join(process.cwd(), '.vite', 'build', 'main.cjs');
   if (!existsSync(viteBuild)) {
     throw new Error(
       `Missing ${viteBuild}. Run \`npm run e2e:prepare\` before \`npm run e2e\`.`,

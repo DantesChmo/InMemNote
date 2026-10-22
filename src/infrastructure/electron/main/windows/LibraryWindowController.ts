@@ -58,7 +58,7 @@ export class LibraryWindowController {
       backgroundColor: '#1c1b18',
       show: false,
       webPreferences: {
-        preload: join(__dirname, 'preload.js'),
+        preload: join(__dirname, 'preload.cjs'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,

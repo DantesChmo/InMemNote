@@ -58,7 +58,11 @@ function makeWin(opts: Record<string, unknown>): MockWin {
 }
 
 vi.mock('electron', () => ({
-  BrowserWindow: vi.fn((opts: Record<string, unknown>) => makeWin(opts)),
+  // `function`, not an arrow: Vitest 4+ mocks are only `new`-able when the
+  // implementation is.
+  BrowserWindow: vi.fn(function (opts: Record<string, unknown>) {
+    return makeWin(opts);
+  }),
 }));
 
 let LibraryWindowController: typeof LibraryWindowControllerCtor;

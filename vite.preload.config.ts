@@ -15,10 +15,10 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
-      // Emit alongside `main.js` in the same `.vite/build` folder; main.ts
-      // resolves the preload as `join(__dirname, 'preload.js')`.
-      output: { entryFileNames: 'preload.js' },
+    rolldownOptions: {
+      // Emit alongside `main.cjs` in the same `.vite/build` folder; main.ts
+      // resolves the preload as `join(__dirname, 'preload.cjs')`.
+      output: { entryFileNames: 'preload.cjs' },
       external: ['electron'],
     },
   },
