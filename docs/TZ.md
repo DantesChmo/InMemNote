@@ -41,6 +41,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Tailwind CSS + design tokens for the palette
   (`src/presentation/theme/tokens.css`).
 - [x] ESLint + Prettier + EditorConfig + husky/lint-staged.
+- [x] `.husky/pre-commit` committed (lint-staged + `tsc --noEmit`) — until
+  2026-10-22 only the `prepare` script existed, so the hook never ran.
+- [x] Node pinned: `.nvmrc` (22) drives CI's `actions/setup-node`;
+  `package.json` `engines` declares `node >=22`.
 - [x] Vitest + RTL.
 - [x] Playwright (electron) — config in place, smoke test in V2.
 - [x] DDD directory structure (domain/application/infrastructure/presentation).
@@ -351,10 +355,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   gateway is stubbed to fail-soft, so the E2E suite stays hermetic/offline.
 - [x] 44 unit tests across the layers.
 
-> **Open item.** The `update-electron-app` dependency is now dead (we don't
-> use Squirrel). Left in `package.json` for now to avoid churning the
-> lockfile + native ABI during this change; drop it in a dedicated
-> dependency commit (`npm install` + committed lockfile).
+> **Closed item (2026-10-22).** The dead `update-electron-app` dependency
+> (we don't use Squirrel) was removed in a dedicated dependency commit
+> (`npm uninstall` + committed lockfile); no source file imported it.
 
 > **E2E note.** No Playwright spec is added for the install flow: it is
 > network- + process-replacement-bound (it quits and swaps the running app)
@@ -412,3 +415,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   removal in a follow-up dependency commit. Full alternatives considered:
   Apple Developer ID + notarization + Squirrel (rejected: $99/yr + cert
   management), notify-only banner (rejected: still manual install). See §4d.
+- **2026-10-22** — Tooling hygiene. Dropped the dead `update-electron-app`
+  dependency (closes the §4d open item). Node is pinned via `.nvmrc` = 22
+  (CI reads it with `node-version-file`, so local and CI agree) and
+  `engines.node >=22` — a floor, not an exact pin, because newer Node
+  versions are known to work for tsc/ESLint/Vitest. Added the missing
+  `.husky/pre-commit` (lint-staged + `npm run typecheck`), which CLAUDE.md
+  §9 had promised but never ran.

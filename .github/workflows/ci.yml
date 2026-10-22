@@ -18,8 +18,9 @@
 #                         shouldn't burn macOS minutes producing throwaway
 #                         DMGs; the artifact only matters for releases.
 #
-# Node 22 is the LTS we target; CI pins to it explicitly so we don't drift if
-# the runner default moves.
+# Node 22 is the LTS we target. Every job reads the version from `.nvmrc`
+# (`node-version-file`) so CI and local dev share one source of truth and we
+# don't drift if the runner default moves.
 
 name: CI
 
@@ -48,7 +49,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       # Cache `node_modules` keyed by the lockfile. On hit we skip both
@@ -98,7 +99,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       # Cache `node_modules` together with the already-Electron-rebuilt
@@ -170,7 +171,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
 
       - name: Download e2e bundle
         uses: actions/download-artifact@v8
@@ -212,7 +213,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       # Reuse the same cache the `e2e-prepare` job populated earlier in
