@@ -50,3 +50,21 @@
 **Root cause**: The main process never called `app.requestSingleInstanceLock()`, so a second launch opened the same `inmemnote.db` and tried to register the same global hotkey.
 **Fix**: `claimSingleInstance` takes the lock right after the `userData` override (the lock is per userData directory, so parallel E2E instances are unaffected); a second launch quits before any initialisation and the first instance resurfaces the Library on `second-instance` (commit 26da971).
 **Regression test**: `src/infrastructure/electron/main/__tests__/singleInstance.spec.ts`
+
+### #06 — ⌘↵ in the editor inserts a blank line instead of submitting            2026-10-22            severity: minor
+**Surface**: Library, Draft
+**Root cause**: `CodeMirrorEditor` spread `defaultKeymap` (which binds `Mod-Enter` to `insertBlankLine`) before its own `Mod-Enter`, and CodeMirror stops at the first binding that handles the key — so in Library ⌘↵ never saved (only the 500 ms autosave did), and in Draft a blank line was inserted before DraftPanel's document-level fallback submitted.
+**Fix**: `Mod-Enter` / `Escape` are bound before `defaultKeymap`, stop propagation when handled (so DraftPanel's document fallback doesn't submit / close a second time) and fall through to the defaults when no callback is given (commit 7bd5534).
+**Regression test**: `src/presentation/draft/editor/CodeMirrorEditor.spec.tsx` ("BUG A: Mod-Enter submits…", "a handled Mod-Enter / Escape does not reach document-level listeners")
+
+### #07 — Editor ⌘↵ / Esc call the first render's onSubmit / onCancel            2026-10-22            severity: minor
+**Surface**: Draft, Library
+**Root cause**: The keymap is built once at mount and closed over that render's `props`, while both parents rebuild `onSubmit` / `onCancel` on every note change — so Esc in Draft ran the mount-time `onCancel` (draft id still `null` → hide only) on top of the document fallback, and once #06 was fixed Library ⌘↵ would have saved the content captured at mount.
+**Fix**: `onSubmit` / `onCancel` are read through refs updated on every render, like `onChange` already was (commit 7bd5534).
+**Regression test**: `src/presentation/draft/editor/CodeMirrorEditor.spec.tsx` ("BUG B: …" ×2)
+
+### #08 — External value sync is echoed back through onChange            2026-10-22            severity: minor
+**Surface**: Draft, Library
+**Root cause**: The `value` → editor sync dispatched an ordinary transaction, so the update listener reported the parent's own value as a user edit — every `setDraft` in DraftPanel became an extra `editContent` plus a redundant debounced save.
+**Fix**: The sync transaction carries an `externalSync` annotation that the update listener skips; no parent relied on the echo (commit 7bd5534).
+**Regression test**: `src/presentation/draft/editor/CodeMirrorEditor.spec.tsx` ("BUG C: an external value change is not echoed back through onChange")
