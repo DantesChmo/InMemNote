@@ -27,6 +27,6 @@
 ### #02 — Draft drops the last <500 ms of typing on quit / update relaunch / window destroy            2026-10-22            severity: major
 **Surface**: Draft
 **Root cause**: `DraftPanel` wrote edits only from the 500 ms autosave timer, and quitting the app or destroying the Draft window doesn't unmount React, so a pending timer died with the renderer.
-**Fix**: The pending edit is kept as `{ id, content }` and flushed on `beforeunload`; ⌘↵, Esc and pin drop it before saving the current content themselves, so nothing is written twice (commit <sha>).
+**Fix**: The pending edit is kept as `{ id, content }` and flushed on `beforeunload`; ⌘↵, Esc and pin drop it before saving the current content themselves, so nothing is written twice (commit 72b439a).
 **Regression test**: `src/presentation/draft/DraftPanel.spec.tsx` ("pending autosave is flushed on unload, never dropped or doubled")
 **Postmortem**: `.agents/bugs/postmortems/2026-10-22-draft-autosave-dropped-on-quit.md`
