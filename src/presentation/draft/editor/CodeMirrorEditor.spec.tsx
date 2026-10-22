@@ -138,28 +138,17 @@ describe('CodeMirrorEditor', () => {
       expect(view.state.doc.toString()).toBe('new text');
     });
 
-    // BUG C (found by this spec, not fixed here — see the session report):
-    // the sync effect is documented as "no echo back to onChange", but it
-    // dispatches an ordinary transaction, so the update listener sees
-    // `docChanged` and reports the parent's own value back as a user edit.
-    // In DraftPanel that turns every `setDraft` (hotkey re-open, save
-    // round-trip) into an extra `editContent` + a redundant debounced save.
-    it.fails('BUG C: an external value change is not echoed back through onChange', () => {
+    // Regression for BUG C: the sync dispatched an ordinary transaction, so the
+    // update listener reported the parent's own value back as a user edit —
+    // in DraftPanel every `setDraft` became an extra `editContent` plus a
+    // redundant debounced save.
+    it('BUG C: an external value change is not echoed back through onChange', () => {
       const onChange = vi.fn();
       const { rerender } = setup({ value: 'old', onChange });
 
       rerender(<CodeMirrorEditor value="new text" onChange={onChange} />);
 
       expect(onChange).not.toHaveBeenCalled();
-    });
-
-    it('an external value change is currently echoed through onChange (documents BUG C as-is)', () => {
-      const onChange = vi.fn();
-      const { rerender } = setup({ value: 'old', onChange });
-
-      rerender(<CodeMirrorEditor value="new text" onChange={onChange} />);
-
-      expect(onChange).toHaveBeenLastCalledWith('new text');
     });
 
     it('leaves the editor alone when the value prop already matches the document', () => {
@@ -178,33 +167,16 @@ describe('CodeMirrorEditor', () => {
   });
 
   describe('keyboard', () => {
-    // BUG A (found by this spec, not fixed here — see the session report):
-    // `defaultKeymap` from @codemirror/commands binds `Mod-Enter` to
-    // `insertBlankLine`, and it is spread into the keymap BEFORE our own
-    // `Mod-Enter` binding. CodeMirror runs bindings in order and stops at the
-    // first one that returns true, so ⌘↵ inserts a blank line and `onSubmit`
-    // never fires. DraftPanel hides it behind its document-level ⌘↵
-    // fallback; LibraryEditor has no fallback, so ⌘↵ there never saves.
-    // `it.fails` keeps the suite green while documenting the expected
-    // behaviour; once the bug is fixed this test starts "failing" — flip it
-    // to a plain `it`.
-    it.fails('BUG A: Mod-Enter submits instead of inserting a blank line', () => {
+    // Regression for BUG A: `defaultKeymap` binds `Mod-Enter` to
+    // `insertBlankLine` and used to come first, so ⌘↵ inserted a blank line and
+    // `onSubmit` never fired (LibraryEditor has no document-level fallback).
+    it('BUG A: Mod-Enter submits instead of inserting a blank line', () => {
       const { view, props } = setup({ value: 'note' });
 
       press(view, 'Enter', { ctrl: true });
 
       expect(props.onSubmit).toHaveBeenCalled();
       expect(view.state.doc.toString()).toBe('note');
-    });
-
-    it('Mod-Enter currently inserts a blank line (documents BUG A as-is)', () => {
-      const { view, props } = setup({ value: 'note' });
-      act(() => view.dispatch({ selection: EditorSelection.cursor(4) }));
-
-      press(view, 'Enter', { ctrl: true });
-
-      expect(props.onSubmit).not.toHaveBeenCalled();
-      expect(view.state.doc.toString()).toBe('note\n');
     });
 
     it('plain Enter inserts a newline instead of submitting', () => {
@@ -272,14 +244,10 @@ describe('CodeMirrorEditor', () => {
       expect(view.state.doc.toString()).toBe('a');
     });
 
-    // BUG B (found by this spec, not fixed here — see the session report):
-    // the keymap closes over the `props` of the FIRST render, so a parent
-    // that hands down a fresh `onSubmit` / `onCancel` (both DraftPanel and
-    // LibraryEditor rebuild them via `useCallback` whenever the note changes)
-    // still gets its first-render callback called on ⌘↵ / Esc.
-    // The Mod-Enter variant is additionally blocked by BUG A, so it only
-    // turns green once both are fixed; the Escape variant isolates BUG B.
-    it.fails('BUG B: Mod-Enter calls the latest onSubmit prop, not the first-render one', () => {
+    // Regression for BUG B: the keymap closed over the first render's props,
+    // so ⌘↵ / Esc called a stale `onSubmit` / `onCancel` after the parent
+    // rebuilt them (both DraftPanel and LibraryEditor do on every note change).
+    it('BUG B: Mod-Enter calls the latest onSubmit prop, not the first-render one', () => {
       const onChange = vi.fn();
       const first = vi.fn();
       const latest = vi.fn();
@@ -292,7 +260,7 @@ describe('CodeMirrorEditor', () => {
       expect(first).not.toHaveBeenCalled();
     });
 
-    it.fails('BUG B: Escape calls the latest onCancel prop, not the first-render one', () => {
+    it('BUG B: Escape calls the latest onCancel prop, not the first-render one', () => {
       const onChange = vi.fn();
       const first = vi.fn();
       const latest = vi.fn();
