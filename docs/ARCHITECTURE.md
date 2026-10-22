@@ -18,6 +18,7 @@ presentation → application → domain
 infrastructure ↦ ports declared in domain / application
 domain depends on nothing (but shared)
 * → shared            (leaf: depends on nothing outside src/shared)
+specs → test → domain, shared   (src/test: test-only, never imported by production)
 ```
 
 `src/shared/` holds `Result.ts` (`Result<T, E>`, `ok`, `err`) and the
@@ -25,9 +26,11 @@ cross-process IPC contracts (`shared/ipc/`). It is a leaf: it has no
 dependencies of its own, and every layer may import it.
 
 The boundaries are enforced by `no-restricted-imports` blocks in
-`eslint.config.mjs` (alias and relative forms). Known, tolerated exception:
-use-case specs in `src/application/**/*.spec.ts` wire in-memory adapters
-from `@infrastructure` (ADR 0005).
+`eslint.config.mjs` (alias and relative forms). No layer is exempt, specs
+included. `src/test/` is test-only support code (fakes of domain ports, Vitest
+setup, harnesses): it may import only domain and shared, and production code
+never imports it — the `@test` alias exists only in `tsconfig.json` and
+`vitest.config.ts` ([ADR 0007](./adr/0007-test-fakes-in-src-test.md)).
 
 ## Bounded contexts
 
@@ -58,12 +61,12 @@ is the only place that crosses the two.
 
 | Port | Declared in | Adapters | Notes |
 |---|---|---|---|
-| `DraftRepository` | `src/domain/draft/DraftRepository.ts` | `SqliteDraftRepository`; `InMemoryDraftRepository` (tests + fallback) | `save` is an upsert; `findLatest` restores the scratch buffer |
-| `NoteRepository` | `src/domain/note/NoteRepository.ts` | `SqliteNoteRepository`; `InMemoryNoteRepository` (tests + fallback) | ordering contract lives in the port: pinned first, then `updatedAt` DESC |
-| `SettingsRepository` | `src/domain/settings/SettingsRepository.ts` | `SqliteSettingsRepository`; `InMemorySettingsRepository` (tests + fallback) | `load()` returns `null` when nothing was ever saved |
+| `DraftRepository` | `src/domain/draft/DraftRepository.ts` | `SqliteDraftRepository`; `InMemoryDraftRepository` (fallback); test fake `FakeDraftRepository` in `src/test/fakes/` | `save` is an upsert; `findLatest` restores the scratch buffer |
+| `NoteRepository` | `src/domain/note/NoteRepository.ts` | `SqliteNoteRepository`; `InMemoryNoteRepository` (fallback); test fake `FakeNoteRepository` in `src/test/fakes/` | ordering contract lives in the port: pinned first, then `updatedAt` DESC |
+| `SettingsRepository` | `src/domain/settings/SettingsRepository.ts` | `SqliteSettingsRepository`; `InMemorySettingsRepository` (fallback); test fake `FakeSettingsRepository` in `src/test/fakes/` | `load()` returns `null` when nothing was ever saved |
 | `ReleaseGateway` | `src/domain/update/ReleaseGateway.ts` | `GithubReleaseGateway` (`infrastructure/update/`); fail-soft stub under E2E | reads the anonymous GitHub Releases API |
 | `UpdateInstaller` | `src/domain/update/UpdateInstaller.ts` | `DmgSelfUpdater` (`infrastructure/update/`) | a successful `install` never returns — the app quits |
-| `Clock` | `src/domain/shared/Clock.ts` | `SystemClock`; `FixedClock` (tests) — both in `src/infrastructure/SystemClock.ts` | the domain never reads `Date.now()` |
+| `Clock` | `src/domain/shared/Clock.ts` | `SystemClock` (`src/infrastructure/SystemClock.ts`); test fake `FixedClock` in `src/test/fakes/` | the domain never reads `Date.now()` |
 
 ## Use-cases (`src/application/`)
 
@@ -201,11 +204,6 @@ Inert unless the binary is launched with these env variables (all handled in
 
 Surfaced here rather than papered over.
 
-- **application specs → infrastructure.** Use-case specs in
-  `src/application/**/*.spec.ts` wire in-memory adapters and `FixedClock`
-  from `@infrastructure`; the boundary lint exempts them (ADR 0005). The
-  former presentation → infrastructure edge is gone: IPC contracts now live
-  in `src/shared/ipc/`.
 - **presentation → domain.** `settings/HotkeyInput`, `settings/PaletteEditor`
   and `i18n/{useTranslation,resolveLocale}` import domain value objects
   (`Hotkey`, `PaletteOverrides`, `LanguageMode`) directly instead of going
@@ -224,3 +222,5 @@ ADRs are not deleted, only marked `Superseded by NNNN`.
 | [0003](./adr/0003-two-windows-one-renderer-bundle.md) | Two windows in one renderer bundle, routed by `?view=` |
 | [0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md) | One SQLite connection with versioned schema migrations (`user_version`) |
 | [0005](./adr/0005-ipc-contracts-module.md) | IPC contracts live in `src/shared/ipc/`; inbound payloads Zod-validated in main |
+| [0006](./adr/0006-dmg-first-distribution.md) | DMG-first distribution, with Homebrew and `curl` as extras |
+| [0007](./adr/0007-test-fakes-in-src-test.md) | Test fakes of domain ports live in `src/test/fakes/`; the boundary lint has no exemptions |
