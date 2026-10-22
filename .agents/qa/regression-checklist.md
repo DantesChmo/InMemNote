@@ -23,7 +23,9 @@
 
 ## Library
 
-- [ ] (none yet)
+- [ ] Library — the last keystrokes survive a note switch, a window close and a quit made within 500 ms of typing (switch and unload ✅-unit; the real quit path still needs a manual or e2e check)
+       repro: type in note A, within 0.5 s click note B (or ⌘W / ⌘Q), reopen — A has the full text
+       added: 2026-10-22 (after bug #01)
 
 ## Hotkeys / global shortcuts
 

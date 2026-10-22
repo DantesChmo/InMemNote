@@ -22,39 +22,60 @@ export function LibraryEditor(): JSX.Element {
   const note = useMemo(() => notes.find((n) => n.id === selectedId) ?? null, [notes, selectedId]);
   const { t } = useTranslation();
 
+  // The edit waiting out the autosave debounce. It carries its own note id so
+  // a flush always lands on the note that was edited, even after the
+  // selection has moved on.
   const saveTimer = useRef<number | null>(null);
+  const pending = useRef<{ id: string; content: string } | null>(null);
 
-  const flushSave = useCallback(
-    (id: string, content: string) => {
-      void dispatch(saveNote({ id, content }));
-    },
-    [dispatch],
-  );
+  const cancelPending = useCallback(() => {
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    pending.current = null;
+  }, []);
+
+  const flushPending = useCallback(() => {
+    const edit = pending.current;
+    cancelPending();
+    if (edit) void dispatch(saveNote(edit));
+  }, [cancelPending, dispatch]);
 
   const onChange = useCallback(
     (next: string) => {
       if (!note) return;
       dispatch(libraryActions.patchSelectedContent(next));
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => flushSave(note.id, next), 500);
+      pending.current = { id: note.id, content: next };
+      saveTimer.current = window.setTimeout(flushPending, 500);
     },
-    [dispatch, note, flushSave],
+    [dispatch, note, flushPending],
   );
 
   const onSubmit = useCallback(() => {
     if (!note) return;
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    flushSave(note.id, note.content);
-  }, [flushSave, note]);
+    cancelPending();
+    void dispatch(saveNote({ id: note.id, content: note.content }));
+  }, [cancelPending, dispatch, note]);
 
-  // Cancel any pending debounce when the user switches notes, so a save for
-  // the previous note doesn't land on the freshly-selected one.
+  const onDelete = useCallback(() => {
+    if (!note) return;
+    // Saving a note that is about to be deleted would only make main throw.
+    if (pending.current?.id === note.id) cancelPending();
+    void dispatch(deleteNote(note.id));
+  }, [cancelPending, dispatch, note]);
+
+  // Switching notes must not drop the last <500 ms of typing: write the
+  // previous note's pending edit now instead of cancelling it.
+  useEffect(() => flushPending, [selectedId, flushPending]);
+
+  // Closing the window or quitting the app doesn't unmount React, so the
+  // effect above never runs there. `beforeunload` fires in both cases (on
+  // quit Electron closes every window first); the IPC message is posted
+  // before the renderer goes away, and main is still alive to write it.
   useEffect(() => {
-    return () => {
-      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    };
-  }, [selectedId]);
+    window.addEventListener('beforeunload', flushPending);
+    return () => window.removeEventListener('beforeunload', flushPending);
+  }, [flushPending]);
 
   if (!note) {
     return (
@@ -100,7 +121,7 @@ export function LibraryEditor(): JSX.Element {
           </button>
           <button
             type="button"
-            onClick={() => void dispatch(deleteNote(note.id))}
+            onClick={onDelete}
             aria-label={t('editor.deleteAria')}
             data-testid="lib-delete-btn"
             className="w-[30px] h-[30px] rounded-icon flex items-center justify-center text-text-3 transition-colors hover:bg-[color-mix(in_oklch,#ec6a5e_22%,transparent)] hover:text-[#ec6a5e]"

@@ -137,6 +137,107 @@ describe('LibraryEditor (shallow)', () => {
     }
   });
 
+  describe('pending autosave is flushed, never dropped', () => {
+    const savesIn = (calls: unknown[][]): unknown[] =>
+      calls.map(([a]) => a).filter((a) => (a as { type: string }).type === 'library/saveNote');
+
+    it('flushes the previous note when the selection switches mid-debounce', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' }), note({ id: 'n2' })], selectedId: 'n1' };
+        const { rerender } = render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+
+        state = { ...state, selectedId: 'n2' };
+        rerender(<LibraryEditor />);
+
+        // Saved right away — not after the debounce — and for n1, not n2.
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
+
+        // The cancelled debounce must not write a second time.
+        act(() => {
+          vi.advanceTimersByTime(600);
+        });
+        expect(savesIn(dispatch.mock.calls)).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('flushes when the selection is cleared mid-debounce', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+        const { rerender } = render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+
+        state = { ...state, selectedId: null };
+        rerender(<LibraryEditor />);
+
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('flushes on beforeunload (window close and app quit)', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+        render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+
+        act(() => {
+          window.dispatchEvent(new Event('beforeunload'));
+        });
+
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('saves nothing on switch or unload when no edit is pending', () => {
+      state = { notes: [note({ id: 'n1' }), note({ id: 'n2' })], selectedId: 'n1' };
+      const { rerender } = render(<LibraryEditor />);
+
+      state = { ...state, selectedId: 'n2' };
+      rerender(<LibraryEditor />);
+      act(() => {
+        window.dispatchEvent(new Event('beforeunload'));
+      });
+
+      expect(savesIn(dispatch.mock.calls)).toEqual([]);
+    });
+
+    it('drops the pending save of a note that is being deleted', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' }), note({ id: 'n2' })], selectedId: 'n1' };
+        const { rerender } = render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+        fireEvent.click(screen.getByTestId('lib-delete-btn'));
+
+        // deleteNote.fulfilled moves the selection to the next note.
+        state = { notes: [note({ id: 'n2' })], selectedId: 'n2' };
+        rerender(<LibraryEditor />);
+        act(() => {
+          vi.advanceTimersByTime(600);
+        });
+
+        expect(savesIn(dispatch.mock.calls)).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('onSubmit dispatches an immediate saveNote', () => {
     state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
     render(<LibraryEditor />);

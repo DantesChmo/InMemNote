@@ -190,7 +190,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 
 ### 4a.6 CRUD and shortcuts
 - [x] `⌘N` creates a fresh empty note, selection jumps to it.
-- [x] Auto-save 500 ms after the last keystroke.
+- [x] Auto-save 500 ms after the last keystroke. A pending edit is flushed
+  (never dropped) on note switch, window close and app quit — bug #01,
+  2026-10-22.
 - [x] `⌘↵` in the Library editor — synchronous flush, no promote.
 - [x] Delete button — `deleteNote`; selection moves to the next note.
 
