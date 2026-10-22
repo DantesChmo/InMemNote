@@ -56,8 +56,8 @@ this section.
 > ad-hoc-signed and installs via `curl` to dodge Gatekeeper's quarantine).
 > V2.3 instead ships an in-house updater that reads the same GitHub Releases
 > feed and applies updates by reproducing `scripts/install.sh` from a
-> detached helper. The `update-electron-app` package is now dead and slated
-> for removal. Details: `docs/TZ.md` §4d.
+> detached helper. The dead `update-electron-app` dependency was removed
+> from `package.json` on 2026-10-22. Details: `docs/TZ.md` §4d.
 
 ---
 

@@ -121,7 +121,8 @@ Details live in `CLAUDE.md` (the project constitution) and `docs/TZ.md`
 
 ## Build from source
 
-Requires Node.js 22+ (Node 25 also works) and npm 10+.
+Requires Node.js 22+ (Node 25 also works) and npm 10+. CI runs the
+version in `.nvmrc` (22); `nvm use` picks it up locally.
 
 ```sh
 git clone <repo>
