@@ -67,7 +67,7 @@ export function applyAppearance(settings: AppSettingsDTO): void {
  */
 export function sameAppearance(a: AppSettingsDTO, b: AppSettingsDTO): boolean {
   if (a.themeMode !== b.themeMode) return false;
-  if (a.openDraftHotkey !== b.openDraftHotkey) return false;
+  if (a.language !== b.language) return false;
   const ka = Object.keys(a.palette);
   const kb = Object.keys(b.palette);
   if (ka.length !== kb.length) return false;

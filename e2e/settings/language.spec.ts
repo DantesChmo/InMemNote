@@ -115,11 +115,11 @@ test.describe('Settings: language', () => {
    *   - The Draft window's `<html lang>` becomes "en" (spellcheck / screen-reader language).
    *
    * Notes:
-   *   - `test.fixme`: `shallowEqualSettings` in `src/presentation/app/main.tsx` does not compare
-   *     `language`, so a language-only broadcast never re-runs `applyAppearance` in a window
-   *     that did not host the popup; the Draft keeps `lang="ru"` while its strings are English.
+   *   - Regression: `sameAppearance` (`src/presentation/settings/applyTheme.ts`) used to ignore
+   *     `language`, so a language-only broadcast never re-ran `applyAppearance` in a window
+   *     that did not host the popup; the Draft kept `lang="ru"` while its strings were English.
    */
-  test.fixme('Draft html lang follows a language-only change', async () => {
+  test('Draft html lang follows a language-only change', async () => {
     const handles = await launchApp();
     try {
       const draft = await DraftPage.summon(handles.app);
