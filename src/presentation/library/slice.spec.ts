@@ -15,6 +15,7 @@ import {
   commitDelete,
   createNote,
   deleteNote,
+  fetchCatalog,
   fetchNotes,
   libraryActions,
   libraryReducer,
@@ -37,6 +38,7 @@ type Store = ReturnType<typeof makeStore>;
 
 const initialState: LibraryState = {
   notes: [],
+  catalog: [],
   filter: 'all',
   query: '',
   selectedId: null,
@@ -568,5 +570,96 @@ describe('toggleNotePin / fetchNotes edges', () => {
     await store.dispatch(fetchNotes());
 
     expect(store.getState().library.notes.map((n) => n.id)).toEqual(['a']);
+  });
+});
+
+// The sidebar counts the whole Library, not the visible slice: `catalog` is
+// fetched unfiltered and patched locally between `notes:changed` broadcasts.
+describe('catalog (sidebar totals)', () => {
+  let api: InmemnoteAPI;
+
+  beforeEach(() => {
+    api = installInmemnoteApiMock();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetchCatalog lists every note, whatever the filter or search', async () => {
+    (api.notes.list as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      noteDTO({ id: 'a', pinned: true }),
+      noteDTO({ id: 'b', pinned: false }),
+    ]);
+    const store = makeStore(stateWith({ filter: 'pinned', query: 'zzz' }));
+
+    await store.dispatch(fetchCatalog());
+
+    expect(api.notes.list).toHaveBeenCalledWith('all');
+    expect(api.notes.search).not.toHaveBeenCalled();
+    expect(store.getState().library.catalog).toEqual([
+      { id: 'a', pinned: true },
+      { id: 'b', pinned: false },
+    ]);
+  });
+
+  it('a created note is counted at once', async () => {
+    (api.notes.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(noteDTO({ id: 'new' }));
+    const store = makeStore(stateWith({ catalog: [{ id: 'old', pinned: false }] }));
+
+    await store.dispatch(createNote());
+
+    expect(store.getState().library.catalog).toEqual([
+      { id: 'new', pinned: false },
+      { id: 'old', pinned: false },
+    ]);
+  });
+
+  it('a pin toggle moves the note between the counts, even when it is not visible', async () => {
+    (api.notes.togglePin as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      noteDTO({ id: 'a', pinned: true }),
+    );
+    const store = makeStore(stateWith({ notes: [], catalog: [{ id: 'a', pinned: false }] }));
+
+    await store.dispatch(toggleNotePin('a'));
+
+    expect(store.getState().library.catalog).toEqual([{ id: 'a', pinned: true }]);
+  });
+
+  it('committing a delete drops the note from the catalog', async () => {
+    const a = noteDTO({ id: 'a' });
+    const store = makeStore(
+      stateWith({
+        catalog: [
+          { id: 'a', pinned: false },
+          { id: 'b', pinned: false },
+        ],
+        pendingDelete: { note: a, index: 0 },
+      }),
+    );
+
+    await store.dispatch(commitDelete('a'));
+
+    expect(store.getState().library.catalog).toEqual([{ id: 'b', pinned: false }]);
+  });
+
+  it('a second delete drops the first (now committed) note from the catalog', async () => {
+    const a = noteDTO({ id: 'a' });
+    const b = noteDTO({ id: 'b' });
+    const store = makeStore(
+      stateWith({
+        notes: [b],
+        catalog: [
+          { id: 'a', pinned: false },
+          { id: 'b', pinned: false },
+        ],
+        pendingDelete: { note: a, index: 0 },
+      }),
+    );
+
+    await store.dispatch(deleteNote('b'));
+
+    // `b` is only pending (the sidebar hides it); `a` is gone for good.
+    expect(store.getState().library.catalog).toEqual([{ id: 'b', pinned: false }]);
   });
 });

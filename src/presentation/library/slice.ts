@@ -23,8 +23,21 @@ export interface PendingDelete {
  * separately — the selected note's `content` field IS the editor's value, and
  * autosave debounces a single thunk.
  */
+/** Just enough of a note to count it. */
+export interface CatalogEntry {
+  id: string;
+  pinned: boolean;
+}
+
 export interface LibraryState {
   notes: NoteDTO[];
+  /**
+   * Every note in the Library, whatever the filter or search: `notes` is only
+   * the visible slice, so the sidebar counts come from here. Refreshed by
+   * `fetchCatalog` on mount and on `notes:changed`, and patched locally in
+   * between so a count never lags the list.
+   */
+  catalog: CatalogEntry[];
   filter: NoteListFilterDTO;
   query: string;
   selectedId: string | null;
@@ -35,6 +48,7 @@ export interface LibraryState {
 
 const initialState: LibraryState = {
   notes: [],
+  catalog: [],
   filter: 'all',
   query: '',
   selectedId: null,
@@ -53,6 +67,10 @@ export const fetchNotes = createAsyncThunk<NoteDTO[], void, { state: { library: 
     return window.inmemnote.notes.list(filter);
   },
 );
+
+export const fetchCatalog = createAsyncThunk<CatalogEntry[]>('library/fetchCatalog', async () => {
+  return [];
+});
 
 export const createNote = createAsyncThunk<NoteDTO>('library/createNote', async () => {
   return window.inmemnote.notes.create();

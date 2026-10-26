@@ -39,6 +39,7 @@ vi.mock('./UndoDeleteToast', () => ({
 }));
 vi.mock('./slice', () => ({
   fetchNotes: () => ({ type: 'library/fetchNotes' }),
+  fetchCatalog: () => ({ type: 'library/fetchCatalog' }),
 }));
 
 vi.mock('@presentation/storage/StorageBanner', () => ({
@@ -102,6 +103,7 @@ describe('LibraryWindow (shallow)', () => {
     });
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchNotes' });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchCatalog' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'settings/fetch' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'update/check' });
     expect(api.notes.onChanged).toHaveBeenCalledTimes(1);
@@ -123,6 +125,8 @@ describe('LibraryWindow (shallow)', () => {
     await act(async () => push!());
 
     expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchNotes' });
+    // Totals change with the data, so the sidebar's catalog is refreshed too.
+    expect(dispatch).toHaveBeenCalledWith({ type: 'library/fetchCatalog' });
   });
 
   it('applies storage:changed broadcasts and unsubscribes on unmount', async () => {
