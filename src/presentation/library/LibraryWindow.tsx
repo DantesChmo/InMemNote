@@ -11,7 +11,7 @@ import { LibraryEditor } from './LibraryEditor';
 import { LibraryNoteList } from './LibraryNoteList';
 import { LibrarySidebar } from './LibrarySidebar';
 import { LibraryToolbar } from './LibraryToolbar';
-import { fetchNotes } from './slice';
+import { fetchCatalog, fetchNotes } from './slice';
 import { UndoDeleteToast } from './UndoDeleteToast';
 
 /**
@@ -30,6 +30,7 @@ export function LibraryWindow(): JSX.Element {
 
   useEffect(() => {
     void dispatch(fetchNotes());
+    void dispatch(fetchCatalog());
     // Settings are loaded once at mount so the Settings popup opens
     // instantly; subsequent saves and cross-window broadcasts keep the
     // Redux cache fresh (see `wireSettings` in `app/main.tsx`).
@@ -40,7 +41,10 @@ export function LibraryWindow(): JSX.Element {
     const unsubStorage = window.inmemnote.storage.onChanged((s) =>
       dispatch(storageActions.setStatus(s)),
     );
-    const unsubNotes = window.inmemnote.notes.onChanged(() => void dispatch(fetchNotes()));
+    const unsubNotes = window.inmemnote.notes.onChanged(() => {
+      void dispatch(fetchNotes());
+      void dispatch(fetchCatalog());
+    });
 
     // Opening the Library is a natural moment to check; the main process also
     // checks on startup and on a timer and broadcasts what it finds.

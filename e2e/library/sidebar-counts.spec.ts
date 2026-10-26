@@ -131,12 +131,11 @@ test.describe('Library sidebar counts', () => {
    *     sections of the whole Library, not the current result list.
    *
    * Notes:
-   *   - test.fixme: the badges are derived from the filtered `notes` cache
-   *     (`LibrarySidebar` counts `s.library.notes`), so "Все заметки" drops
-   *     to 1 under the Pinned filter and both drop to 0 during a search.
+   *   - Regression: the badges used to be derived from the filtered `notes`
+   *     cache, so "Все заметки" dropped to 1 under the Pinned filter and both
+   *     dropped to 0 during a search. They now count `s.library.catalog`.
    */
   test('totals stay put under the Pinned filter and a search', async () => {
-    test.fixme(true, 'sidebar badges count the filtered list, not the whole Library');
     const handles = await launchApp();
     try {
       const library = new LibraryPage(handles.library);

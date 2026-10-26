@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Total scenarios: **121**
-- By priority: **P0** = 41, **P1** = 65, **P2** = 15
-- By type: **positive** = 56, **negative** = 22, **edge** = 11, **race** = 13, **persistence** = 19
-- By area: **Cross-window** = 17, **Draft** = 34, **Library** = 48, **Settings** = 21, **Visual** = 1
+- Total scenarios: **123**
+- By priority: **P0** = 41, **P1** = 65, **P2** = 17
+- By type: **positive** = 56, **negative** = 22, **edge** = 13, **race** = 13, **persistence** = 19
+- By area: **Cross-window** = 17, **Draft** = 34, **Library** = 48, **Settings** = 23, **Visual** = 1
 
 ## Table of contents
 
@@ -92,8 +92,8 @@
 - [Settings](#settings)
   - [Entry / Exit](#settings-entry-exit) (4)
   - [Hotkey](#settings-hotkey) (4)
-  - [Language](#settings-language) (4)
-  - [Palette](#settings-palette) (4)
+  - [Language](#settings-language) (5)
+  - [Palette](#settings-palette) (5)
   - [Theme](#settings-theme) (3)
   - [Update banner](#settings-update-banner) (2)
 
@@ -1431,9 +1431,9 @@
 - sections of the whole Library, not the current result list.
 
 **Notes:**
-- test.fixme: the badges are derived from the filtered `notes` cache
-- (`LibrarySidebar` counts `s.library.notes`), so "Все заметки" drops
-- to 1 under the Pinned filter and both drop to 0 during a search.
+- Regression: the badges used to be derived from the filtered `notes`
+- cache, so "Все заметки" dropped to 1 under the Pinned filter and both
+- dropped to 0 during a search. They now count `s.library.catalog`.
 
 ---
 
@@ -2231,6 +2231,28 @@
 
 ---
 
+#### [P2] An open Draft window keeps `<html lang>` in sync with a language-only change
+
+- **File**: `e2e/settings/language.spec.ts`
+- **Test**: `Draft html lang follows a language-only change`
+- **Type**: edge
+
+**Preconditions:**
+- Fresh userData, `--lang=ru`; the Draft window has been summoned (`lang="ru"`).
+
+**Steps:**
+1. In Library open Settings → Язык, pick "English", save (nothing else changes).
+
+**Expected:**
+- The Draft window's `<html lang>` becomes "en" (spellcheck / screen-reader language).
+
+**Notes:**
+- Regression: `sameAppearance` (`src/presentation/settings/applyTheme.ts`) used to ignore
+- `language`, so a language-only broadcast never re-ran `applyAppearance` in a window
+- that did not host the popup; the Draft kept `lang="ru"` while its strings were English.
+
+---
+
 #### [P2] An unsaved language choice is not applied and is rolled back on Cancel
 
 - **File**: `e2e/settings/language.spec.ts`
@@ -2315,6 +2337,28 @@
 - After step 2: inline `--accent` is gone at once (live), `--text` keeps
 - its override, and the accent resolves to the original theme default.
 - After step 3: the DB palette is `{ text: "#00ff00" }`.
+
+---
+
+#### [P2] Esc closes the modal right after picking a colour (focus still on the colour input)
+
+- **File**: `e2e/settings/palette.spec.ts`
+- **Test**: `Esc closes the modal while the colour input still has focus`
+- **Type**: edge
+
+**Preconditions:**
+- Fresh userData.
+
+**Steps:**
+1. Open Settings, set "accent" to #ff0000 (focus stays on the colour input).
+2. Press Escape without touching anything else.
+
+**Expected:**
+- The dialog closes and the preview is rolled back.
+
+**Notes:**
+- Regression: `SettingsPopup` used to ignore Esc whenever the event target was an
+- `<input>` (meant for text fields), so a focused colour input swallowed it.
 
 ---
 
