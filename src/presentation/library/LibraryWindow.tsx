@@ -1,12 +1,11 @@
 import { useAppDispatch } from '@presentation/app/store';
 import { SettingsPopup } from '@presentation/settings/SettingsPopup';
 import { fetchSettings } from '@presentation/settings/slice';
-import { fetchStorageStatus } from '@presentation/storage/slice';
+import { fetchStorageStatus, storageActions } from '@presentation/storage/slice';
 import { StorageBanner } from '@presentation/storage/StorageBanner';
 import { checkForUpdate, updateActions } from '@presentation/update/slice';
 import { UpdateBanner } from '@presentation/update/UpdateBanner';
 import { useEffect } from 'react';
-
 
 import { LibraryEditor } from './LibraryEditor';
 import { LibraryNoteList } from './LibraryNoteList';
@@ -34,8 +33,12 @@ export function LibraryWindow(): JSX.Element {
     // instantly; subsequent saves and cross-window broadcasts keep the
     // Redux cache fresh (see `wireSettings` in `app/main.tsx`).
     void dispatch(fetchSettings());
-    // Fixed for the process lifetime, so one pull at mount is enough.
+    // Boot-time fallbacks are pulled once; a store that degrades later (a
+    // failed write) is pushed by main.
     void dispatch(fetchStorageStatus());
+    const unsubStorage = window.inmemnote.storage.onChanged((s) =>
+      dispatch(storageActions.setStatus(s)),
+    );
     const unsubNotes = window.inmemnote.notes.onChanged(() => void dispatch(fetchNotes()));
 
     // Opening the Library is a natural moment to check; the main process also
@@ -50,6 +53,7 @@ export function LibraryWindow(): JSX.Element {
 
     return () => {
       unsubNotes();
+      unsubStorage();
       unsubAvailable();
       unsubProgress();
     };
@@ -60,10 +64,7 @@ export function LibraryWindow(): JSX.Element {
       <LibraryToolbar />
       <StorageBanner />
       <UpdateBanner />
-      <div
-        className="flex-1 grid min-h-0"
-        style={{ gridTemplateColumns: '208px 296px 1fr' }}
-      >
+      <div className="flex-1 grid min-h-0" style={{ gridTemplateColumns: '208px 296px 1fr' }}>
         <LibrarySidebar />
         <LibraryNoteList />
         <LibraryEditor />

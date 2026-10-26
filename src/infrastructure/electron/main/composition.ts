@@ -17,18 +17,27 @@ import { UpdateSettingsUseCase } from '@application/settings/UpdateSettingsUseCa
 import { InMemoryDraftRepository } from '@infrastructure/persistence/InMemoryDraftRepository';
 import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
 import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
-import { openDatabase } from '@infrastructure/persistence/sqlite/openDatabase';
+import { SharedConnection } from '@infrastructure/persistence/sqlite/SharedConnection';
 import { SqliteDraftRepository } from '@infrastructure/persistence/sqlite/SqliteDraftRepository';
 import { SqliteNoteRepository } from '@infrastructure/persistence/sqlite/SqliteNoteRepository';
 import { SqliteSettingsRepository } from '@infrastructure/persistence/sqlite/SqliteSettingsRepository';
+import {
+  StorageHealthMonitor,
+  type StorageHealth,
+  type StoreName,
+} from '@infrastructure/persistence/StorageHealthMonitor';
+import {
+  WriteGuard,
+  guardDraftRepository,
+  guardNoteRepository,
+  guardSettingsRepository,
+} from '@infrastructure/persistence/WriteGuard';
 import { SystemClock } from '@infrastructure/SystemClock';
 import { app } from 'electron';
 
 import type { DraftRepository } from '@domain/draft/DraftRepository';
 import type { NoteRepository } from '@domain/note/NoteRepository';
 import type { SettingsRepository } from '@domain/settings/SettingsRepository';
-import type { StorageHealth } from '@infrastructure/persistence/StorageHealthMonitor';
-import type Database from 'better-sqlite3';
 
 /**
  * Composition root for the main process.
@@ -46,6 +55,12 @@ import type Database from 'better-sqlite3';
  * fall back together. Every fallback is recorded in `Container.storage`
  * so main can tell the renderer — an in-memory store silently loses
  * everything on quit, so the user must be warned (bug #03).
+ *
+ * The SQLite repositories are wrapped in write guards: a write that fails
+ * after a successful open (disk full, file deleted) degrades that store in
+ * the same `Container.storage`, so the same warning appears. The container
+ * also owns the connection's end of life — `closeDatabase()` on quit
+ * (ADR 0008).
  */
 
 export interface UseCases {
@@ -88,11 +103,12 @@ export interface Container {
  * resolves — it touches `app.getPath('userData')`.
  */
 export function buildContainer(): Container {
-  const db = lazyDatabase(join(app.getPath('userData'), 'inmemnote.db'));
-  const degraded: { store: 'drafts' | 'notes' | 'settings'; reason: string }[] = [];
-  const drafts = buildDraftRepo(db, degraded);
-  const notes = buildNoteRepo(db, degraded);
-  const settings = buildSettingsRepo(db, degraded);
+  const db = new SharedConnection(join(app.getPath('userData'), 'inmemnote.db'));
+  const health = new StorageHealthMonitor();
+  const guard = (store: StoreName) => new WriteGuard(store, health, () => db.checkFile());
+  const drafts = buildDraftRepo(db, health, guard('drafts'));
+  const notes = buildNoteRepo(db, health, guard('notes'));
+  const settings = buildSettingsRepo(db, health, guard('settings'));
   const clock = new SystemClock();
 
   const uc: UseCases = {
@@ -114,77 +130,47 @@ export function buildContainer(): Container {
     updateSettings: new UpdateSettingsUseCase(settings),
   };
 
-  return {
-    drafts,
-    notes,
-    settings,
-    storage: { degraded, onChange: () => () => undefined },
-    uc,
-    closeDatabase: () => undefined,
-  };
+  return { drafts, notes, settings, storage: health, uc, closeDatabase: () => db.close() };
 }
 
 function buildDraftRepo(
-  db: SharedDatabase,
-  degraded: { store: string; reason: string }[],
+  db: SharedConnection,
+  health: StorageHealthMonitor,
+  guard: WriteGuard,
 ): DraftRepository {
   try {
-    return new SqliteDraftRepository(db());
+    return guardDraftRepository(new SqliteDraftRepository(db.get()), guard);
   } catch (e) {
     console.warn('SQLite (drafts) init failed; falling back to in-memory.', e);
-    degraded.push({ store: 'drafts', reason: errorMessage(e) });
+    health.markDegraded('drafts', e);
     return new InMemoryDraftRepository();
   }
 }
 
 function buildNoteRepo(
-  db: SharedDatabase,
-  degraded: { store: string; reason: string }[],
+  db: SharedConnection,
+  health: StorageHealthMonitor,
+  guard: WriteGuard,
 ): NoteRepository {
   try {
-    return new SqliteNoteRepository(db());
+    return guardNoteRepository(new SqliteNoteRepository(db.get()), guard);
   } catch (e) {
     console.warn('SQLite (notes) init failed; falling back to in-memory.', e);
-    degraded.push({ store: 'notes', reason: errorMessage(e) });
+    health.markDegraded('notes', e);
     return new InMemoryNoteRepository();
   }
 }
 
 function buildSettingsRepo(
-  db: SharedDatabase,
-  degraded: { store: string; reason: string }[],
+  db: SharedConnection,
+  health: StorageHealthMonitor,
+  guard: WriteGuard,
 ): SettingsRepository {
   try {
-    return new SqliteSettingsRepository(db());
+    return guardSettingsRepository(new SqliteSettingsRepository(db.get()), guard);
   } catch (e) {
     console.warn('SQLite (settings) init failed; falling back to in-memory.', e);
-    degraded.push({ store: 'settings', reason: errorMessage(e) });
+    health.markDegraded('settings', e);
     return new InMemorySettingsRepository();
   }
-}
-
-type SharedDatabase = () => Database.Database;
-
-/**
- * Open the db file on first call and hand every caller the same connection.
- * A failed open is remembered and rethrown to each caller, so every
- * repository's fallback trips with the same error instead of retrying.
- */
-function lazyDatabase(path: string): SharedDatabase {
-  let opened: { db: Database.Database } | { error: unknown } | undefined;
-  return () => {
-    if (!opened) {
-      try {
-        opened = { db: openDatabase(path) };
-      } catch (error) {
-        opened = { error };
-      }
-    }
-    if ('error' in opened) throw opened.error;
-    return opened.db;
-  };
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }

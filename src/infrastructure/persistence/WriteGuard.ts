@@ -21,25 +21,46 @@ export class WriteGuard {
     private readonly verify: () => void = () => undefined,
   ) {}
 
-  public async run(_write: () => Promise<void>): Promise<void> {
-    throw new Error('not implemented');
+  public async run(write: () => Promise<void>): Promise<void> {
+    try {
+      await write();
+      this.verify();
+    } catch (e) {
+      console.error(`[storage] ${this.store} write failed; it is not on disk.`, e);
+      this.health.markDegraded(this.store, e);
+      throw e;
+    }
   }
 }
 
 /** `DraftRepository` whose writes go through `guard`. */
-export function guardDraftRepository(_inner: DraftRepository, _guard: WriteGuard): DraftRepository {
-  throw new Error('not implemented');
+export function guardDraftRepository(inner: DraftRepository, guard: WriteGuard): DraftRepository {
+  return {
+    findById: (id) => inner.findById(id),
+    findLatest: () => inner.findLatest(),
+    save: (note) => guard.run(() => inner.save(note)),
+    delete: (id) => guard.run(() => inner.delete(id)),
+  };
 }
 
 /** `NoteRepository` whose writes go through `guard`. */
-export function guardNoteRepository(_inner: NoteRepository, _guard: WriteGuard): NoteRepository {
-  throw new Error('not implemented');
+export function guardNoteRepository(inner: NoteRepository, guard: WriteGuard): NoteRepository {
+  return {
+    list: (filter) => inner.list(filter),
+    findById: (id) => inner.findById(id),
+    search: (query) => inner.search(query),
+    save: (note) => guard.run(() => inner.save(note)),
+    delete: (id) => guard.run(() => inner.delete(id)),
+  };
 }
 
 /** `SettingsRepository` whose writes go through `guard`. */
 export function guardSettingsRepository(
-  _inner: SettingsRepository,
-  _guard: WriteGuard,
+  inner: SettingsRepository,
+  guard: WriteGuard,
 ): SettingsRepository {
-  throw new Error('not implemented');
+  return {
+    load: () => inner.load(),
+    save: (settings) => guard.run(() => inner.save(settings)),
+  };
 }

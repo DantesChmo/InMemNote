@@ -31,8 +31,11 @@ export interface StorageHealth {
 }
 
 export class StorageHealthMonitor implements StorageHealth {
+  private entries: readonly StorageDegradation[] = [];
+  private readonly listeners = new Set<() => void>();
+
   public get degraded(): readonly StorageDegradation[] {
-    throw new Error('not implemented');
+    return this.entries;
   }
 
   /**
@@ -40,11 +43,21 @@ export class StorageHealthMonitor implements StorageHealth {
    * wins; later failures of the same store are ignored (no repeated
    * notifications for every autosave that fails the same way).
    */
-  public markDegraded(_store: StoreName, _error: unknown): void {
-    throw new Error('not implemented');
+  public markDegraded(store: StoreName, error: unknown): void {
+    if (this.entries.some((d) => d.store === store)) return;
+    // A fresh array each time, so a snapshot handed out earlier never changes.
+    this.entries = [...this.entries, { store, reason: errorMessage(error) }];
+    for (const listener of this.listeners) listener();
   }
 
-  public onChange(_listener: () => void): () => void {
-    throw new Error('not implemented');
+  public onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }

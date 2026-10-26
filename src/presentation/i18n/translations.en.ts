@@ -92,9 +92,9 @@ export const en: Messages = {
   'update.failed': 'Update failed. Please try again later.',
 
   'storage.notesNotSaved':
-    "Notes aren't being saved: the database couldn't be opened. Anything you write will be lost when you quit.",
+    "Notes aren't being saved: the database can't be written to. Anything you write will be lost when you quit.",
   'storage.settingsNotSaved':
-    "Settings aren't being saved: the database couldn't be opened. Changes will reset when you quit.",
+    "Settings aren't being saved: the database can't be written to. Changes will reset when you quit.",
   'storage.draftNotSaved': 'Not saved: storage unavailable',
   'storage.reason': 'Reason: {reason}',
 };
