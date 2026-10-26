@@ -113,7 +113,7 @@ Main-side paths are relative to `src/infrastructure/electron/main/`.
 | `notes:create` | R→M | — | `NoteDTO` | `ipc/notes.ts` | Broadcasts `notes:changed`. |
 | `notes:save` | R→M | `id: string, content: string` | `NoteDTO` | `ipc/notes.ts` | Broadcasts `notes:changed`. Empty content is valid. |
 | `notes:togglePin` | R→M | `id: string` | `NoteDTO` | `ipc/notes.ts` | Broadcasts `notes:changed`. |
-| `notes:delete` | R→M | `id: string` | `void` | `ipc/notes.ts` | Broadcasts `notes:changed`. |
+| `notes:delete` | R→M | `id: string` | `void` | `ipc/notes.ts` | Broadcasts `notes:changed`. Hard delete. The Library sends it only after its undo window closes (`commitDelete` in `library/slice.ts`). |
 | `notes:search` | R→M | `query: string` | `NoteDTO[]` | `ipc/notes.ts` | |
 | `notes:changed` | M→R | — | — | `index.ts` (`emitNotesChanged`) | Library refetches its list. |
 

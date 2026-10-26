@@ -138,7 +138,7 @@ header hover sensor. It is consumed only by that controller. Details:
 |---|---|
 | `app/` | `main.tsx` (renderer entry, appearance bootstrap, settings subscription), `App.tsx` (`?view=` routing), `store.ts` |
 | `draft/` | `DraftPanel`, `DraftHeader`, `DraftFooter`, `ResizeHandle`, `slice.ts`; `editor/` holds the shared `CodeMirrorEditor` and `inmemnoteMarkdownExtensions` (also used by the Library editor) |
-| `library/` | `LibraryWindow`, `LibraryToolbar`, `LibrarySidebar`, `LibraryNoteList`, `LibraryEditor`, `slice.ts`, helpers `highlight.ts` / `preview.ts` |
+| `library/` | `LibraryWindow`, `LibraryToolbar`, `LibrarySidebar`, `LibraryNoteList`, `LibraryEditor`, `UndoDeleteToast`, `slice.ts`, helpers `highlight.ts` / `preview.ts`. Deleting a note is soft and renderer-only: the slice hides it as `pendingDelete`, and `UndoDeleteToast` sends `notes:delete` only when the undo window closes |
 | `settings/` | `SettingsPopup` (modal inside the Library window, not a separate window), `PaletteEditor`, `HotkeyInput`, `applyTheme.ts`, `slice.ts` |
 | `update/` | `UpdateBanner`, `slice.ts` |
 | `storage/` | `StorageBanner` (Library banner + Draft strip when stores run in memory), `slice.ts` |
