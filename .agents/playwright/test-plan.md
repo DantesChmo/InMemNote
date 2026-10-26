@@ -29,7 +29,7 @@
 
 ## Spec inventory
 
-121 scenarios in 24 files (matches the summary in `e2e/TEST-PLAN.md`).
+123 scenarios in 24 files (matches the summary in `e2e/TEST-PLAN.md`).
 
 | Spec file | Scenarios | Covers |
 |---|---|---|
@@ -48,14 +48,14 @@
 | `e2e/visual-smoke.spec.ts` | 1 | see flow 7 |
 | `e2e/library/undo-delete.spec.ts` | 11 | see flow 9 |
 | `e2e/library/autosave-flush.spec.ts` | 4 | see flow 10, plus Library close → Dock `activate` reopens it |
-| `e2e/library/sidebar-counts.spec.ts` | 3 | counts follow create / pin / delete / undo and restart; totals under filter / search (fixme) |
+| `e2e/library/sidebar-counts.spec.ts` | 3 | counts follow create / pin / delete / undo and restart; totals under filter / search (bug #11) |
 | `e2e/cross-window/quit-flush.spec.ts` | 1 | see flow 10 (Draft) |
 | `e2e/cross-window/storage-fallback.spec.ts` | 5 | see flow 11 |
 | `e2e/settings/popup.spec.ts` | 4 | open via gear, Esc / dim / close / Cancel |
 | `e2e/settings/theme.spec.ts` | 3 | live preview + rollback, restart, broadcast to Draft |
-| `e2e/settings/palette.spec.ts` | 5 | live preview + rollback, restart + Draft, per-token reset, Esc in colour input (fixme) |
+| `e2e/settings/palette.spec.ts` | 5 | live preview + rollback, restart + Draft, per-token reset, Esc in colour input (bug #10) |
 | `e2e/settings/hotkey.spec.ts` | 4 | capture persists, modifier-only ignored, cancel, invalid accelerator rejected by main |
-| `e2e/settings/language.spec.ts` | 5 | en switch + `<html lang>` + restart, Draft pick-up, system → ru, cancel, Draft `<html lang>` (fixme) |
+| `e2e/settings/language.spec.ts` | 5 | en switch + `<html lang>` + restart, Draft pick-up, system → ru, cancel, Draft `<html lang>` (bug #09) |
 | `e2e/settings/update-banner.spec.ts` | 2 | fake `update:available` broadcast → banner, Later, re-surface with newer version |
 
 Helpers: `e2e/helpers/app.ts` (launch with tmp `userData` + `INMEMNOTE_E2E=1`),
@@ -64,8 +64,8 @@ Helpers: `e2e/helpers/app.ts` (launch with tmp `userData` + `INMEMNOTE_E2E=1`),
 `expect.poll` persistence waits), `e2e/helpers/settings.ts` (`SettingsPopup`,
 token / theme / language readers, `broadcastUpdateAvailable`).
 
-`test.fixme` scenarios assert the correct behaviour of a known, unfixed bug
-(listed under Open questions in `docs/TZ.md`). Write them as
+A known, unfixed bug is pinned by a scenario that asserts the correct
+behaviour and is marked fixme. Write it as
 `test.fixme(true, '<reason>')` inside the body, never as a top-level
 `test.fixme(...)`: `gen-test-plan.mjs` only matches `test(`. Drop the line
 when the bug is fixed.
@@ -86,6 +86,9 @@ when the bug is fixed.
 | 1 | `.agents/bugs/log.md` #01 | A pending Library edit (< 500 ms old) is flushed, never dropped, on note switch, window close and quit | `e2e/library/autosave-flush.spec.ts` (+ unit `LibraryEditor.spec.tsx`) | 2026-10-27 |
 | 2 | `.agents/bugs/log.md` #02 | A pending Draft edit (< 500 ms old) survives a quit | `e2e/cross-window/quit-flush.spec.ts` (+ unit `DraftPanel.spec.tsx`) | 2026-10-27 |
 | 3 | `.agents/bugs/log.md` #03, ADR 0008 | A DB that can't be opened or is deleted at runtime shows the Library banner and the Draft strip; a healthy DB shows neither | `e2e/cross-window/storage-fallback.spec.ts` | 2026-10-27 |
+| 4 | `.agents/bugs/log.md` #09 | A language-only save updates Draft's `<html lang>` | `e2e/settings/language.spec.ts` | 2026-10-27 |
+| 5 | `.agents/bugs/log.md` #10 | Esc closes Settings while the colour input has focus | `e2e/settings/palette.spec.ts` | 2026-10-27 |
+| 6 | `.agents/bugs/log.md` #11 | Sidebar counts stay Library totals under a filter or search | `e2e/library/sidebar-counts.spec.ts` | 2026-10-27 |
 
 ## Known flakes / quarantine
 
@@ -95,6 +98,8 @@ when the bug is fixed.
 
 ## Conventions
 
+- The full suite runs only in CI. Locally, run single spec files, and only
+  when the developer agrees: every launch steals OS focus from their work.
 - One `userData` dir per test (temp), torn down after.
 - No `page.waitForTimeout`. Wait on state via `expect(locator).toBeVisible()`.
 - A flake is "fixed" only after ≥10 green runs in isolation.
