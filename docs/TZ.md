@@ -111,7 +111,13 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Blockquotes `>` with accent left border (Decoration.line +
   `cm-inmem-quote` CSS class).
 - [x] Lists `-` / `1.` / `[ ]` (native in lang-markdown).
-- [x] `⌘↵` saves and hides; `Esc` cancels with autosave.
+- [x] `⌘↵` saves and hides; `Esc` cancels with autosave. The editor's own
+  `Mod-Enter` / `Escape` bindings precede `defaultKeymap` (which maps
+  `Mod-Enter` to `insertBlankLine`), always call the latest parent callbacks
+  and stop propagation once handled, so DraftPanel's document-level fallback
+  never fires a second time — bugs #06, #07, 2026-10-22.
+- [x] An external `value` sync is not echoed back through `onChange` (the
+  sync transaction is annotated and skipped) — bug #08, 2026-10-22.
 - [x] `Tab` / `Shift+Tab` nest lists via `indentMore`/`indentLess`.
 
 ### 2.5 Persistence
@@ -251,7 +257,8 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Auto-save 500 ms after the last keystroke. A pending edit is flushed
   (never dropped) on note switch, window close and app quit — bug #01,
   2026-10-22.
-- [x] `⌘↵` in the Library editor — synchronous flush, no promote.
+- [x] `⌘↵` in the Library editor — synchronous flush, no promote. (Until
+  bug #06 was fixed, ⌘↵ here only inserted a blank line.)
 - [x] Delete button — `deleteNote`; selection moves to the next note.
 
 ### 4a.7 Draft → Library
