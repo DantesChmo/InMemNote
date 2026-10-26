@@ -138,7 +138,8 @@ Main-side paths are relative to `src/infrastructure/electron/main/`.
 
 | Channel | Direction | Payload | Response | Owner (main-side) | Notes |
 |---|---|---|---|---|---|
-| `storage:status` | R→M | — | `StorageStatusDTO` | `ipc/storage.ts` | Which repositories fell back to in-memory at boot. Fixed for the process lifetime, so pull-only (no broadcast). Empty list = all persisted. Bug #03. |
+| `storage:status` | R→M | — | `StorageStatusDTO` | `ipc/storage.ts` | Which stores are not persisting right now: in-memory fallback at boot, or a write that failed later. Empty list = all persisted. Bug #03, ADR 0008. |
+| `storage:changed` | M→R | `StorageStatusDTO` | — | `ipc/storage.ts` | A store degraded after boot (a write failed). Full snapshot, not a delta; the list only grows, so the renderer merges it. ADR 0008. |
 
 ### E2E only (`window.__inmemnote_test__`, `INMEMNOTE_E2E=1`)
 

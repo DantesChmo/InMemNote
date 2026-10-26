@@ -1,19 +1,24 @@
 import { IPC, type StorageStatusDTO } from '@shared/ipc';
 import { ipcMain } from 'electron';
 
-import type { StorageHealth } from '../composition';
+import type { StorageHealth } from '@infrastructure/persistence/StorageHealthMonitor';
 
 /**
  * Storage-health IPC.
  *
- * Registers `storage:status`, which tells a renderer which repositories fell
- * back to in-memory at boot. The health snapshot is computed once by the
- * composition root and never changes, so the handler is a pure read with no
- * inbound payload to validate.
+ * `storage:status` answers which stores are not reaching disk right now —
+ * a pure read with no inbound payload to validate. Boot-time fallbacks are
+ * already there when the renderer first asks; a store that degrades later
+ * (a write failed, ADR 0008) is pushed to every window as `storage:changed`
+ * so the warning appears without the renderer polling.
  */
-export function registerStorageIpc(deps: { storage: StorageHealth }): void {
-  ipcMain.handle(
-    IPC.StorageStatus,
-    (): StorageStatusDTO => ({ degraded: deps.storage.degraded.map((d) => ({ ...d })) }),
-  );
+export function registerStorageIpc(deps: {
+  storage: StorageHealth;
+  emitStorageChanged: (status: StorageStatusDTO) => void;
+}): void {
+  const { storage, emitStorageChanged } = deps;
+  const snapshot = (): StorageStatusDTO => ({ degraded: storage.degraded.map((d) => ({ ...d })) });
+
+  ipcMain.handle(IPC.StorageStatus, snapshot);
+  storage.onChange(() => emitStorageChanged(snapshot()));
 }

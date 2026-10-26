@@ -68,4 +68,4 @@ the connections in production.
 - Everything stays in `infrastructure`; no new dependency, no §3 impact.
 - Follow-up (out of scope here): close the connection on app quit, after
   the pending-autosave flush. Until then the OS reclaims the handle; WAL
-  keeps the file consistent.
+  keeps the file consistent. **Done in ADR 0008** (2026-10-26).

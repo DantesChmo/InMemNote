@@ -3,7 +3,7 @@ import { InstallUpdateUseCase } from '@application/update/InstallUpdateUseCase';
 import { AppVersion } from '@domain/update/AppVersion';
 import { createDmgSelfUpdater } from '@infrastructure/update/DmgSelfUpdater';
 import { GithubReleaseGateway } from '@infrastructure/update/GithubReleaseGateway';
-import { IPC } from '@shared/ipc';
+import { IPC, type StorageStatusDTO } from '@shared/ipc';
 import { app, BrowserWindow } from 'electron';
 
 import { buildContainer } from './composition';
@@ -69,6 +69,13 @@ function emitNotesChanged(): void {
   }
 }
 
+/** Broadcast "a store stopped persisting" (full snapshot) to every open window. */
+function emitStorageChanged(status: StorageStatusDTO): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send(IPC.StorageChanged, status);
+  }
+}
+
 // ---------- Single instance ----------
 //
 // Runs AFTER the userData override above: Electron keys the lock on the
@@ -84,7 +91,7 @@ if (claimSingleInstance(app, () => libraryController.openOrFocus())) {
 /** Boot the app. Only the process that owns the single-instance lock runs this. */
 function startPrimaryInstance(): void {
   app.whenReady().then(async () => {
-    const { drafts, settings, storage, uc } = buildContainer();
+    const { drafts, settings, storage, uc, closeDatabase } = buildContainer();
 
     // Resolve the effective accelerator BEFORE creating windows so the
     // global-hotkey registration below uses the persisted user choice (DB
@@ -109,7 +116,7 @@ function startPrimaryInstance(): void {
 
     registerDraftIpc({ controller: draftController, drafts, uc, emitNotesChanged });
     registerNotesIpc({ uc, emitNotesChanged });
-    registerStorageIpc({ storage });
+    registerStorageIpc({ storage, emitStorageChanged });
     const settingsIpc = registerSettingsIpc({ initial: currentSettings, uc, hotkey });
 
     // Push the loaded settings into both windows once they're done loading
@@ -127,6 +134,16 @@ function startPrimaryInstance(): void {
     setupAutoUpdate();
 
     if (E2E_MODE) registerE2eAffordances(draftController);
+
+    // Quit order (ADR 0008): `before-quit` → every window closes, and each
+    // renderer's `beforeunload` posts its pending autosave → `will-quit`.
+    // That IPC message travels on the same channel as the window's unload
+    // acknowledgement, so main has dispatched it — and better-sqlite3 has
+    // written it synchronously — before the window counts as closed. By
+    // `will-quit` every flush has landed and the connection can go. A write
+    // that still arrives later fails on the closed handle and is logged by
+    // the write guard rather than lost silently.
+    app.on('will-quit', closeDatabase);
   });
 
   app.on('activate', () => {

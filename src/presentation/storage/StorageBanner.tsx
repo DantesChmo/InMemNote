@@ -9,11 +9,12 @@ export interface StorageBannerProps {
 /**
  * Persistent warning that user data is not being written to disk.
  *
- * Main falls back to an in-memory repository when SQLite can't be opened;
- * everything written there vanishes on quit. That loss is silent unless we
- * say so, hence: no dismiss button — the condition can't be fixed from the
- * UI and lasts the whole process lifetime, so hiding it would only let the
- * user forget.
+ * Main falls back to an in-memory repository when SQLite can't be opened,
+ * and keeps a store marked degraded once one of its writes fails (disk full,
+ * file deleted — ADR 0008); either way what the user writes is lost on quit.
+ * That loss is silent unless we say so, hence: no dismiss button — the
+ * condition can't be fixed from the UI and lasts the whole process
+ * lifetime, so hiding it would only let the user forget.
  *
  * The `compact` variant lives in the Draft overlay and only cares about the
  * stores Draft writes to (drafts, and notes via ⌘↵ promote). A settings-only

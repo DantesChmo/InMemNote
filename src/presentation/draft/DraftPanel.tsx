@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { useTranslation } from '@presentation/i18n/useTranslation';
-import { fetchStorageStatus } from '@presentation/storage/slice';
+import { fetchStorageStatus, storageActions } from '@presentation/storage/slice';
 import { StorageBanner } from '@presentation/storage/StorageBanner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -62,6 +62,7 @@ export function DraftPanel(): JSX.Element {
 
   useEffect(() => {
     void dispatch(fetchStorageStatus());
+    return window.inmemnote.storage.onChanged((s) => dispatch(storageActions.setStatus(s)));
   }, [dispatch]);
 
   useEffect(() => {
