@@ -1,4 +1,4 @@
-/* Design tokens lifted verbatim from `design/Inmemnote - Draft (hi-fi).html`.
+/* Design tokens (originally lifted from the Draft hi-fi mockup).
    Single source of truth — Tailwind classes reference these via var(--token). */
 
 :root {
@@ -30,10 +30,8 @@ html[data-theme='dark'] {
   --bar-line: rgba(255, 255, 255, 0.07);
   --accent-tint: rgba(63, 125, 107, 0.22);
   --accent-tint-2: rgba(63, 125, 107, 0.14);
-  --shadow:
-    0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
-  --pin-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --pin-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 html[data-theme='light'] {
@@ -52,8 +50,6 @@ html[data-theme='light'] {
   --bar-line: rgba(0, 0, 0, 0.07);
   --accent-tint: rgba(63, 125, 107, 0.18);
   --accent-tint-2: rgba(63, 125, 107, 0.1);
-  --shadow:
-    0 24px 64px rgba(40, 34, 26, 0.2), 0 2px 6px rgba(40, 34, 26, 0.1);
-  --pin-shadow:
-    0 16px 40px rgba(40, 34, 26, 0.22), 0 2px 6px rgba(40, 34, 26, 0.12);
+  --shadow: 0 24px 64px rgba(40, 34, 26, 0.2), 0 2px 6px rgba(40, 34, 26, 0.1);
+  --pin-shadow: 0 16px 40px rgba(40, 34, 26, 0.22), 0 2px 6px rgba(40, 34, 26, 0.12);
 }

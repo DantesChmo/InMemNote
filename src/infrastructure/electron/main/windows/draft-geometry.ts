@@ -6,11 +6,11 @@ import type { Display } from 'electron';
  * inside — every function takes plain data and returns plain data, so the
  * whole module is unit-testable without launching the app.
  *
- * Constants here mirror values in the renderer's CSS (`design/`). Whenever
+ * Constants here mirror values in the renderer's CSS (`src/presentation/`). Whenever
  * a value changes in one place it must be updated in the other.
  */
 
-// --- Mode widths/heights (design spec: design/Inmemnote - Draft (hi-fi).html) ---
+// --- Mode widths/heights (from the Draft design spec) ---
 
 /** Unpinned Draft panel: fixed width, Spotlight-style. */
 export const DRAFT_DEFAULT_WIDTH = 560;

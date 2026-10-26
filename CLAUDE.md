@@ -146,7 +146,7 @@ Three similar lines beat a premature abstraction. We extract duplication
 only when it would pinch us during a change.
 
 ### DDD
-- The domain vocabulary in code matches the mockups and the brief
+- The domain vocabulary in code matches the brief
   (`Draft`, `Pin`, `Library`, `NoteContent`).
 - Domain has no knowledge of SQLite, React, or IPC.
 - Use-cases return `Result<T, DomainError>` — no `throw` across layers.
@@ -203,12 +203,11 @@ Details in `docs/HOTKEYS.md`.
 
 ## 7. Design
 
-- Source of truth: the `design/` folder (HTML mockups + screenshots from
-  the customer).
-- Palette, typography, and sizing are lifted from
-  `design/Inmemnote - Draft (hi-fi).html`.
-- **Accent color: `#3f7d6b` (green).** The other accent colors offered in
-  the mock are ignored.
+- Design work (mockups, specs) is done by the team **outside this
+  repository**; the repo keeps no design assets and has no design agent.
+- In code, the source of truth for palette, typography, and sizing is
+  `src/presentation/theme/tokens.css` (canonical values: `docs/TZ.md` §2.7).
+- **Accent color: `#3f7d6b` (green).** No other accents.
 - 4 px grid. Every padding/size is an integer multiple of 4.
 - Themes: dark (primary) + light.
 
@@ -262,8 +261,7 @@ Details in `docs/HOTKEYS.md`.
 able to continue by reading:
 1. `CLAUDE.md` (this file — what & how).
 2. `docs/TZ.md` (where we currently are).
-3. `design/` (what it should look like).
-4. `.agents/RESPONSIBILITIES.md` (who — which agent — owns what).
+3. `.agents/RESPONSIBILITIES.md` (who — which agent — owns what).
 
 ---
 
@@ -281,7 +279,6 @@ part of how work gets done here, not an optional add-on.
 | `.agents/` | **Agent operational state** — checklists, accumulated patterns, regression plans, bug log, postmortems. Read by agents at the start of every session and appended to during work. | The owning agent (see below). |
 | `.agents/RESPONSIBILITIES.md` | **Master distribution map**: which agent owns which files, which docs they must read first, and how they coordinate with each other. | Maintained alongside the agent prompts. |
 | `docs/` | **Human-readable developer documentation**. Polished, narrative. | Specialist agents first-author their section; `tech-writer` polishes. |
-| `design/` | Visual design assets and mockups. | `ux-designer`. |
 
 ### Rules
 
@@ -313,9 +310,10 @@ forced.
    states "no architectural change required" with reasoning). Updates
    `docs/ARCHITECTURE.md` if shape changes. New ADR if a non-trivial
    decision was made.
-2. **Design** — `ux-designer` if any UI surface is involved. Mockup or
-   updated entry in `design/INDEX.md`. Skipped only for purely non-UI
-   features, with an explicit note.
+2. **Design input** — if any UI surface is involved, the orchestrator
+   asks the user for the design (spec, sketch, or screenshot — design is
+   done outside the repo, §7) before the code plan. Skipped only for
+   purely non-UI features, with an explicit note.
 3. **Code plan** — the relevant developer agent(s) draft a file-level
    plan (which files, which interfaces, sequencing). No production code
    yet.

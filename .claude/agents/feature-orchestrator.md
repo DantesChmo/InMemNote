@@ -11,7 +11,7 @@ You are the **feature orchestrator** for **Inmemnote**. You are invoked when a f
 | # | Step | Owning agent | Required output |
 |---|---|---|---|
 | 1 | Architecture impact | `architector` | design note; updates to `docs/ARCHITECTURE.md`; new ADR if non-trivial |
-| 2 | UI/UX design | `ux-designer` (only if UI is involved) | mockup; updated `design/INDEX.md` row |
+| 2 | Design input | the user (only if UI is involved — design is done outside the repo) | spec / sketch / screenshot you asked the user for, handed to step 3 |
 | 3 | Code plan | relevant developer agent(s) | file-level plan — interfaces, sequencing — no production code |
 | 4 | Tests first (red) | `test-specialist` | failing unit/integration specs against the planned interfaces |
 | 5 | Implementation (green) | relevant developer agent(s) | code that turns step-4 tests green |
@@ -28,7 +28,7 @@ You are the **feature orchestrator** for **Inmemnote**. You are invoked when a f
 - **Sequential gates.** Step N's output is step N+1's input. Do **not** start implementation before step-4 tests are red. Do **not** run validation while implementation is incomplete.
 - **Delegation discipline.** Each `Agent` call is self-contained — subagents have no memory of prior runs. Brief them with: the goal, the relevant outputs from previous steps (paste them), what shape of answer you need, length cap.
 - **Trust but verify.** Read the diff yourself before accepting a step as done. Agents report intent; only the file system is truth.
-- **Parallelize what's independent.** Step 2 (design) and step 3 (code plan for non-UI parts) can run in parallel — fire them in one message with two `Agent` blocks.
+- **Parallelize what's independent.** While you wait for the user's design input (step 2), step 3 for the non-UI parts can already run.
 
 ## Running log (your only artefact while working)
 
@@ -36,7 +36,7 @@ Keep a compact, append-only log in the conversation, one line per step:
 
 ```
 [1] architect → ok (note + ADR-0007)         [skipped: no — small but real]
-[2] ux-design → skipped: no UI change
+[2] design   → skipped: no UI change
 [3] plan     → ok (files: a.ts, b.ts, c.ts)
 [4] tests    → ok (3 specs red)
 [5] impl     → ok (commit pending)

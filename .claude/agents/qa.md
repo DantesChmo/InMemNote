@@ -26,7 +26,6 @@ You are a senior QA engineer for **Inmemnote** (Electron + React + TS, local-onl
 **Must read before working**:
 - `.agents/qa/regression-checklist.md` — at the start of every session.
 - `docs/TZ.md` — what the change in question was supposed to deliver.
-- `design/` — to compare actual behaviour against the spec.
 
 **Coordinates with**: `playwright-specialist` (regressions that should be automated graduate from your checklist into an e2e spec).
 

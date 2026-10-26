@@ -2,7 +2,7 @@
 
 This document is project state. Any session (including the agent after a
 context loss) should be able to continue work by reading this file +
-`CLAUDE.md` + skimming `design/`.
+`CLAUDE.md`.
 
 Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 
@@ -151,7 +151,7 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] Dark (primary) and light. Driven by the macOS system theme via
   `prefers-color-scheme` and a `data-theme` attribute on `<html>`.
 
-### 2.7 Palette and typography (from `design/Inmemnote - Draft (hi-fi).html`)
+### 2.7 Palette and typography (implemented in `src/presentation/theme/tokens.css`)
 - Accent: `#3f7d6b` (green — our choice; others are ignored).
 - Dark: panel `#1c1b18`, text `#f3f1ec`, text-2 `#a39e95`, text-3 `#6f6a62`,
   line `rgba(255,255,255,.08)`.
