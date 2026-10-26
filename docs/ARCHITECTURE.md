@@ -141,7 +141,7 @@ header hover sensor. It is consumed only by that controller. Details:
 | `library/` | `LibraryWindow`, `LibraryToolbar`, `LibrarySidebar`, `LibraryNoteList`, `LibraryEditor`, `slice.ts`, helpers `highlight.ts` / `preview.ts` |
 | `settings/` | `SettingsPopup` (modal inside the Library window, not a separate window), `PaletteEditor`, `HotkeyInput`, `applyTheme.ts`, `slice.ts` |
 | `update/` | `UpdateBanner`, `slice.ts` |
-| `storage/` | `StorageBanner` (Library banner + Draft strip when stores run in memory), `slice.ts` |
+| `storage/` | `StorageBanner` (Library banner + Draft strip when a store is not persisting: in-memory fallback or failed writes), `slice.ts` |
 | `i18n/` | `messages.ts`, `translations.{en,ru}.ts`, `resolveLocale.ts`, `useTranslation.ts` |
 | `theme/` | `tokens.css` (design tokens) |
 | `types/` | `global.d.ts` — types `window.inmemnote` from `@shared/ipc` |
@@ -163,7 +163,10 @@ and logs. Under E2E the `globalShortcut` registration is disabled entirely.
 - `better-sqlite3` (synchronous), WAL journal mode.
 - One DB file, `inmemnote.db`, under the Electron `userData` directory,
   opened through **one connection** owned by the composition root
-  (`infrastructure/electron/main/composition.ts`).
+  (`infrastructure/electron/main/composition.ts`) via
+  `infrastructure/persistence/sqlite/SharedConnection.ts` — opened lazily
+  on first use, closed from `will-quit` (`Container.closeDatabase()`),
+  after every window has flushed its pending autosave.
 - `infrastructure/persistence/sqlite/openDatabase.ts` — opens the file, sets
   WAL, runs migrations; on failure closes the handle and rethrows.
 - `infrastructure/persistence/sqlite/migrations.ts` — ordered, contiguous
@@ -179,10 +182,18 @@ and logs. Under E2E the `globalShortcut` registration is disabled entirely.
 - If opening/migrating fails, **all** repositories fall back to their
   in-memory adapters together (the open error is shared, not retried per
   repository; the file on disk is untouched).
-- Every fallback is recorded in `Container.storage`; the renderer reads it
-  over `storage:status` and shows a persistent warning (bug #03).
-- The connection is not yet closed on quit (follow-up).
-- Why: [ADR 0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md).
+- Every fallback is recorded in `Container.storage`
+  (`infrastructure/persistence/StorageHealthMonitor.ts`); the renderer reads
+  it over `storage:status` and shows a persistent warning (bug #03).
+- The SQLite repositories are wrapped by write guards
+  (`infrastructure/persistence/WriteGuard.ts`). A write that fails after a
+  successful open — disk full, DB file deleted or replaced (checked by
+  inode after each write), connection already closed — is logged in main,
+  marks that store degraded for the rest of the process, and is pushed to
+  every window as `storage:changed`, so the same warning appears. Reads are
+  not guarded.
+- Why: [ADR 0004](./adr/0004-single-sqlite-connection-and-schema-migrations.md),
+  [ADR 0008](./adr/0008-sqlite-lifecycle-and-write-failure-reporting.md).
 - `PromoteDraftToNoteUseCase` spans two repositories, so "save note, then
   delete draft" is still two separate writes, not one transaction.
 

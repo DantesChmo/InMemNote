@@ -131,8 +131,15 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] The fallback is never silent: the container records which stores
   degraded and why, main answers `storage:status`, Library shows a
   persistent banner and Draft a one-line strip when drafts/notes are in
-  memory — bug #03, 2026-10-22. Write-time SQLite errors (after a
-  successful open) are not covered by the banner.
+  memory — bug #03, 2026-10-22.
+- [x] Write-time SQLite errors after a successful open (disk full, DB file
+  deleted or replaced, write after close) are logged in main and flip that
+  store into the same "not saved" state; main pushes `storage:changed` so
+  both windows show it without a restart. Sticky until restart; reads are
+  not guarded — ADR 0008, 2026-10-26.
+- [x] The shared connection is closed from `will-quit`, after every
+  window's `beforeunload` autosave flush has landed; a write arriving later
+  fails loudly instead of being dropped — ADR 0008, 2026-10-26.
 
 ### 2.6 Theme
 - [x] Dark (primary) and light. Driven by the macOS system theme via
@@ -192,16 +199,10 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   no owner to `src/domain/**`, `src/shared/**`,
   `src/infrastructure/SystemClock.ts` or `scripts/**`. Which agent owns
   them?
-- The shared SQLite connection is never closed explicitly on quit (the
-  OS reclaims it; WAL keeps the file consistent). Closing it belongs after
-  the pending-autosave flush in the quit sequence — follow-up, see ADR 0004.
 - Use-case specs in `src/application/**/*.spec.ts` import in-memory
   adapters from `@infrastructure` (exempted from the boundary lint). Move
   the in-memory repositories/`FixedClock` to `src/test/` so the exemption
   can be dropped? (ADR 0005.)
-- Storage degradation is only detected when SQLite fails to *open*. Should
-  a later write failure (disk full, DB file removed) also flip the app into
-  the persistent "not saved" state? (bug #03 follow-up)
 - `npm audit` (2026-10-22, after the Electron 45 upgrade) still reports
   high-severity advisories, mostly in dev tooling (Tailwind 3's
   chokidar/micromatch, `electron-installer-dmg` → `appdmg`), but also in
@@ -556,3 +557,13 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   notarizes when the Apple secrets exist (never exercised yet). Every release
   still carries the stable `Inmemnote-macos-arm64.dmg`, because installed
   updaters and `install.sh` fetch that exact name.
+- **2026-10-26** — SQLite lifecycle and write-failure reporting (ADR 0008).
+  The shared connection (`SharedConnection`) is closed from `will-quit`,
+  relying on Electron delivering each window's `beforeunload` autosave IPC
+  before the window counts as closed. SQLite repositories are wrapped in
+  write guards: a failed write — or one that "succeeded" into a deleted or
+  replaced file, detected by inode — degrades that store for the rest of the
+  process and is broadcast as `storage:changed`. Decided: sticky
+  degradation (no "recovered" state), no swap to in-memory on a write
+  failure, reads unguarded; the banner wording now says "can't be written
+  to" so it covers both causes.
