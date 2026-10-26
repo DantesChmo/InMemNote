@@ -129,6 +129,11 @@ export class DraftPage {
     await this.page.getByTestId('draft-pin-btn').click();
   }
 
+  /** The one-line "not saved: storage unavailable" strip under the Draft header. */
+  public storageStrip() {
+    return this.page.getByRole('alert').filter({ hasText: /Не сохраняется/ });
+  }
+
   public async isVisible(): Promise<boolean> {
     // `isClosed()` is sync; `locator.isVisible()` is async.
     if (this.page.isClosed()) return false;

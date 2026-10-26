@@ -15,7 +15,11 @@ vi.mock('@presentation/app/store', () => ({
 }));
 
 vi.mock('@presentation/i18n/useTranslation', () => ({
-  useTranslation: () => ({ locale: 'en' as const, t: (k: string) => k }),
+  // Params are appended so specs can assert on interpolated values (`{n}`).
+  useTranslation: () => ({
+    locale: 'en' as const,
+    t: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${Object.values(p).join(',')}` : k),
+  }),
 }));
 
 vi.mock('@presentation/draft/editor/CodeMirrorEditor', () => ({
@@ -100,9 +104,38 @@ describe('LibraryEditor (shallow)', () => {
       selectedId: 'n1',
     };
     render(<LibraryEditor />);
-    // 5 words total — passed through to the stubbed `t` as the {n} parameter
-    // would not be rendered, so we just assert the key shows up.
-    expect(screen.getByText('editor.wordCount')).toBeInTheDocument();
+    // The title line counts too: T + 4 words.
+    expect(screen.getByText('editor.wordCount:5')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['', 0],
+    ['   \n  ', 0],
+    ['# Title\n\n> quoted *bold* `code`', 4],
+    ['- one\n- two\n- three', 3],
+    ['  spaced   out\twords ', 3],
+  ])('word count of %j is %i (markdown markers are not words)', (content, n) => {
+    state = { notes: [note({ id: 'n1', content })], selectedId: 'n1' };
+    render(<LibraryEditor />);
+    expect(screen.getByText(`editor.wordCount:${n}`)).toBeInTheDocument();
+  });
+
+  describe('"modified" label', () => {
+    const ago = (ms: number): string => new Date(Date.now() - ms).toISOString();
+    const MIN = 60_000;
+    const HOUR = 60 * MIN;
+
+    it.each([
+      ['just now under a minute', 10_000, 'time.justNow'],
+      ['minutes under an hour', 5 * MIN + 1_000, 'time.minutesAgo:5'],
+      ['the last minute boundary', 59 * MIN + 1_000, 'time.minutesAgo:59'],
+      ['hours under a day', 3 * HOUR + 1_000, 'time.hoursAgo:3'],
+      ['days beyond that', 2 * 24 * HOUR + 1_000, 'time.daysAgo:2'],
+    ])('shows %s', (_name, offset, expected) => {
+      state = { notes: [note({ id: 'n1', updatedAt: ago(offset) })], selectedId: 'n1' };
+      render(<LibraryEditor />);
+      expect(screen.getByText(expected)).toBeInTheDocument();
+    });
   });
 
   it('dispatches patchSelectedContent on every change and debounces saveNote', () => {
@@ -244,6 +277,98 @@ describe('LibraryEditor (shallow)', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('⌘↵ saves without leaving the note', () => {
+    const savesIn = (calls: unknown[][]): unknown[] =>
+      calls.map(([a]) => a).filter((a) => (a as { type: string }).type === 'library/saveNote');
+
+    it('mid-debounce it saves the latest text once; the cancelled debounce and a later unload add nothing', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+        const { rerender } = render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+        // Redux has applied the keystroke by the time ⌘↵ is pressed.
+        state = { notes: [note({ id: 'n1', content: 'next-content' })], selectedId: 'n1' };
+        rerender(<LibraryEditor />);
+
+        fireEvent.doubleClick(screen.getByTestId('stub-editor'));
+        act(() => {
+          vi.advanceTimersByTime(600);
+          window.dispatchEvent(new Event('beforeunload'));
+        });
+
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
+        // It saves; it does not promote, delete or pin anything.
+        const types = dispatch.mock.calls.map(([a]) => (a as { type: string }).type);
+        expect(types).not.toContain('library/deleteNote');
+        expect(types).not.toContain('library/toggleNotePin');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('the note stays selected (the editor is still rendered)', () => {
+      state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+      render(<LibraryEditor />);
+      fireEvent.doubleClick(screen.getByTestId('stub-editor'));
+      expect(screen.getByTestId('stub-editor')).toBeInTheDocument();
+    });
+  });
+
+  describe('debounce edges', () => {
+    const savesIn = (calls: unknown[][]): unknown[] =>
+      calls.map(([a]) => a).filter((a) => (a as { type: string }).type === 'library/saveNote');
+
+    it('each keystroke restarts the 500 ms window', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+        render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        fireEvent.click(screen.getByTestId('stub-editor'));
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(savesIn(dispatch.mock.calls)).toHaveLength(0);
+
+        act(() => {
+          vi.advanceTimersByTime(150);
+        });
+        expect(savesIn(dispatch.mock.calls)).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('closing the Library view (unmount) flushes the pending edit', () => {
+      vi.useFakeTimers();
+      try {
+        state = { notes: [note({ id: 'n1' })], selectedId: 'n1' };
+        const { unmount } = render(<LibraryEditor />);
+        fireEvent.click(screen.getByTestId('stub-editor'));
+
+        unmount();
+
+        expect(savesIn(dispatch.mock.calls)).toEqual([
+          { type: 'library/saveNote', payload: { id: 'n1', content: 'next-content' } },
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('treats a selection pointing at a missing note as nothing selected', () => {
+      state = { notes: [note({ id: 'n1' })], selectedId: 'gone' };
+      render(<LibraryEditor />);
+      expect(screen.getByText('editor.empty.title')).toBeInTheDocument();
     });
   });
 

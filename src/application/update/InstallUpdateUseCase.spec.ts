@@ -35,4 +35,10 @@ describe('InstallUpdateUseCase', () => {
       expect(result.error.message).toContain('hdiutil exploded');
     }
   });
+
+  it('keeps the message of a non-Error rejection in the failure', async () => {
+    const installer: UpdateInstaller = { install: () => Promise.reject('disk full') };
+    const result = await new InstallUpdateUseCase(installer).execute(release);
+    expect(!result.ok && result.error.message).toContain('disk full');
+  });
 });

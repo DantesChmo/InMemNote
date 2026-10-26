@@ -163,4 +163,125 @@ describe('UndoDeleteToast', () => {
     cmdZ();
     expect(dispatch).not.toHaveBeenCalled();
   });
+  it('pauses while keyboard focus is inside the toast and resumes on blur', () => {
+    state = { pendingDelete: pending('n1') };
+    render(<UndoDeleteToast />);
+    const undoBtn = screen.getByTestId('lib-undo-btn');
+
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.focus(undoBtn);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(dispatch).not.toHaveBeenCalled();
+
+    fireEvent.blur(undoBtn);
+    act(() => vi.advanceTimersByTime(UNDO_DELETE_MS - 1000));
+    expect(dispatch).toHaveBeenCalledWith(commitOf('n1'));
+  });
+
+  it('stays paused while either hover or focus still holds it', () => {
+    state = { pendingDelete: pending('n1') };
+    render(<UndoDeleteToast />);
+    const toast = screen.getByTestId('lib-undo-toast');
+
+    fireEvent.mouseEnter(toast);
+    fireEvent.focus(screen.getByTestId('lib-undo-btn'));
+    fireEvent.mouseLeave(toast);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('a replacement delete does not inherit the pause of the toast it replaced', () => {
+    state = { pendingDelete: pending('n1') };
+    const { rerender } = render(<UndoDeleteToast />);
+    fireEvent.mouseEnter(screen.getByTestId('lib-undo-toast'));
+    act(() => vi.advanceTimersByTime(60_000));
+
+    state = { pendingDelete: pending('n2') };
+    rerender(<UndoDeleteToast />);
+    act(() => vi.advanceTimersByTime(UNDO_DELETE_MS));
+
+    expect(dispatch).toHaveBeenCalledWith(commitOf('n2'));
+  });
+
+  it('a window that was shortened by an earlier pause is not carried over to the next delete', () => {
+    state = { pendingDelete: pending('n1') };
+    const { rerender } = render(<UndoDeleteToast />);
+    act(() => vi.advanceTimersByTime(UNDO_DELETE_MS - 500));
+    fireEvent.mouseEnter(screen.getByTestId('lib-undo-toast'));
+
+    state = { pendingDelete: pending('n2') };
+    rerender(<UndoDeleteToast />);
+    act(() => vi.advanceTimersByTime(UNDO_DELETE_MS - 1));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('stops the countdown once the delete is undone', () => {
+    state = { pendingDelete: pending('n1') };
+    const { rerender } = render(<UndoDeleteToast />);
+    act(() => vi.advanceTimersByTime(1000));
+
+    state = { pendingDelete: null };
+    rerender(<UndoDeleteToast />);
+    act(() => vi.advanceTimersByTime(UNDO_DELETE_MS * 2));
+
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('lib-undo-toast')).toBeNull();
+  });
+
+  it('does not commit on unload once nothing is pending', () => {
+    render(<UndoDeleteToast />);
+    act(() => {
+      window.dispatchEvent(new Event('beforeunload'));
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  describe('⌘Z details', () => {
+    beforeEach(() => {
+      state = { pendingDelete: pending('n1') };
+    });
+
+    it('is consumed (default prevented) so the browser does not also act on it', () => {
+      render(<UndoDeleteToast />);
+      const notPrevented = fireEvent.keyDown(document.body, { key: 'z', metaKey: true });
+      expect(notPrevented).toBe(false);
+      expect(dispatch).toHaveBeenCalledWith(UNDO);
+    });
+
+    it('also matches an upper-case Z (caps lock)', () => {
+      render(<UndoDeleteToast />);
+      fireEvent.keyDown(document.body, { key: 'Z', metaKey: true });
+      expect(dispatch).toHaveBeenCalledWith(UNDO);
+    });
+
+    it.each([
+      ['⌘⇧Z (redo)', { key: 'z', metaKey: true, shiftKey: true }],
+      ['Ctrl+Z', { key: 'z', ctrlKey: true }],
+      ['plain z', { key: 'z' }],
+      ['⌘X', { key: 'x', metaKey: true }],
+    ])('ignores %s', (_name, init) => {
+      render(<UndoDeleteToast />);
+      fireEvent.keyDown(document.body, init);
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it('leaves ⌘Z to a textarea or a contenteditable element', () => {
+      render(
+        <>
+          <textarea data-testid="area" />
+          <div contentEditable="true" data-testid="editable" />
+          <UndoDeleteToast />
+        </>,
+      );
+      cmdZ(screen.getByTestId('area'));
+      cmdZ(screen.getByTestId('editable'));
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it('undoes when the key event targets the window itself', () => {
+      render(<UndoDeleteToast />);
+      fireEvent.keyDown(window, { key: 'z', metaKey: true });
+      expect(dispatch).toHaveBeenCalledWith(UNDO);
+    });
+  });
 });

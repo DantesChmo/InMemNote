@@ -1,5 +1,7 @@
+import { NoteNotFoundError } from '@application/note/errors';
+import { NoteId } from '@domain/note/NoteId';
 import { IPC } from '@shared/ipc';
-import { ok } from '@shared/Result';
+import { err, ok } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { registerNotesIpc as RegisterNotesIpcFn } from '../../ipc/notes';
@@ -235,5 +237,60 @@ describe('registerNotesIpc', () => {
         /notes:save.*\[1\]/,
       );
     });
+  });
+
+  // A well-typed string that is not a UUID passes the Zod tuple (ids are a
+  // domain rule, not a wire-format rule) and must be stopped by `NoteId.create`
+  // before any use-case or broadcast.
+  describe('malformed ids', () => {
+    it.each([
+      [IPC.NotesGet, 'findNote', []],
+      [IPC.NotesSave, 'updateNote', ['body']],
+      [IPC.NotesTogglePin, 'togglePinNote', []],
+      [IPC.NotesDelete, 'deleteNote', []],
+    ] as const)(
+      '%s rejects a non-UUID id without touching the use-case',
+      async (channel, name, rest) => {
+        const { uc, emitNotesChanged } = setup();
+        await expect(handlers.get(channel)!({}, 'not-a-uuid', ...rest)).rejects.toThrow(
+          /Invalid NoteId/,
+        );
+        expect(uc[name].execute).not.toHaveBeenCalled();
+        expect(emitNotesChanged).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  // An error Result must reach the renderer as a rejected invoke() carrying the
+  // domain message, and must NOT announce a change that never happened.
+  describe('error results', () => {
+    const missing = NoteId.generate();
+
+    it('NotesSave rejects with the domain message and does not broadcast', async () => {
+      const { uc, emitNotesChanged } = setup();
+      uc.updateNote.execute.mockResolvedValueOnce(err(new NoteNotFoundError(missing)));
+      await expect(handlers.get(IPC.NotesSave)!({}, VALID_ID, 'x')).rejects.toThrow(
+        `Note not found: ${missing}`,
+      );
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
+
+    it('NotesTogglePin rejects with the domain message and does not broadcast', async () => {
+      const { uc, emitNotesChanged } = setup();
+      uc.togglePinNote.execute.mockResolvedValueOnce(err(new NoteNotFoundError(missing)));
+      await expect(handlers.get(IPC.NotesTogglePin)!({}, VALID_ID)).rejects.toThrow(
+        `Note not found: ${missing}`,
+      );
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  it('NotesGet returns the DTO of a note that exists', async () => {
+    setup();
+    const result = (await handlers.get(IPC.NotesGet)!({}, VALID_ID)) as {
+      id: string;
+      title: string;
+    };
+    expect(result).toMatchObject({ id: VALID_ID, title: 'Title' });
   });
 });
