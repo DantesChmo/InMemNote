@@ -58,3 +58,19 @@ export function applyAppearance(settings: AppSettingsDTO): void {
     delete root.dataset.paletteKeys;
   }
 }
+
+/**
+ * Whether two settings snapshots paint the same `<html>`, so `applyAppearance`
+ * can be skipped. Every field `applyAppearance` reads must be compared here:
+ * a window that only learns about a save from the `settings:changed`
+ * broadcast (Draft) would otherwise drop the change.
+ */
+export function sameAppearance(a: AppSettingsDTO, b: AppSettingsDTO): boolean {
+  if (a.themeMode !== b.themeMode) return false;
+  if (a.openDraftHotkey !== b.openDraftHotkey) return false;
+  const ka = Object.keys(a.palette);
+  const kb = Object.keys(b.palette);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (a.palette[k] !== b.palette[k]) return false;
+  return true;
+}

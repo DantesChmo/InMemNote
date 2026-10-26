@@ -1,4 +1,4 @@
-import { applyAppearance } from '@presentation/settings/applyTheme';
+import { applyAppearance, sameAppearance } from '@presentation/settings/applyTheme';
 import { settingsActions } from '@presentation/settings/slice';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -43,20 +43,10 @@ let lastApplied: AppSettingsDTO | null = null;
 store.subscribe(() => {
   const next = store.getState().settings.current;
   if (!next) return;
-  if (lastApplied && shallowEqualSettings(lastApplied, next)) return;
+  if (lastApplied && sameAppearance(lastApplied, next)) return;
   lastApplied = next;
   applyAppearance(next);
 });
-
-function shallowEqualSettings(a: AppSettingsDTO, b: AppSettingsDTO): boolean {
-  if (a.themeMode !== b.themeMode) return false;
-  if (a.openDraftHotkey !== b.openDraftHotkey) return false;
-  const ka = Object.keys(a.palette);
-  const kb = Object.keys(b.palette);
-  if (ka.length !== kb.length) return false;
-  for (const k of ka) if (a.palette[k] !== b.palette[k]) return false;
-  return true;
-}
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Missing #root');
