@@ -392,6 +392,33 @@ describe('SettingsPopup (shallow)', () => {
       expect(dispatch).not.toHaveBeenCalledWith({ type: 'settings/closePopup' });
     });
 
+    // The palette picker is a native <input type="color">: it keeps focus after
+    // a pick, and Esc must still close (and roll back the live preview).
+    it.each(['color', 'checkbox', 'range'])(
+      'closes the popup from a focused <input type="%s">',
+      (type) => {
+        render(
+          <>
+            <SettingsPopup />
+            <input type={type} aria-label="picker" />
+          </>,
+        );
+        fireEvent.keyDown(screen.getByLabelText('picker'), { key: 'Escape' });
+        expect(dispatch).toHaveBeenCalledWith({ type: 'settings/closePopup' });
+      },
+    );
+
+    it('is left to a focused textarea', () => {
+      render(
+        <>
+          <SettingsPopup />
+          <textarea aria-label="notes" />
+        </>,
+      );
+      fireEvent.keyDown(screen.getByLabelText('notes'), { key: 'Escape' });
+      expect(dispatch).not.toHaveBeenCalledWith({ type: 'settings/closePopup' });
+    });
+
     it('other keys do not close the popup', () => {
       render(<SettingsPopup />);
       fireEvent.keyDown(window, { key: 'Enter' });
