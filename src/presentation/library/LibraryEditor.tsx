@@ -1,4 +1,3 @@
-
 import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { CodeMirrorEditor } from '@presentation/draft/editor/CodeMirrorEditor';
 import { useTranslation, type Translator } from '@presentation/i18n/useTranslation';
@@ -59,10 +58,12 @@ export function LibraryEditor(): JSX.Element {
 
   const onDelete = useCallback(() => {
     if (!note) return;
-    // Saving a note that is about to be deleted would only make main throw.
-    if (pending.current?.id === note.id) cancelPending();
+    // The delete is soft and only committed seconds later, so the note still
+    // exists in main: write the last keystrokes now, or undo would bring back
+    // a stale body.
+    flushPending();
     void dispatch(deleteNote(note.id));
-  }, [cancelPending, dispatch, note]);
+  }, [flushPending, dispatch, note]);
 
   // Switching notes must not drop the last <500 ms of typing: write the
   // previous note's pending edit now instead of cancelling it.
@@ -81,21 +82,31 @@ export function LibraryEditor(): JSX.Element {
     return (
       <section className="flex-1 flex flex-col items-center justify-center gap-3.5 text-center text-text-3 px-10">
         <div className="w-[54px] h-[54px] rounded-[14px] bg-[var(--sink)] border border-line flex items-center justify-center">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M5 3h9l5 5v13H5z" />
             <path d="M14 3v5h5" />
             <path d="M8.5 13h7M8.5 16.5h5" />
           </svg>
         </div>
         <div className="text-[14px] text-text-2">{t('editor.empty.title')}</div>
-        <div className="text-[12.5px] max-w-[240px] leading-[1.5]">
-          {t('editor.empty.hint')}
-        </div>
+        <div className="text-[12.5px] max-w-[240px] leading-[1.5]">{t('editor.empty.hint')}</div>
       </section>
     );
   }
 
-  const wordCount = note.content.replace(/[#>*_`\-]/g, ' ').split(/\s+/).filter(Boolean).length;
+  const wordCount = note.content
+    .replace(/[#>*_`\-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean).length;
 
   return (
     <section className="flex-1 flex flex-col min-h-0 bg-panel">
@@ -104,7 +115,9 @@ export function LibraryEditor(): JSX.Element {
           {note.pinned ? t('editor.pinned') : t('editor.notPinned')}
         </span>
         <span className="opacity-50">·</span>
-        <span>{t('editor.modified')} <RelativeUpdated iso={note.updatedAt} t={t} /></span>
+        <span>
+          {t('editor.modified')} <RelativeUpdated iso={note.updatedAt} t={t} />
+        </span>
         <span className="ml-auto flex items-center gap-1">
           <button
             type="button"
@@ -112,10 +125,21 @@ export function LibraryEditor(): JSX.Element {
             aria-label={t('editor.pinAria')}
             data-testid="lib-pin-btn"
             className={`w-[30px] h-[30px] rounded-icon flex items-center justify-center transition-colors ${
-              note.pinned ? 'bg-accent text-accent-ink' : 'text-text-3 hover:bg-[var(--hl)] hover:text-text-2'
+              note.pinned
+                ? 'bg-accent text-accent-ink'
+                : 'text-text-3 hover:bg-[var(--hl)] hover:text-text-2'
             }`}
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              viewBox="0 0 16 16"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M6 1.5h4M7 1.5l-.4 4.2L4.5 8h7L9.4 5.7 9 1.5M8 8v6.5" />
             </svg>
           </button>
@@ -126,7 +150,16 @@ export function LibraryEditor(): JSX.Element {
             data-testid="lib-delete-btn"
             className="w-[30px] h-[30px] rounded-icon flex items-center justify-center text-text-3 transition-colors hover:bg-[color-mix(in_oklch,#ec6a5e_22%,transparent)] hover:text-[#ec6a5e]"
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              viewBox="0 0 16 16"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.6 8.5h4.8L11 4.5" />
             </svg>
           </button>

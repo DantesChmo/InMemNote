@@ -34,6 +34,9 @@ vi.mock('./LibraryNoteList', () => ({
 vi.mock('./LibraryEditor', () => ({
   LibraryEditor: () => <div data-testid="stub-editor" />,
 }));
+vi.mock('./UndoDeleteToast', () => ({
+  UndoDeleteToast: () => <div data-testid="stub-undo-toast" />,
+}));
 vi.mock('./slice', () => ({
   fetchNotes: () => ({ type: 'library/fetchNotes' }),
 }));
@@ -78,6 +81,7 @@ describe('LibraryWindow (shallow)', () => {
     expect(screen.getByTestId('stub-list')).toBeInTheDocument();
     expect(screen.getByTestId('stub-editor')).toBeInTheDocument();
     expect(screen.getByTestId('stub-settings-popup')).toBeInTheDocument();
+    expect(screen.getByTestId('stub-undo-toast')).toBeInTheDocument();
   });
 
   it('asks main for the storage status on mount and renders the full storage banner', async () => {

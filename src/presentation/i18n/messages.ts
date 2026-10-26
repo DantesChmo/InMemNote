@@ -33,6 +33,12 @@ export type Messages = {
   'library.queryNoMatch': string; // {q}
   'library.untitled': string;
 
+  // Library — undo toast after deleting a note.
+  'library.toast.noteDeleted': string;
+  'library.toast.undo': string;
+  'library.toast.undoAria': string;
+  'library.toast.dismiss': string;
+
   // Library editor (right pane).
   'editor.empty.title': string;
   'editor.empty.hint': string;

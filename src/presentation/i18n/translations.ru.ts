@@ -18,6 +18,10 @@ export const ru: Messages = {
   'library.emptySection': 'В этом разделе пусто',
   'library.queryNoMatch': 'Запрос «{q}» ничего не нашёл',
   'library.untitled': 'Без заголовка',
+  'library.toast.noteDeleted': 'Заметка удалена',
+  'library.toast.undo': 'Отменить',
+  'library.toast.undoAria': 'Отменить удаление',
+  'library.toast.dismiss': 'Закрыть',
 
   'editor.empty.title': 'Заметка не выбрана',
   'editor.empty.hint': 'Выбери заметку слева или создай новую — ⌘N',

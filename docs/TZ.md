@@ -206,6 +206,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   chokidar/micromatch, `electron-installer-dmg` → `appdmg`), but also in
   the runtime dependency `js-yaml` (quadratic CPU on merge-key chains in
   the hotkeys YAML). Worth a dedicated dependency pass.
+- The Library's undo-delete toast (2026-10-22) has unit coverage only. An
+  e2e case (delete → Undo → the note is back; delete → wait → it is gone
+  after a relaunch) still needs to be added to `.agents/playwright/test-plan.md`.
 
 ---
 
@@ -253,6 +256,22 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 - [x] `⌘↵` in the Library editor — synchronous flush, no promote. (Until
   bug #06 was fixed, ⌘↵ here only inserted a blank line.)
 - [x] Delete button — `deleteNote`; selection moves to the next note.
+- [x] Delete is soft, with an undo toast (2026-10-22). The note leaves the
+  list at once and the toast "Note deleted · Undo" shows for 6 s. Hovering
+  or focusing the toast pauses the timer; when it resumes, it runs for
+  whatever time is left, but never less than 2 s. ⌘Z also undoes, unless
+  focus is in the editor or a text field. Undo restores the note and selects
+  it again. The `notes:delete` IPC is sent only when the timer expires, on
+  "×", on window unload, or when another note is deleted. Only one delete is
+  pending at a time.
+  - **Chosen over** a confirmation dialog, which people learn to click
+    through, and a Trash section, which would need a migration plus new
+    use-cases and IPC.
+  - **Purely renderer-side.** Nothing changes in the DB, the domain or the
+    IPC.
+  - **If the app crashes inside those 6 s,** the note survives. That is the
+    safe failure.
+  - **Trade-off:** nothing can be undone once the toast has gone.
 
 ### 4a.7 Draft → Library
 - [x] `⌘↵` in Draft fires `draft:promote`, not `draft:close`.

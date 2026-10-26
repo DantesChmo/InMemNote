@@ -17,6 +17,7 @@
 | Draft & Pin prototype | `Inmemnote - Draft & Pin (прототип).html` | wip | 2026-06-10 | interaction prototype |
 | Library prototype | `Inmemnote - Library (прототип).html` | wip | 2026-06-10 | |
 | Library standalone | `Inmemnote-Library-standalone.html` | wip | 2026-06-10 | extracted standalone view |
+| Library — delete Undo toast | spec only (no mockup); tokens from `Inmemnote - Draft (hi-fi).html` (`.seltoolbar` floating surface) | wip | 2026-10-22 | soft delete + 6 s "Note deleted · Undo" toast, bottom of list column; `--bar` bg, solid-accent Undo, polite live region, ⌘Z only outside text fields |
 
 ## Tokens (canonical values)
 
