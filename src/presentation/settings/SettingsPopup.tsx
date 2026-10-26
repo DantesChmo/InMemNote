@@ -10,6 +10,16 @@ import { saveSettings, settingsActions } from './slice';
 import type { MessageKey } from '@presentation/i18n/messages';
 import type { AppSettingsDTO } from '@shared/ipc';
 
+// A native colour picker, checkbox or slider keeps focus after use, but Esc
+// means nothing to it, so it must not block closing the popup.
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+
+function isTextEntry(target: EventTarget | null): boolean {
+  if (target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(target.type);
+  return target instanceof HTMLElement && target.isContentEditable;
+}
+
 /**
  * Settings — a modal popup over the Library window.
  *
@@ -115,14 +125,14 @@ export function SettingsPopup(): JSX.Element | null {
     if (current) applyAppearance(current);
   }, [popupOpen, current]);
 
-  // Close on Escape, but only when nothing inside (like the hotkey-capture
-  // trap) is actively absorbing keystrokes.
+  // Close on Escape, unless a text field has focus (Esc may mean something to
+  // it). The hotkey-capture trap is not a text field: it stops the event
+  // itself, so it never reaches this window listener.
   useEffect(() => {
     if (!popupOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
+      if (isTextEntry(e.target)) return;
       e.preventDefault();
       dispatch(settingsActions.closePopup());
     };

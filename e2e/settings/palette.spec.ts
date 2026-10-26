@@ -54,8 +54,8 @@ test.describe('Settings: palette', () => {
       await expect.poll(() => resolvedToken(page, 'accent')).toBe('#ff0000');
       expect((await loadSettings(page)).palette).toEqual({});
 
-      // Focus must leave the colour input first: the popup's Esc handler
-      // ignores keystrokes whose target is an <input> (see the fixme below).
+      // Esc from the dialog body; Esc with the colour input still focused has
+      // its own test below.
       await settings.dialog().getByText('Настройки', { exact: true }).click();
       await page.keyboard.press('Escape');
       await settings.expectClosed();
@@ -84,10 +84,10 @@ test.describe('Settings: palette', () => {
    *   - The dialog closes and the preview is rolled back.
    *
    * Notes:
-   *   - `test.fixme`: `SettingsPopup` ignores Esc whenever the event target is an
-   *     `<input>` (meant for the hotkey trap), so a focused colour input swallows it.
+   *   - Regression: `SettingsPopup` used to ignore Esc whenever the event target was an
+   *     `<input>` (meant for text fields), so a focused colour input swallowed it.
    */
-  test.fixme('Esc closes the modal while the colour input still has focus', async () => {
+  test('Esc closes the modal while the colour input still has focus', async () => {
     const handles = await launchApp();
     try {
       const page = handles.library;
