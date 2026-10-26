@@ -1,7 +1,6 @@
-
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
-import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
+import { FakeNoteRepository } from '@test/fakes/FakeNoteRepository';
 import { describe, expect, it } from 'vitest';
 
 import { SearchNotesUseCase } from './SearchNotesUseCase';
@@ -16,7 +15,7 @@ const make = (body: string) => {
 
 describe('SearchNotesUseCase', () => {
   it('returns matching notes', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     await repo.save(make('Buy coffee'));
     await repo.save(make('Vacation plans'));
     await repo.save(make('Coffee machine cleanup'));
@@ -29,7 +28,7 @@ describe('SearchNotesUseCase', () => {
   });
 
   it('treats whitespace-only query as "show all"', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     await repo.save(make('a'));
     await repo.save(make('b'));
     const list = await new SearchNotesUseCase(repo).execute('   ');

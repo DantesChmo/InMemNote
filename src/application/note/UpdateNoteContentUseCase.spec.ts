@@ -1,8 +1,7 @@
-
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
-import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
-import { FixedClock } from '@infrastructure/SystemClock';
+import { FakeNoteRepository } from '@test/fakes/FakeNoteRepository';
+import { FixedClock } from '@test/fakes/FixedClock';
 import { describe, expect, it } from 'vitest';
 
 import { NoteNotFoundError } from './errors';
@@ -13,7 +12,7 @@ const T1 = new Date('2026-01-01T00:01:00Z');
 
 describe('UpdateNoteContentUseCase', () => {
   it('persists the new body and bumps updatedAt', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     const note = Note.create(NoteContent.empty(), T0);
     await repo.save(note);
 
@@ -28,7 +27,7 @@ describe('UpdateNoteContentUseCase', () => {
   });
 
   it('errors out on a missing id', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     const note = Note.create(NoteContent.empty(), T0);
     const result = await new UpdateNoteContentUseCase(repo, new FixedClock(T1)).execute(
       note.id,
@@ -39,7 +38,7 @@ describe('UpdateNoteContentUseCase', () => {
   });
 
   it('rejects oversized content', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     const note = Note.create(NoteContent.empty(), T0);
     await repo.save(note);
     const huge = 'x'.repeat(NoteContent.MAX_LENGTH + 1);

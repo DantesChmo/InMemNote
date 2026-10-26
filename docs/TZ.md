@@ -169,7 +169,8 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   `preload` (`window.inmemnote.draft.*`).
 - [x] IPC contracts (channels, DTOs, `InmemnoteAPI`) in `src/shared/ipc/`,
   so presentation no longer imports `@infrastructure` (ADR 0005); layer
-  boundaries enforced by ESLint `no-restricted-imports`. Every inbound
+  boundaries enforced by ESLint `no-restricted-imports`, with no per-layer
+  exemption since ADR 0007. Every inbound
   payload is Zod-validated main-side (`main/ipc/*.schemas.ts`) and a bad
   one rejects with `IpcValidationError` before any use-case runs. Channel
   table: `docs/IPC.md`.
@@ -194,17 +195,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   affects how the process is laid out.)
 - Hotkey behavior on macOS when focus is on a fullscreen app: confirm
   there's no conflict with Spotlight (`⌘Space`).
-- **Ownership gap (found 2026-10-22).** `.agents/RESPONSIBILITIES.md` assigns
-  no owner to `src/domain/**`, `src/shared/**`,
-  `src/infrastructure/SystemClock.ts` or `scripts/**`. Which agent owns
-  them?
 - The shared SQLite connection is never closed explicitly on quit (the
   OS reclaims it; WAL keeps the file consistent). Closing it belongs after
   the pending-autosave flush in the quit sequence — follow-up, see ADR 0004.
-- Use-case specs in `src/application/**/*.spec.ts` import in-memory
-  adapters from `@infrastructure` (exempted from the boundary lint). Move
-  the in-memory repositories/`FixedClock` to `src/test/` so the exemption
-  can be dropped? (ADR 0005.)
 - Storage degradation is only detected when SQLite fails to *open*. Should
   a later write failure (disk full, DB file removed) also flip the app into
   the persistent "not saved" state? (bug #03 follow-up)
@@ -563,3 +556,24 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   notarizes when the Apple secrets exist (never exercised yet). Every release
   still carries the stable `Inmemnote-macos-arm64.dmg`, because installed
   updaters and `install.sh` fetch that exact name.
+- **2026-10-22** — Use-case fakes moved out of infrastructure (ADR 0007),
+  closing the open question from ADR 0005. The `InMemory*Repository` classes
+  stay in `infrastructure/persistence/` because they are the production
+  fallback (bug #03); use-case specs now use dedicated `Fake*Repository` and
+  `FixedClock` in `src/test/fakes/` (alias `@test`, present only in
+  `tsconfig.json`/`vitest.config.ts`, so production cannot bundle it). The
+  boundary lint lost its `src/application/**/*.spec.ts` exemption and gained
+  two guards: production code never imports `src/test`, and `src/test`
+  imports only domain/shared. Rejected: moving the adapters into `src/test`
+  (production would import test code) or into `domain/__fakes__` (adapters in
+  the domain layer), and a `src/test` barrel re-exporting infrastructure
+  (launders the edge). Cost: the in-memory ordering logic now exists twice —
+  the fake must be kept in step with the adapter by hand.
+- **2026-10-22** — Ownership gap closed in `.agents/RESPONSIBILITIES.md`:
+  `src/domain/**`, `src/infrastructure/SystemClock.ts`, `src/shared/**`
+  (except `ipc/`) and `scripts/**` → `nodejs-backend-developer` (domain shape
+  changes designed by `architector` first); `src/shared/ipc/**` co-owned
+  with `react-electron-developer`, like `docs/IPC.md`;
+  `scripts/gen-test-plan.mjs` → `playwright-specialist`; `src/test/**` →
+  `test-specialist`. Agent prompts synced (the renderer prompt still listed
+  the deleted `ipc-channels.ts`).

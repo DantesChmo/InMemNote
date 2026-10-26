@@ -1,7 +1,6 @@
-
 import { NoteContent } from '@domain/draft/NoteContent';
 import { Note } from '@domain/note/Note';
-import { InMemoryNoteRepository } from '@infrastructure/persistence/InMemoryNoteRepository';
+import { FakeNoteRepository } from '@test/fakes/FakeNoteRepository';
 import { describe, expect, it } from 'vitest';
 
 import { ListNotesUseCase } from './ListNotesUseCase';
@@ -15,7 +14,7 @@ const makeNote = (body: string, t: Date) => {
 
 describe('ListNotesUseCase', () => {
   it('returns notes pinned-first, recent-first within groups', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     const a = makeNote('a', T(1));
     const b = makeNote('b', T(2));
     const c = makeNote('c', T(3));
@@ -29,7 +28,7 @@ describe('ListNotesUseCase', () => {
   });
 
   it('filters to pinned only when asked', async () => {
-    const repo = new InMemoryNoteRepository();
+    const repo = new FakeNoteRepository();
     const a = makeNote('a', T(1));
     const b = makeNote('b', T(2));
     b.pin(T(3));

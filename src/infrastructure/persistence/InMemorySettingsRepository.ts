@@ -4,9 +4,9 @@ import type { SettingsRepository } from '@domain/settings/SettingsRepository';
 /**
  * In-memory settings repository.
  *
- * Used by unit tests (no SQLite dependency) and as a fallback if the SQLite
- * settings table cannot be created — we'd rather run the app with non-persistent
- * preferences than refuse to launch.
+ * The fallback if the SQLite settings table cannot be created — we'd rather run
+ * the app with non-persistent preferences than refuse to launch. Use-case specs
+ * use `@test/fakes/FakeSettingsRepository` instead (ADR 0007).
  */
 export class InMemorySettingsRepository implements SettingsRepository {
   private current: AppSettings | null = null;

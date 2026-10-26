@@ -30,6 +30,7 @@ When a spec is flaky:
 **Owns** (edit freely, keep current):
 - `.agents/playwright/test-plan.md` — the **regression test plan**: every critical flow, every previously-fixed bug that earned a permanent e2e check, and the spec file that covers it. This is your authoritative document. Create on first use.
 - All Playwright spec files (typically `e2e/**/*.spec.ts`) and their fixtures / helpers.
+- `scripts/gen-test-plan.mjs` — generates `e2e/TEST-PLAN.md` from the specs' JSDoc (`npm run gen:test-plan`); never edit the generated file by hand.
 
 **Must read before working**:
 - `.agents/playwright/test-plan.md` — **at the start of every session, every time, no exceptions**. Before running anything you check what's in the regression set; before adding a spec you check it isn't already covered; after fixing a flake you update the plan with the new invariant.

@@ -24,7 +24,8 @@
       "@application/*": ["src/application/*"],
       "@infrastructure/*": ["src/infrastructure/*"],
       "@presentation/*": ["src/presentation/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@test/*": ["src/test/*"]
     },
     "types": ["node", "vite/client", "vitest/globals"]
   },

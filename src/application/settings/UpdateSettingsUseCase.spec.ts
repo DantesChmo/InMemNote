@@ -1,12 +1,12 @@
 import { AppSettings } from '@domain/settings/AppSettings';
-import { InMemorySettingsRepository } from '@infrastructure/persistence/InMemorySettingsRepository';
+import { FakeSettingsRepository } from '@test/fakes/FakeSettingsRepository';
 import { describe, expect, it } from 'vitest';
 
 import { UpdateSettingsUseCase } from './UpdateSettingsUseCase';
 
 describe('UpdateSettingsUseCase', () => {
   it('persists a valid full payload and returns the parsed aggregate', async () => {
-    const repo = new InMemorySettingsRepository();
+    const repo = new FakeSettingsRepository();
     const useCase = new UpdateSettingsUseCase(repo);
 
     const result = await useCase.execute({
@@ -26,7 +26,7 @@ describe('UpdateSettingsUseCase', () => {
   });
 
   it('rejects an invalid theme value without touching storage', async () => {
-    const repo = new InMemorySettingsRepository();
+    const repo = new FakeSettingsRepository();
     const preExisting = AppSettings.default().withThemeMode('dark');
     await repo.save(preExisting);
 
@@ -41,7 +41,7 @@ describe('UpdateSettingsUseCase', () => {
   });
 
   it('rejects an invalid hotkey value without touching storage', async () => {
-    const repo = new InMemorySettingsRepository();
+    const repo = new FakeSettingsRepository();
     const result = await new UpdateSettingsUseCase(repo).execute({
       openDraftHotkey: 'CommandOrControl++',
     });
@@ -50,7 +50,7 @@ describe('UpdateSettingsUseCase', () => {
   });
 
   it('rejects an invalid palette color without touching storage', async () => {
-    const repo = new InMemorySettingsRepository();
+    const repo = new FakeSettingsRepository();
     const result = await new UpdateSettingsUseCase(repo).execute({
       palette: { accent: 'not-a-color' },
     });
@@ -59,7 +59,7 @@ describe('UpdateSettingsUseCase', () => {
   });
 
   it('saves an already-validated aggregate via executeDirect', async () => {
-    const repo = new InMemorySettingsRepository();
+    const repo = new FakeSettingsRepository();
     const saved = await new UpdateSettingsUseCase(repo).executeDirect(
       AppSettings.default().withThemeMode('light'),
     );

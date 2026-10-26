@@ -85,8 +85,6 @@ export default [
   },
   {
     files: ['src/application/**/*.ts'],
-    // Use-case specs wire in-memory adapters from infrastructure (ADR 0005 debt).
-    ignores: ['src/application/**/*.spec.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -151,6 +149,55 @@ export default [
                 '**/presentation/**',
               ],
               message: 'shared is a leaf: it imports nothing outside src/shared.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // src/test is test-support code (fakes of domain ports, Vitest setup,
+  // harnesses) — ADR 0007. It sits at the bottom of the graph so every layer's
+  // specs can use it; letting it import a higher layer would launder a
+  // boundary violation.
+  {
+    files: ['src/test/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: ['electron', 'better-sqlite3'],
+          patterns: [
+            {
+              group: [
+                '@application/*',
+                '**/application/**',
+                '@infrastructure/*',
+                '**/infrastructure/**',
+                '@presentation/*',
+                '**/presentation/**',
+              ],
+              message:
+                'src/test may import only domain, shared and test tooling (ADR 0007); re-exporting another layer here would launder a boundary violation.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // Production code never imports src/test. Uses the typescript-eslint variant
+  // of the rule so it stacks with the per-layer core-rule blocks above: in flat
+  // config a later block setting the same rule replaces its options.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.{spec,test}.{ts,tsx}', 'src/test/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@test/*', '**/test/**'],
+              message: 'src/test is test-only support code; production code must never import it.',
             },
           ],
         },

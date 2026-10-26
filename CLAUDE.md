@@ -117,7 +117,8 @@ src/
 │   └── app/                      # React app root, store, ?view= routing
 │
 ├── shared/            # leaf: Result, cross-process IPC contracts (shared/ipc)
-└── test/              # Vitest setup + window.inmemnote mock
+└── test/              # test-only: Vitest setup, window.inmemnote mock, fakes of
+                       # domain ports (imports domain/shared only; ADR 0007)
 ```
 
 **Dependency rule** (loosening it = a review-blocking bug):

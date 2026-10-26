@@ -5,9 +5,10 @@ import type { DraftRepository } from '@domain/draft/DraftRepository';
 /**
  * In-memory `DraftRepository` — production code, not test-only.
  *
- * Used by tests and as a fallback if SQLite initialization fails (we'd rather
- * lose persistence across restarts than refuse to launch). All entries live in
- * a `Map`; iteration cost is fine because the user has at most a handful of
+ * The fallback if SQLite initialization fails (we'd rather lose persistence
+ * across restarts than refuse to launch). Use-case specs use
+ * `@test/fakes/FakeDraftRepository` instead (ADR 0007). All entries live in a
+ * `Map`; iteration cost is fine because the user has at most a handful of
  * drafts during a session.
  */
 export class InMemoryDraftRepository implements DraftRepository {

@@ -20,6 +20,9 @@ export default defineConfig({
       '@infrastructure': resolve(__dirname, 'src/infrastructure'),
       '@presentation': resolve(__dirname, 'src/presentation'),
       '@shared': resolve(__dirname, 'src/shared'),
+      // Test-only alias: deliberately absent from vite.{main,preload,renderer}.config.ts
+      // so production code importing `@test/...` fails to bundle (ADR 0007).
+      '@test': resolve(__dirname, 'src/test'),
     },
   },
   test: {
