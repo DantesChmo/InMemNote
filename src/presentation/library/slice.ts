@@ -23,8 +23,21 @@ export interface PendingDelete {
  * separately — the selected note's `content` field IS the editor's value, and
  * autosave debounces a single thunk.
  */
+/** Just enough of a note to count it. */
+export interface CatalogEntry {
+  id: string;
+  pinned: boolean;
+}
+
 export interface LibraryState {
   notes: NoteDTO[];
+  /**
+   * Every note in the Library, whatever the filter or search: `notes` is only
+   * the visible slice, so the sidebar counts come from here. Refreshed by
+   * `fetchCatalog` on mount and on `notes:changed`, and patched locally in
+   * between so a count never lags the list.
+   */
+  catalog: CatalogEntry[];
   filter: NoteListFilterDTO;
   query: string;
   selectedId: string | null;
@@ -35,6 +48,7 @@ export interface LibraryState {
 
 const initialState: LibraryState = {
   notes: [],
+  catalog: [],
   filter: 'all',
   query: '',
   selectedId: null,
@@ -53,6 +67,11 @@ export const fetchNotes = createAsyncThunk<NoteDTO[], void, { state: { library: 
     return window.inmemnote.notes.list(filter);
   },
 );
+
+export const fetchCatalog = createAsyncThunk<CatalogEntry[]>('library/fetchCatalog', async () => {
+  const notes = await window.inmemnote.notes.list('all');
+  return notes.map(({ id, pinned }) => ({ id, pinned }));
+});
 
 export const createNote = createAsyncThunk<NoteDTO>('library/createNote', async () => {
   return window.inmemnote.notes.create();
@@ -143,6 +162,11 @@ export const librarySlice = createSlice({
       const index = state.notes.findIndex((n) => n.id === action.payload);
       const note = state.notes[index];
       if (!note) return;
+      // A different pending delete is committed by `deleteNote` right after.
+      const replaced = state.pendingDelete?.note.id;
+      if (replaced && replaced !== note.id) {
+        state.catalog = state.catalog.filter((c) => c.id !== replaced);
+      }
       state.notes.splice(index, 1);
       state.pendingDelete = { note, index };
       if (state.selectedId === action.payload) {
@@ -161,7 +185,9 @@ export const librarySlice = createSlice({
     },
     /** Forget the pending delete of the given id (it is being committed). */
     clearPendingDelete(state, action: PayloadAction<string>) {
-      if (state.pendingDelete?.note.id === action.payload) state.pendingDelete = null;
+      if (state.pendingDelete?.note.id !== action.payload) return;
+      state.pendingDelete = null;
+      state.catalog = state.catalog.filter((c) => c.id !== action.payload);
     },
   },
   extraReducers: (builder) => {
@@ -180,12 +206,16 @@ export const librarySlice = createSlice({
           state.selectedId = state.notes[0]?.id ?? null;
         }
       })
+      .addCase(fetchCatalog.fulfilled, (state, action) => {
+        state.catalog = action.payload;
+      })
       .addCase(fetchNotes.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message ?? 'Failed to load notes';
       })
       .addCase(createNote.fulfilled, (state, action) => {
         state.notes.unshift(action.payload);
+        state.catalog.unshift({ id: action.payload.id, pinned: action.payload.pinned });
         state.selectedId = action.payload.id;
         state.query = '';
         state.filter = 'all';
@@ -197,6 +227,8 @@ export const librarySlice = createSlice({
       .addCase(toggleNotePin.fulfilled, (state, action) => {
         const idx = state.notes.findIndex((n) => n.id === action.payload.id);
         if (idx >= 0) state.notes[idx] = action.payload;
+        const entry = state.catalog.find((c) => c.id === action.payload.id);
+        if (entry) entry.pinned = action.payload.pinned;
       });
   },
 });

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,10 +35,7 @@ describe('loadHotkeys', () => {
     });
 
     it('joins a sequence of tokens with `+`', () => {
-      const defaults = writeFile(
-        'hotkeys.yaml',
-        'openDraft: [CommandOrControl, Shift, Space]\n',
-      );
+      const defaults = writeFile('hotkeys.yaml', 'openDraft: [CommandOrControl, Shift, Space]\n');
       const result = loadHotkeys({ defaultsPath: defaults });
       expect(result.hotkeys.openDraft).toBe('CommandOrControl+Shift+Space');
     });
@@ -79,10 +76,7 @@ describe('loadHotkeys', () => {
 
     it('prefers a valid user override over the defaults', () => {
       const defaults = writeFile('hotkeys.yaml', 'openDraft: [CommandOrControl, J]\n');
-      const userPath = writeFile(
-        'user.yaml',
-        'openDraft: [CommandOrControl, Option, N]\n',
-      );
+      const userPath = writeFile('user.yaml', 'openDraft: [CommandOrControl, Option, N]\n');
       const result = loadHotkeys({ defaultsPath: defaults, userOverridePath: userPath });
       expect(result.hotkeys.openDraft).toBe('CommandOrControl+Option+N');
       expect(result.source).toBe(userPath);
@@ -113,6 +107,19 @@ describe('loadHotkeys', () => {
       expect(result.hotkeys).toEqual(DEFAULT_HOTKEYS);
       expect(result.source).toBeNull();
       expect(result.warning).toMatch(/invalid/i);
+    });
+
+    it('treats an unreadable (non-ENOENT) user path as present-but-broken, with the OS reason', () => {
+      // A directory where the file should be: readFileSync fails with EISDIR,
+      // which must be reported like an invalid file, not silently skipped as
+      // "no override".
+      const defaults = writeFile('hotkeys.yaml', 'openDraft: [CommandOrControl, J]\n');
+      const userPath = join(dir, 'user.yaml');
+      mkdirSync(userPath);
+      const result = loadHotkeys({ defaultsPath: defaults, userOverridePath: userPath });
+      expect(result.hotkeys).toEqual(DEFAULT_HOTKEYS);
+      expect(result.source).toBeNull();
+      expect(result.warning).toMatch(/invalid.*EISDIR/i);
     });
 
     it('ignores a missing user file silently and reads defaults', () => {

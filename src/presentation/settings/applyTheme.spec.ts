@@ -1,6 +1,6 @@
 import { settingsDTO } from '../../test/mockInmemnoteApi';
 
-import { applyAppearance } from './applyTheme';
+import { applyAppearance, sameAppearance } from './applyTheme';
 
 // `applyAppearance` owns three bits of `<html>`: `data-theme`, `lang`, and the
 // inline custom properties for palette overrides. Every assertion below reads
@@ -147,5 +147,32 @@ describe('applyAppearance', () => {
       expect(root.dataset.theme).toBe('light');
       expect(root.style.getPropertyValue('--accent')).toBe('#ff0000');
     });
+  });
+});
+
+// Draft only hears about a save through the `settings:changed` broadcast, and
+// `app/main.tsx` skips `applyAppearance` when this says nothing changed.
+describe('sameAppearance', () => {
+  it('identical settings need no repaint', () => {
+    expect(sameAppearance(settingsDTO(), settingsDTO())).toBe(true);
+  });
+
+  it('a language-only change needs a repaint (html lang)', () => {
+    expect(sameAppearance(settingsDTO({ language: 'ru' }), settingsDTO({ language: 'en' }))).toBe(
+      false,
+    );
+  });
+
+  it('a theme change needs a repaint', () => {
+    expect(
+      sameAppearance(settingsDTO({ themeMode: 'dark' }), settingsDTO({ themeMode: 'light' })),
+    ).toBe(false);
+  });
+
+  it('a changed palette value or token set needs a repaint', () => {
+    const base = settingsDTO({ palette: { accent: '#ff0000' } });
+    expect(sameAppearance(base, settingsDTO({ palette: { accent: '#00ff00' } }))).toBe(false);
+    expect(sameAppearance(base, settingsDTO({ palette: { panel: '#ff0000' } }))).toBe(false);
+    expect(sameAppearance(base, settingsDTO({ palette: {} }))).toBe(false);
   });
 });

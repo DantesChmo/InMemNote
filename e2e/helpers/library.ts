@@ -1,4 +1,48 @@
+import { rmSync } from 'node:fs';
+
 import type { Page } from '@playwright/test';
+
+import { launchApp, type AppHandles } from './app';
+
+type RelaunchedApp = AppHandles & { dispose: () => Promise<void> };
+
+/**
+ * Quit the app the way the user does (`app.quit()`: every window gets its
+ * `beforeunload`, then `will-quit`) and boot a second instance on the SAME
+ * `userData`. The returned `dispose` also removes the directory, which
+ * `launchApp` leaves to the caller when it did not create it.
+ */
+export async function restartApp(
+  previous: Pick<AppHandles, 'app' | 'userDataDir'>,
+): Promise<RelaunchedApp> {
+  await previous.app.close();
+  return relaunchOnSameData(previous.userDataDir);
+}
+
+/**
+ * Kill the main process with SIGKILL (a crash / force-quit: no `beforeunload`,
+ * no `will-quit`) and boot a second instance on the same `userData`.
+ */
+export async function crashAndRestartApp(
+  previous: Pick<AppHandles, 'app' | 'userDataDir'>,
+): Promise<RelaunchedApp> {
+  const proc = previous.app.process();
+  const exited = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+  proc.kill('SIGKILL');
+  await exited;
+  return relaunchOnSameData(previous.userDataDir);
+}
+
+async function relaunchOnSameData(userDataDir: string): Promise<RelaunchedApp> {
+  const next = await launchApp({ reuseUserDataDir: userDataDir });
+  return {
+    ...next,
+    dispose: async () => {
+      await next.dispose();
+      rmSync(userDataDir, { recursive: true, force: true });
+    },
+  };
+}
 
 /**
  * Page object for the Library window.
@@ -50,10 +94,35 @@ export class LibraryPage {
     });
   }
 
+  /**
+   * Move keyboard focus out of the editor and every text field, onto the
+   * page body. Used to exercise shortcuts that deliberately ignore events
+   * coming from a text target (⌘Z for the undo-delete toast).
+   */
+  public async focusOutsideEditor(): Promise<void> {
+    await this.ensureWindowFocused();
+  }
+
   // ---------- Sidebar ----------
 
   public async selectFilter(label: 'Все заметки' | 'Закреплённые'): Promise<void> {
     await this.page.getByRole('button', { name: new RegExp(label) }).first().click();
+  }
+
+  /** The count badge next to a sidebar row ("Все заметки" / "Закреплённые"). */
+  public sidebarCount(label: 'Все заметки' | 'Закреплённые') {
+    return this.page
+      .locator('aside[aria-label="Library sections"]')
+      .getByRole('button', { name: new RegExp(label) })
+      .locator('span')
+      .last();
+  }
+
+  // ---------- Storage banner ----------
+
+  /** The non-dismissable "notes are not saved" strip under the Library toolbar. */
+  public storageBanner() {
+    return this.page.getByRole('alert').filter({ hasText: /не сохраняются/ });
   }
 
   // ---------- Note list ----------
@@ -133,6 +202,55 @@ export class LibraryPage {
 
   public async clickDelete(): Promise<void> {
     await this.page.getByTestId('lib-delete-btn').click();
+  }
+
+  // ---------- Undo-delete toast ----------
+
+  public undoToast() {
+    return this.page.getByTestId('lib-undo-toast');
+  }
+
+  public async clickUndo(): Promise<void> {
+    await this.page.getByTestId('lib-undo-btn').click();
+  }
+
+  public async clickDismissToast(): Promise<void> {
+    await this.page.getByTestId('lib-undo-dismiss').click();
+  }
+
+  /** Card whose rendered text contains `text`. */
+  public cardWithText(text: string) {
+    return this.cards().filter({ hasText: text });
+  }
+
+  // ---------- What main actually holds ----------
+
+  /**
+   * Notes as the main process sees them (the same `notes:list` IPC the
+   * renderer itself uses), independent of the renderer's Redux cache.
+   *
+   * The UI hides a soft-deleted note at once and patches the selected
+   * note's body on every keystroke, so card text alone cannot tell "typed"
+   * from "persisted". Poll this with `expect.poll` to wait on the real
+   * store instead of sleeping through the 500 ms autosave debounce.
+   */
+  public async storedNotes(): Promise<
+    { id: string; title: string; content: string; pinned: boolean }[]
+  > {
+    return this.page.evaluate(async () => {
+      const list = await (
+        window as unknown as {
+          inmemnote: {
+            notes: {
+              list: (
+                f: string,
+              ) => Promise<{ id: string; title: string; content: string; pinned: boolean }[]>;
+            };
+          };
+        }
+      ).inmemnote.notes.list('all');
+      return list.map(({ id, title, content, pinned }) => ({ id, title, content, pinned }));
+    });
   }
 
   /** Wait until the editor visibly contains `expected`. */

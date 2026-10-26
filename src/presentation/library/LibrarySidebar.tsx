@@ -2,7 +2,6 @@ import { useAppDispatch, useAppSelector } from '@presentation/app/store';
 import { useTranslation } from '@presentation/i18n/useTranslation';
 import { useMemo } from 'react';
 
-
 import { fetchNotes, libraryActions } from './slice';
 
 /**
@@ -14,18 +13,17 @@ import { fetchNotes, libraryActions } from './slice';
  */
 export function LibrarySidebar(): JSX.Element {
   const dispatch = useAppDispatch();
-  const { notes, filter, query } = useAppSelector((s) => s.library);
+  const { catalog, pendingDelete, filter, query } = useAppSelector((s) => s.library);
   const { t } = useTranslation();
 
-  // Counts shown next to each row. We compute them from the cached list to
-  // stay reactive on add/delete without an extra IPC round-trip.
-  const counts = useMemo(
-    () => ({
-      all: notes.length,
-      pinned: notes.filter((n) => n.pinned).length,
-    }),
-    [notes],
-  );
+  // Totals of the whole Library: the visible list is only the current filter
+  // or search, so it can't be counted. A note whose delete can still be
+  // undone has already left the list, so it leaves the counts too.
+  const counts = useMemo(() => {
+    const hidden = pendingDelete?.note.id;
+    const live = catalog.filter((c) => c.id !== hidden);
+    return { all: live.length, pinned: live.filter((c) => c.pinned).length };
+  }, [catalog, pendingDelete]);
 
   const select = (next: 'all' | 'pinned') => {
     dispatch(libraryActions.setFilter(next));
@@ -44,7 +42,13 @@ export function LibrarySidebar(): JSX.Element {
         count={counts.all}
         onClick={() => select('all')}
         icon={
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeLinecap="round"
+          >
             <path d="M3 4h10M3 8h10M3 12h7" />
           </svg>
         }
@@ -55,7 +59,14 @@ export function LibrarySidebar(): JSX.Element {
         count={counts.pinned}
         onClick={() => select('pinned')}
         icon={
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M6 1.5h4M7 1.5l-.4 4.2L4.5 8h7L9.4 5.7 9 1.5M8 8v6.5" />
           </svg>
         }
@@ -89,7 +100,9 @@ function SidebarItem({ active, label, count, icon, onClick }: ItemProps) {
         active ? 'bg-[var(--accent-tint)] text-text' : 'hover:bg-[var(--hl)] text-text'
       }`}
     >
-      <span className={`w-4 h-4 flex items-center justify-center ${active ? 'text-accent' : 'text-text-2'}`}>
+      <span
+        className={`w-4 h-4 flex items-center justify-center ${active ? 'text-accent' : 'text-text-2'}`}
+      >
         {icon}
       </span>
       <span className="flex-1 truncate">{label}</span>

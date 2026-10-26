@@ -22,10 +22,14 @@
 | 6 | Library search and filters | `e2e/library/search-filter.spec.ts` | `⌘F`, live search + highlight, `Esc` reset, Pinned filter, case / Unicode / body match. |
 | 7 | Renderer boots with design tokens | `e2e/visual-smoke.spec.ts` | Tokens resolve, Tailwind utilities ship, React mounted. |
 | 8 | Renderer CSP enforced in both windows, editor works under it | `e2e/cross-window/csp.spec.ts` | Prod policy only (E2E runs the built renderer); the dev policy is relaxed for Vite HMR. |
+| 9 | Library soft delete + undo toast | `e2e/library/undo-delete.spec.ts` | Undo button / ⌘Z (not inside the editor), expiry commits, second delete commits the first, graceful quit commits, SIGKILL keeps the note, hover pause. |
+| 10 | No keystroke lost on switch / close / quit within 500 ms | `e2e/library/autosave-flush.spec.ts`, `e2e/cross-window/quit-flush.spec.ts` | Bugs #01 / #02 on the real quit path. ⌘↵ flush is proven with a frozen `page.clock`, so autosave can't be the writer. |
+| 11 | Storage fallback is never silent | `e2e/cross-window/storage-fallback.spec.ts` | `inmemnote.db` pre-seeded as a directory (chmod 000 still opens as root on CI); the DB file deleted at runtime raises the banner via `storage:changed`. |
+| 12 | Settings: theme, palette, hotkey, language persist and reach Draft | `e2e/settings/*.spec.ts` | Live preview + Esc / Cancel rollback; restart persistence; `settings:changed` into an open Draft. Labels match ru and en (the language spec flips the UI mid-test). |
 
 ## Spec inventory
 
-76 scenarios in 13 files (matches the summary in `e2e/TEST-PLAN.md`).
+123 scenarios in 24 files (matches the summary in `e2e/TEST-PLAN.md`).
 
 | Spec file | Scenarios | Covers |
 |---|---|---|
@@ -42,33 +46,60 @@
 | `e2e/cross-window/draft-promote.spec.ts` | 10 | see flow 5, plus promote under filter / search, selection stability, title derivation |
 | `e2e/cross-window/csp.spec.ts` | 1 | see flow 8 |
 | `e2e/visual-smoke.spec.ts` | 1 | see flow 7 |
+| `e2e/library/undo-delete.spec.ts` | 11 | see flow 9 |
+| `e2e/library/autosave-flush.spec.ts` | 4 | see flow 10, plus Library close → Dock `activate` reopens it |
+| `e2e/library/sidebar-counts.spec.ts` | 3 | counts follow create / pin / delete / undo and restart; totals under filter / search (bug #11) |
+| `e2e/cross-window/quit-flush.spec.ts` | 1 | see flow 10 (Draft) |
+| `e2e/cross-window/storage-fallback.spec.ts` | 5 | see flow 11 |
+| `e2e/settings/popup.spec.ts` | 4 | open via gear, Esc / dim / close / Cancel |
+| `e2e/settings/theme.spec.ts` | 3 | live preview + rollback, restart, broadcast to Draft |
+| `e2e/settings/palette.spec.ts` | 5 | live preview + rollback, restart + Draft, per-token reset, Esc in colour input (bug #10) |
+| `e2e/settings/hotkey.spec.ts` | 4 | capture persists, modifier-only ignored, cancel, invalid accelerator rejected by main |
+| `e2e/settings/language.spec.ts` | 5 | en switch + `<html lang>` + restart, Draft pick-up, system → ru, cancel, Draft `<html lang>` (bug #09) |
+| `e2e/settings/update-banner.spec.ts` | 2 | fake `update:available` broadcast → banner, Later, re-surface with newer version |
 
 Helpers: `e2e/helpers/app.ts` (launch with tmp `userData` + `INMEMNOTE_E2E=1`),
-`e2e/helpers/draft.ts` (`DraftPage`), `e2e/helpers/library.ts`.
+`e2e/helpers/draft.ts` (`DraftPage`), `e2e/helpers/library.ts` (`LibraryPage`,
+`restartApp`, `crashAndRestartApp`, `storedNotes()` over `notes:list` for
+`expect.poll` persistence waits), `e2e/helpers/settings.ts` (`SettingsPopup`,
+token / theme / language readers, `broadcastUpdateAvailable`).
+
+A known, unfixed bug is pinned by a scenario that asserts the correct
+behaviour and is marked fixme. Write it as
+`test.fixme(true, '<reason>')` inside the body, never as a top-level
+`test.fixme(...)`: `gen-test-plan.mjs` only matches `test(`. Drop the line
+when the bug is fixed.
 
 ## Not covered by e2e (by design or not yet)
 
 | Surface | Status | Where it is covered instead |
 |---|---|---|
-| Settings popup (theme, palette, hotkey capture, language) | no spec yet | component + slice tests in `src/presentation/settings/`; use-cases in `src/application/settings/` |
-| i18n (locale switch, `<html lang>`) | no spec yet | `src/presentation/i18n/useTranslation.spec.tsx` |
-| Auto-update install | deliberately excluded — it quits and swaps the running app; auto-check and the real gateway are disabled under `INMEMNOTE_E2E=1` (`docs/TZ.md` §4d) | `src/presentation/update/*.spec.ts(x)`, `src/application/update/`, `src/infrastructure/update/` |
-| Library autosave flush on note switch / close / quit (bug #01) | no e2e yet | `src/presentation/library/LibraryEditor.spec.tsx` |
+| Auto-update install, download progress / failure banner states | deliberately excluded — it quits and swaps the running app; auto-check and the real gateway are disabled under `INMEMNOTE_E2E=1` (`docs/TZ.md` §4d). Only the banner's appearance / dismiss is e2e. | `src/presentation/update/*.spec.ts(x)`, `src/application/update/`, `src/infrastructure/update/` (incl. `DmgSelfUpdater.wiring.spec.ts` over a local HTTP server) |
+| Real global shortcut (OS hotkey) | disabled under E2E | `src/infrastructure/electron/main/__tests__/hotkey.spec.ts` |
+| Second app launch (single instance, bug #05) | needs two processes on one userData; not automated | `src/infrastructure/electron/main/__tests__/singleInstance.spec.ts` |
+| Hotkey capture rejection message | unreachable from the keyboard (`mapKey` only emits allow-listed tokens); rejection is e2e-tested at the IPC boundary instead | `src/presentation/settings/HotkeyInput.spec.tsx` |
 
 ## Regression set (pinned by past bugs)
 
 | # | Bug ref | Behaviour pinned | Spec file | Added |
 |---|---|---|---|---|
-| 1 | `.agents/bugs/log.md` #01 | A pending Library edit (< 500 ms old) is flushed, never dropped, on note switch, window close and quit | unit only: `src/presentation/library/LibraryEditor.spec.tsx` — no e2e spec yet (candidate) | 2026-10-22 |
+| 1 | `.agents/bugs/log.md` #01 | A pending Library edit (< 500 ms old) is flushed, never dropped, on note switch, window close and quit | `e2e/library/autosave-flush.spec.ts` (+ unit `LibraryEditor.spec.tsx`) | 2026-10-27 |
+| 2 | `.agents/bugs/log.md` #02 | A pending Draft edit (< 500 ms old) survives a quit | `e2e/cross-window/quit-flush.spec.ts` (+ unit `DraftPanel.spec.tsx`) | 2026-10-27 |
+| 3 | `.agents/bugs/log.md` #03, ADR 0008 | A DB that can't be opened or is deleted at runtime shows the Library banner and the Draft strip; a healthy DB shows neither | `e2e/cross-window/storage-fallback.spec.ts` | 2026-10-27 |
+| 4 | `.agents/bugs/log.md` #09 | A language-only save updates Draft's `<html lang>` | `e2e/settings/language.spec.ts` | 2026-10-27 |
+| 5 | `.agents/bugs/log.md` #10 | Esc closes Settings while the colour input has focus | `e2e/settings/palette.spec.ts` | 2026-10-27 |
+| 6 | `.agents/bugs/log.md` #11 | Sidebar counts stay Library totals under a filter or search | `e2e/library/sidebar-counts.spec.ts` | 2026-10-27 |
 
 ## Known flakes / quarantine
 
 | Spec | Symptom | Suspected cause | Status |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| `e2e/library/undo-delete.spec.ts` — "hovering the toast keeps it past 6 s…" | Toast gone at 6.5 s (7/10 in one batch while other agents ran Electron; 0/16 alone afterwards) | Another process took OS focus and Chromium dropped `:hover` | Mitigated 2026-10-27: the spec re-asserts hover every 100 ms during the hold, 10/10 green since. Re-run alone first if it fails under load. |
 
 ## Conventions
 
+- The full suite runs only in CI. Locally, run single spec files, and only
+  when the developer agrees: every launch steals OS focus from their work.
 - One `userData` dir per test (temp), torn down after.
 - No `page.waitForTimeout`. Wait on state via `expect(locator).toBeVisible()`.
 - A flake is "fixed" only after ≥10 green runs in isolation.

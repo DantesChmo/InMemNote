@@ -214,9 +214,15 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   chokidar/micromatch, `electron-installer-dmg` → `appdmg`), but also in
   the runtime dependency `js-yaml` (quadratic CPU on merge-key chains in
   the hotkeys YAML). Worth a dedicated dependency pass.
-- The Library's undo-delete toast (2026-10-22) has unit coverage only. An
-  e2e case (delete → Undo → the note is back; delete → wait → it is gone
-  after a relaunch) still needs to be added to `.agents/playwright/test-plan.md`.
+- Should a bare key without a modifier (e.g. `K`) be accepted as the global
+  `openDraft` hotkey? `Hotkey` allows it today, and it would swallow that key
+  system-wide.
+- §2.2 says the Draft height is clamped to `[96, 60vh]` in main; the code
+  clamps to `[200, 60%]` unpinned and `[180, 360]` pinned (96 is only the
+  renderer's body min-height). Which one is the spec?
+- `DraftPanel.onTogglePin`: if `togglePin` rejects after the optimistic
+  flip, the panel stays flipped and the ResizeObserver stays frozen
+  (`animatingRef` is never released). Expected behaviour is unspecified.
 
 ---
 
@@ -231,7 +237,9 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
 
 ### 4a.2 Sidebar
 - [x] "All notes" / "Pinned" with tab-style active selection.
-- [x] Counts react to the Redux cache.
+- [x] Counts are totals of the whole Library (a `catalog` of id + pinned,
+  refreshed on `notes:changed`), not of the current filter or search; a note
+  whose delete can still be undone is not counted — bug #11, 2026-10-27.
 - [x] Tags are deferred (out of V2 by user decision).
 
 ### 4a.3 Note list
@@ -614,3 +622,17 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   degradation (no "recovered" state), no swap to in-memory on a write
   failure, reads unguarded; the banner wording now says "can't be written
   to" so it covers both causes.
+- **2026-10-27** — Functional test pass, aimed at scenarios rather than
+  line coverage. E2E grew from 76 to 123 scenarios (13 → 24 files): the
+  Settings popup (theme, palette, hotkey, language), the update banner,
+  undo-delete, sub-500 ms flush on note switch / window close / quit
+  (bugs #01, #02), the storage-fallback banner and strip (bug #03,
+  ADR 0008), sidebar counts and Dock `activate`. Unit tests grew from 1269
+  to 1532, pinning behaviour that had none: `DraftWindowController`
+  geometry, drag and resize (branches 39 → 90 %), `DmgSelfUpdater` failure
+  paths over a local HTTP server (45 → 94 %), IPC id rejection, Settings
+  and Draft component flows, en/ru catalog parity. Three product bugs were
+  found and fixed the same day as bugs #09–#11: Draft `<html lang>` after a
+  language-only save, Esc from the Settings colour input, sidebar counts
+  under a filter or search. E2E stays 123 scenarios; the full suite runs in
+  CI only, never locally.

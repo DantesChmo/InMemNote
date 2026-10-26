@@ -8,6 +8,12 @@ let state = {
     { id: '2', title: 'B', content: 'B', pinned: false, createdAt: '', updatedAt: '' },
     { id: '3', title: 'C', content: 'C', pinned: false, createdAt: '', updatedAt: '' },
   ],
+  catalog: [
+    { id: '1', pinned: true },
+    { id: '2', pinned: false },
+    { id: '3', pinned: false },
+  ],
+  pendingDelete: null as { note: { id: string } } | null,
   filter: 'all' as 'all' | 'pinned',
   query: '',
 };
@@ -39,6 +45,12 @@ describe('LibrarySidebar (shallow)', () => {
         { id: '2', title: 'B', content: 'B', pinned: false, createdAt: '', updatedAt: '' },
         { id: '3', title: 'C', content: 'C', pinned: false, createdAt: '', updatedAt: '' },
       ],
+      catalog: [
+        { id: '1', pinned: true },
+        { id: '2', pinned: false },
+        { id: '3', pinned: false },
+      ],
+      pendingDelete: null,
       filter: 'all',
       query: '',
     };
@@ -54,6 +66,32 @@ describe('LibrarySidebar (shallow)', () => {
     expect(screen.getByText('library.pinned')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument(); // all
     expect(screen.getByText('1')).toBeInTheDocument(); // pinned
+  });
+
+  it('counts the whole Library, not the filtered or searched list', () => {
+    state = {
+      ...state,
+      notes: [state.notes[0]!],
+      filter: 'pinned',
+      catalog: [
+        { id: '1', pinned: true },
+        { id: '2', pinned: false },
+        { id: '4', pinned: true },
+        { id: '5', pinned: false },
+      ],
+    };
+    render(<LibrarySidebar />);
+
+    expect(screen.getByText('library.allNotes').closest('button')).toHaveTextContent('4');
+    expect(screen.getByText('library.pinned').closest('button')).toHaveTextContent('2');
+  });
+
+  it('does not count a note whose delete can still be undone', () => {
+    state = { ...state, pendingDelete: { note: { id: '1' } } };
+    render(<LibrarySidebar />);
+
+    expect(screen.getByText('library.allNotes').closest('button')).toHaveTextContent('2');
+    expect(screen.getByText('library.pinned').closest('button')).toHaveTextContent('0');
   });
 
   it('dispatches setFilter + fetchNotes when a row is clicked', () => {

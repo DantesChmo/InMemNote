@@ -47,4 +47,13 @@ describe('CheckForUpdateUseCase', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('UPDATE_CHECK_FAILED');
   });
+
+  it('keeps the message of a non-Error rejection in the soft error', async () => {
+    // A gateway may reject with a bare string; the cause must not be lost.
+    const gateway: ReleaseGateway = {
+      fetchLatest: () => Promise.reject('rate limited'),
+    };
+    const result = await new CheckForUpdateUseCase(gateway, version('0.5.0')).execute();
+    expect(!result.ok && result.error.message).toContain('rate limited');
+  });
 });

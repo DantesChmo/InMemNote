@@ -1,5 +1,7 @@
+import { DraftNotFoundError } from '@application/draft/errors';
+import { DraftId } from '@domain/draft/DraftId';
 import { IPC } from '@shared/ipc';
-import { ok } from '@shared/Result';
+import { err, ok } from '@shared/Result';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { registerDraftIpc as RegisterDraftIpcFn } from '../../ipc/draft';
@@ -256,5 +258,67 @@ describe('registerDraftIpc', () => {
       expect(uc.promote!.execute).not.toHaveBeenCalled();
       expect(emitNotesChanged).not.toHaveBeenCalled();
     });
+  });
+
+  // A well-typed string that is not a UUID passes the Zod tuple (ids are a
+  // domain rule, not a wire-format rule) and must be stopped by `DraftId.create`.
+  describe('malformed ids', () => {
+    it.each([
+      [IPC.DraftSave, 'saveDraft', ['body']],
+      [IPC.DraftClose, 'closeDraft', []],
+      [IPC.DraftTogglePin, 'togglePinDraft', []],
+      [IPC.DraftPromote, 'promote', []],
+    ] as const)(
+      '%s rejects a non-UUID id without touching the use-case',
+      async (channel, name, rest) => {
+        const { uc, controller, emitNotesChanged } = setup();
+        await expect(handlers.get(channel)!({}, 'not-a-uuid', ...rest)).rejects.toThrow(
+          /Invalid DraftId/,
+        );
+        expect(uc[name]!.execute).not.toHaveBeenCalled();
+        expect(controller.applyPinState).not.toHaveBeenCalled();
+        expect(emitNotesChanged).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  // An error Result must reach the renderer as a rejected invoke() carrying the
+  // domain message, and must not change the window or announce a change that
+  // never happened.
+  describe('error results', () => {
+    const missing = DraftId.generate();
+    const notFound = `Draft not found: ${missing}`;
+
+    it('DraftSave rejects with the domain message', async () => {
+      const { uc } = setup();
+      uc.saveDraft!.execute.mockResolvedValueOnce(err(new DraftNotFoundError(missing)));
+      await expect(handlers.get(IPC.DraftSave)!({}, VALID_ID, 'x')).rejects.toThrow(notFound);
+    });
+
+    it('DraftTogglePin rejects and leaves the window as it was when the draft is missing', async () => {
+      // Moving the window to a corner for a pin that was never persisted would
+      // desync the overlay from the stored flag.
+      const { uc, controller } = setup();
+      uc.togglePinDraft!.execute.mockResolvedValueOnce(err(new DraftNotFoundError(missing)));
+      await expect(handlers.get(IPC.DraftTogglePin)!({}, VALID_ID, 240)).rejects.toThrow(notFound);
+      expect(controller.applyPinState).not.toHaveBeenCalled();
+    });
+
+    it('DraftPromote rejects and does not broadcast notes-changed', async () => {
+      const { uc, emitNotesChanged } = setup();
+      uc.promote!.execute.mockResolvedValueOnce(err(new DraftNotFoundError(missing)));
+      await expect(handlers.get(IPC.DraftPromote)!({}, VALID_ID)).rejects.toThrow(notFound);
+      expect(emitNotesChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  it('DraftTogglePin applies the unpinned state returned by the use-case', async () => {
+    const { controller } = setup({
+      ucOverrides: {
+        togglePinDraft: { execute: vi.fn(async () => ok(makeDraft({ pinned: false }))) },
+      },
+    });
+    await handlers.get(IPC.DraftTogglePin)!({}, VALID_ID);
+    expect(controller.applyPinState).toHaveBeenCalledWith(false, undefined);
   });
 });

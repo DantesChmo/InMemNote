@@ -1,3 +1,4 @@
+import { DraftId } from '@domain/draft/DraftId';
 import { DraftNote } from '@domain/draft/DraftNote';
 import { NoteContent } from '@domain/draft/NoteContent';
 import { FakeDraftRepository } from '@test/fakes/FakeDraftRepository';
@@ -45,6 +46,18 @@ describe('PromoteDraftToNoteUseCase', () => {
     if (!r.ok) return;
     expect(r.value).toBeNull();
     expect(await drafts.findById(draft.id)).toBeNull();
+    expect(await notes.list('all')).toHaveLength(0);
+  });
+
+  it('returns DRAFT_NOT_FOUND for an unknown draft and leaves the library untouched', async () => {
+    const drafts = new FakeDraftRepository();
+    const notes = new FakeNoteRepository();
+
+    const r = await new PromoteDraftToNoteUseCase(drafts, notes, new FixedClock(T1)).execute(
+      DraftId.generate(),
+    );
+
+    expect(!r.ok && r.error.code).toBe('DRAFT_NOT_FOUND');
     expect(await notes.list('all')).toHaveLength(0);
   });
 });

@@ -14,6 +14,11 @@
 | Presentation | Vitest + RTL | `Component.spec.tsx` next to component | stateful components — not trivial markup |
 | E2E | Playwright | `e2e/**/*.spec.ts` | full flows against the real Electron app — owned by `playwright-specialist` |
 
+An adapter may also have an `Adapter.wiring.spec.ts` next to it when its
+end-to-end wiring needs module mocks (e.g. `vi.mock('node:child_process')`)
+that would break the plain spec's real-process tests
+(`src/infrastructure/update/DmgSelfUpdater.wiring.spec.ts`).
+
 ## Conventions
 
 - **TDD pipeline** (CLAUDE.md §4): interface → red test → green

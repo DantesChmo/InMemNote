@@ -68,3 +68,21 @@
 **Root cause**: The `value` → editor sync dispatched an ordinary transaction, so the update listener reported the parent's own value as a user edit — every `setDraft` in DraftPanel became an extra `editContent` plus a redundant debounced save.
 **Fix**: The sync transaction carries an `externalSync` annotation that the update listener skips; no parent relied on the echo (commit 7bd5534).
 **Regression test**: `src/presentation/draft/editor/CodeMirrorEditor.spec.tsx` ("BUG C: an external value change is not echoed back through onChange")
+
+### #09 — Draft keeps a stale `<html lang>` after a language-only settings change            2026-10-27            severity: minor
+**Surface**: Draft
+**Root cause**: `app/main.tsx` skipped `applyAppearance` when the broadcast settings compared equal, and the comparison checked theme, hotkey and palette but not `language`, so a window that didn't host the popup never updated `<html lang>` (spellcheck and screen-reader language stayed Russian under English strings).
+**Fix**: The comparison moved to `sameAppearance` in `settings/applyTheme.ts` and compares exactly what `applyAppearance` reads: theme, language, palette (commit bbc2ecd).
+**Regression test**: `src/presentation/settings/applyTheme.spec.ts` ("a language-only change needs a repaint"), `e2e/settings/language.spec.ts` ("Draft html lang follows a language-only change")
+
+### #10 — Esc doesn't close Settings while the colour input has focus            2026-10-27            severity: minor
+**Surface**: other (Settings)
+**Root cause**: The popup's window-level Esc handler ignored every `<input>` to spare text fields, but the native colour picker keeps focus after a pick, so Esc neither closed the popup nor rolled back the live preview.
+**Fix**: Only text entry (text-like inputs, textarea, contenteditable) keeps Esc; the hotkey-capture trap already stops the event itself (commit c5ca6a6).
+**Regression test**: `src/presentation/settings/SettingsPopup.spec.tsx` ("closes the popup from a focused <input type=…>"), `e2e/settings/palette.spec.ts` ("Esc closes the modal while the colour input still has focus")
+
+### #11 — Sidebar counts show the filtered list, not the Library            2026-10-27            severity: minor
+**Surface**: Library
+**Root cause**: `LibrarySidebar` counted `s.library.notes`, which holds only the current filter or search result, so "All notes" showed 1 of 2 under the Pinned filter and both badges dropped to 0 on a no-match search.
+**Fix**: The slice keeps a `catalog` (id + pinned) of every note, fetched unfiltered on mount and on `notes:changed` and patched locally on create, pin and committed delete; a note whose delete can still be undone is left out (commit f9ed943).
+**Regression test**: `src/presentation/library/slice.spec.ts` ("catalog (sidebar totals)"), `src/presentation/library/LibrarySidebar.spec.tsx`, `e2e/library/sidebar-counts.spec.ts` ("totals stay put under the Pinned filter and a search")
