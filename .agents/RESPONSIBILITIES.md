@@ -12,24 +12,24 @@ The rule for **where artefacts live**:
 - `.agents/**` — **agent operational state**. Working checklists, accumulated
   patterns, regression plans, bug logs. Terse, list-shaped, append-mostly.
   Devs may read it, but it isn't written *for* them.
-- `design/**` — visual design assets and mockups.
+- Design assets are not kept in the repo — design is done by the team
+  outside it (`CLAUDE.md §7`).
 
 ## Distribution table
 
 | Agent | Model | Owns (writes & keeps current) | Must read before working |
 |---|---|---|---|
-| `qa` | sonnet | `.agents/qa/regression-checklist.md` | own checklist; `docs/TZ.md`; `design/` |
+| `qa` | sonnet | `.agents/qa/regression-checklist.md` | own checklist; `docs/TZ.md` |
 | `apple-developer` | opus | `native/**` (addon sources); `docs/NATIVE.md` | `docs/NATIVE.md`; `CLAUDE.md §9`; Electron version in `package.json` |
-| `react-electron-developer` | sonnet | `src/presentation/**`; `src/infrastructure/electron/**`; co-owns `src/shared/ipc/**` and `docs/IPC.md` | `design/`; `docs/IPC.md`; relevant slice + tests |
+| `react-electron-developer` | sonnet | `src/presentation/**`; `src/infrastructure/electron/**`; co-owns `src/shared/ipc/**` and `docs/IPC.md` | `docs/IPC.md`; `src/presentation/theme/tokens.css`; relevant slice + tests |
 | `nodejs-backend-developer` | sonnet | `src/domain/**` (shape changes designed by `architector` first); `src/application/**`; `src/infrastructure/{persistence,config,update}/**`; `src/infrastructure/SystemClock.ts`; main-side IPC; `src/shared/**` outside `ipc/`; co-owns `src/shared/ipc/**` and `docs/IPC.md`; `scripts/**` except `gen-test-plan.mjs` and specs | `docs/HOTKEYS.md`; `docs/IPC.md`; port interfaces in `domain/` |
 | `code-reviewer` | opus | `.agents/code-reviewer/patterns.md` | own patterns file; `CLAUDE.md`; full diff under review |
 | `test-specialist` | sonnet | `docs/TESTING.md`; all `*.spec.ts(x)` for unit / integration; `src/test/**` (Vitest setup, mocks, fakes of domain ports — ADR 0007) | `docs/TESTING.md`; port interfaces being tested |
 | `playwright-specialist` | sonnet | `.agents/playwright/test-plan.md`; all `e2e/**/*.spec.ts` and `e2e/helpers/**`; `scripts/gen-test-plan.mjs` (it generates `e2e/TEST-PLAN.md` from the specs) | `.agents/playwright/test-plan.md` (every session); `.agents/qa/regression-checklist.md` |
 | `executor` | haiku | — | only the command handed by the caller |
 | `validator` | haiku | — | `package.json` scripts |
-| `tech-writer` | sonnet | `docs/**` (polishing pass); JSDoc on public surfaces; `README.md` | current diff; existing language of the target doc |
+| `tech-writer` | sonnet | `docs/**` (polishing pass); JSDoc on public surfaces; `README.md`, `CONTRIBUTING.md` | current diff; existing language of the target doc |
 | `architector` | opus | `docs/ARCHITECTURE.md`; `docs/adr/NNNN-*.md` | `docs/ARCHITECTURE.md`; `docs/adr/**`; `CLAUDE.md §1–§4`; code touching the area |
-| `ux-designer` | opus | `design/**`; `design/INDEX.md`; co-owns design tokens | `design/INDEX.md`; owning mockup; `CLAUDE.md §7` |
 | `bugfix-orchestrator` | opus | `.agents/bugs/log.md`; `.agents/bugs/postmortems/**` | `.agents/bugs/log.md`; `.agents/qa/regression-checklist.md`; `.agents/playwright/test-plan.md` |
 | `feature-orchestrator` | opus | `.agents/features/log.md` | `CLAUDE.md §13`; `.agents/RESPONSIBILITIES.md`; `docs/ARCHITECTURE.md`; `docs/TZ.md` |
 
@@ -76,7 +76,7 @@ as written, delegating to the agents listed.
 | # | Step | Owning agent | Output |
 |---|---|---|---|
 | 1 | Architecture impact | `architector` | design note + updates to `docs/ARCHITECTURE.md` / new ADR if needed |
-| 2 | UI/UX design (if any UI) | `ux-designer` | mockup + `design/INDEX.md` row |
+| 2 | Design input (if any UI) | the user (design is done outside the repo) | spec / sketch / screenshot handed to step 3 |
 | 3 | Code plan | relevant developer agent(s) | file-level plan, no code yet |
 | 4 | Tests first (red) | `test-specialist` | failing unit/integration specs |
 | 5 | Implementation (green) | relevant developer agent(s) | code that turns tests green |
