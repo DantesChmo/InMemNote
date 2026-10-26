@@ -49,7 +49,11 @@ jobs:
   build:
     name: Build DMG
     needs: tests
-    runs-on: macos-15
+    # macOS 26 + Xcode 26: `actool` compiles packaging/macos/Inmemnote.icon
+    # (the light/dark/tinted app icon) only there. On an older image the
+    # build silently falls back to the single-look AppIcon.icns, which the
+    # "Verify app icon" step below turns into a failure.
+    runs-on: macos-26
     timeout-minutes: 45
     # Needed to create the GitHub Release and attach the DMG.
     permissions:
@@ -195,6 +199,14 @@ jobs:
           echo "Found app at $APP_PATH and DMG at $DMG_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
           echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify app icon
+        run: |
+          set -euo pipefail
+          RES="$APP_PATH/Contents/Resources"
+          test -f "$RES/Assets.car" || { echo "::error::Assets.car missing: the .icon was not compiled (is the runner on macOS 26 with Xcode 26?)" >&2; exit 1; }
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$APP_PATH/Contents/Info.plist")" = Icon
+          test -f "$RES/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_PATH/Contents/Info.plist")"
 
       - name: Verify app signature
         if: steps.signing.outputs.enabled == 'true'

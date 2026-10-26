@@ -60,6 +60,13 @@ Checkbox format: `[ ]` — not done, `[~]` — in progress, `[x]` — done.
   Developer ID signing/notarization; Homebrew cask via `homebrew.yml`.
   DMG is the primary install channel, `curl` the alternative. See
   `docs/RELEASING.md`.
+- [x] App icon (2026-10-26): a green sticky with the Draft header's pushpin.
+  `packaging/macos/Inmemnote.icon` (Icon Composer) has light, dark and
+  tinted appearances for macOS 26+; `packaging/macos/AppIcon.icns` (light)
+  is the fallback for older macOS. The `.icon` compiles only on macOS 26 +
+  Xcode 26, so `forge.config.ts` offers it only on such hosts and the
+  release job moved to `macos-26` (it fails if `Assets.car` is missing).
+  The pin is ink on light and paper on dark, like the header glyph.
 
 ---
 

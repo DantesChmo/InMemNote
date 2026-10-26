@@ -205,6 +205,10 @@ Details in `docs/HOTKEYS.md`.
 
 - Design work (mockups, specs) is done by the team **outside this
   repository**; the repo keeps no design assets and has no design agent.
+  The one exception is the shipped app icon, which is a build input:
+  `packaging/macos/Inmemnote.icon` (Icon Composer, light/dark/tinted,
+  macOS 26+) and `packaging/macos/AppIcon.icns` (fallback). Edit the
+  `.icon` in Icon Composer; regenerate the `.icns` to match.
 - In code, the source of truth for palette, typography, and sizing is
   `src/presentation/theme/tokens.css` (canonical values: `docs/TZ.md` §2.7).
 - **Accent color: `#3f7d6b` (green).** No other accents.

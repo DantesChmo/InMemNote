@@ -10,6 +10,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { cp } from 'node:fs/promises';
+import { release } from 'node:os';
 import { basename, join, sep } from 'node:path';
 
 import type { ForgeConfig } from '@electron-forge/shared-types';
@@ -40,12 +41,31 @@ const NATIVE_DEP_CLOSURE = ['better-sqlite3', '@inmemnote/window-events'];
 const SIGN_IDENTITY = process.env.MACOS_SIGN_IDENTITY || undefined;
 const SIGN_KEYCHAIN = process.env.MACOS_SIGN_KEYCHAIN || undefined;
 
+/**
+ * App icon, in two formats. `Inmemnote.icon` (Icon Composer) carries the
+ * light, dark and tinted appearances that macOS 26 switches between; the
+ * packager compiles it into `Assets.car` with `actool`, which exists only on
+ * macOS 26+ with Xcode 26+ and throws anywhere else. `AppIcon.icns` is the
+ * single-look fallback older macOS reads.
+ *
+ * The packager swaps the extension of every listed path when it looks for a
+ * format, so the two files need different base names: that is what lets the
+ * `.icon` be left out on older build hosts — CI's macOS 15 e2e packaging and
+ * local builds there — while the release runner (macOS 26) ships both.
+ */
+// Darwin 25 is macOS 26 (Tahoe).
+const BUILD_HOST_IS_TAHOE = process.platform === 'darwin' && Number(release().split('.')[0]) >= 25;
+const ICON = BUILD_HOST_IS_TAHOE
+  ? ['packaging/macos/AppIcon', 'packaging/macos/Inmemnote']
+  : 'packaging/macos/AppIcon';
+
 const config: ForgeConfig = {
   packagerConfig: {
     name: 'Inmemnote',
     asar: true,
     appBundleId: 'com.inmemnote.app',
     appCategoryType: 'public.app-category.productivity',
+    icon: ICON,
     // The packager signs after `afterCopy` and after the Fuses plugin flips
     // its fuses, so the signature covers the final bytes. Notarization needs
     // hardened runtime on every binary; V8 needs `allow-jit` under it.

@@ -201,6 +201,10 @@ the end of the job even if it fails.
 ## What the pipeline does
 
 1. Runs `ci.yml` (as a reusable workflow) and stops if anything is red.
+   The build job itself runs on `macos-26`: only there can `actool`
+   compile the light/dark app icon (`packaging/macos/Inmemnote.icon`), and
+   a "Verify app icon" step fails the run if `Assets.car` did not make it
+   into the bundle.
 2. Resolves the version from the tag and writes it into `package.json`.
 3. *Signed only:* imports the `.p12` into a temporary keychain.
 4. Runs `npm run make`. `forge.config.ts` reads `MACOS_SIGN_IDENTITY`:

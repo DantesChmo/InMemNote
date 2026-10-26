@@ -1,0 +1,104 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.98039,0.97255,0.95294,1.00000",
+          "srgb:0.90196,0.88235,0.83922,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1
+          }
+        }
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "srgb:0.18039,0.16863,0.15294,1.00000",
+          "srgb:0.08627,0.08235,0.07059,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1
+          }
+        }
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "Pin",
+      "layers": [
+        {
+          "name": "pin",
+          "glass": false,
+          "image-name-specializations": [
+            {
+              "value": "pin.png"
+            },
+            {
+              "appearance": "dark",
+              "value": "pin-dark.png"
+            },
+            {
+              "appearance": "tinted",
+              "value": "pin-dark.png"
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "name": "Note",
+      "layers": [
+        {
+          "name": "note",
+          "glass": false,
+          "image-name-specializations": [
+            {
+              "value": "note.png"
+            },
+            {
+              "appearance": "dark",
+              "value": "note-dark.png"
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}
