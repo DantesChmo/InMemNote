@@ -13,6 +13,12 @@ export const UPDATE_REPO = { owner: 'DantesChmo', name: 'InMemNote' } as const;
 /** Stable, version-independent DMG asset name attached to every release. */
 export const UPDATE_ASSET = 'Inmemnote-macos-arm64.dmg';
 
+/**
+ * SHA-256 of `UPDATE_ASSET`, in `shasum -a 256` format, attached to every
+ * release after v0.6.0. Older releases lack it and install unverified.
+ */
+export const UPDATE_CHECKSUM_ASSET = `${UPDATE_ASSET}.sha256`;
+
 /** Bundle name inside the DMG and under `/Applications`. */
 export const APP_BUNDLE_NAME = 'Inmemnote.app';
 

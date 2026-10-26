@@ -2,11 +2,13 @@
  * Throwaway filesystem + fake macOS tools for exercising the install/update
  * shell scripts on any POSIX host (CI unit tests run on Linux).
  *
- * A "DMG" here is just a directory holding `Inmemnote.app`. The fake
- * `hdiutil attach` replaces the requested mount point with a symlink to that
- * directory, so the script under test reads the fixture through the mount path
- * exactly as it would read a real image — including failing on unreadable
- * files, which is how a mid-copy failure is simulated.
+ * A "DMG" here is just a directory holding `Inmemnote.app`, or a regular file
+ * whose content is the path of such a directory (`makeDmgFile`) — a file is
+ * needed wherever a script checksums the image. The fake `hdiutil attach`
+ * replaces the requested mount point with a symlink to that directory, so the
+ * script under test reads the fixture through the mount path exactly as it
+ * would read a real image — including failing on unreadable files, which is
+ * how a mid-copy failure is simulated.
  */
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,6 +23,7 @@ case "$1" in
   attach)
     src="$2"; mount=""
     while [[ $# -gt 0 ]]; do [[ "$1" == -mountpoint ]] && mount="$2"; shift; done
+    [[ -f "$src" ]] && src="$(cat "$src")"
     [[ -d "$src" ]] || { echo "hdiutil: image not recognized" >&2; exit 1; }
     rmdir "$mount" 2>/dev/null || true
     ln -s "$src" "$mount"
@@ -34,10 +37,23 @@ echo "$*" >> "$FAKE_OPEN_LOG"
   xattr: `#!/bin/bash
 exit 0
 `,
-  // Ignores the URL: "downloads" the fixture DMG named by $FAKE_DMG.
+  // "Downloads" the fixture DMG named by $FAKE_DMG for any URL, except a
+  // `.sha256` URL, which yields $FAKE_SHA256 — or, when that is unset, fails
+  // with exit code 22 like `curl -f` on an HTTP 404 (a release without one).
   curl: `#!/bin/bash
-dest=""
-while [[ $# -gt 0 ]]; do [[ "$1" == -o ]] && dest="$2"; shift; done
+dest=""; url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o) dest="$2"; shift ;;
+    http*) url="$1" ;;
+  esac
+  shift
+done
+if [[ "$url" == *.sha256 ]]; then
+  [[ -n "\${FAKE_SHA256+set}" ]] || { echo "curl: (22) 404" >&2; exit 22; }
+  printf '%s' "$FAKE_SHA256" > "$dest"
+  exit 0
+fi
 cp -R "$FAKE_DMG" "$dest"
 `,
   uname: `#!/bin/bash
@@ -140,6 +156,15 @@ function assertNoHardcodedApplications(script: string): void {
   if (code.includes('/Applications')) {
     throw new Error(`${script} hardcodes /Applications; refusing to run it outside a sandbox`);
   }
+}
+
+/**
+ * Write a file-shaped fixture DMG at `path` that "mounts" `contentsDir` (see
+ * the module comment), so scripts can checksum it like a real image.
+ */
+export function makeDmgFile(path: string, contentsDir: string): string {
+  writeFileSync(path, contentsDir);
+  return path;
 }
 
 /** Make a file unreadable so any `cp` of its bundle fails half-way. */

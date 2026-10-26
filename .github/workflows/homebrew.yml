@@ -117,6 +117,19 @@ jobs:
           gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -p "$DMG" -D dl
           SHA256=$(sha256sum "dl/$DMG" | cut -d ' ' -f 1)
           echo "sha256 of $DMG: $SHA256"
+          # Releases after v0.6.0 also publish the digest (ADR 0007). Hashing the
+          # DMG ourselves stays the source of truth for the cask; the published
+          # file is cross-checked so a wrong one, which would make every
+          # in-app update fail, is caught here.
+          if gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -p "$DMG.sha256" -D dl 2>/dev/null; then
+            PUBLISHED=$(cut -d ' ' -f 1 "dl/$DMG.sha256" | tr 'A-F' 'a-f')
+            if [ "$PUBLISHED" != "$SHA256" ]; then
+              echo "::error::$DMG.sha256 says $PUBLISHED, the DMG hashes to $SHA256" >&2
+              exit 1
+            fi
+          else
+            echo "::notice::v$VERSION publishes no $DMG.sha256; using the computed digest only."
+          fi
           sed -E \
             -e "s/^  version \".*\"$/  version \"$VERSION\"/" \
             -e "s/^  sha256 \".*\"$/  sha256 \"$SHA256\"/" \

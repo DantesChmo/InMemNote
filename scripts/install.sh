@@ -2,13 +2,13 @@
 #
 # One-shot installer for Inmemnote on macOS.
 #
-# Downloads the latest release DMG from GitHub, copies the app into
-# /Applications and launches it. Because curl (unlike a browser) does NOT
-# stamp the download with `com.apple.quarantine`, the app opens on a plain
-# double-click afterwards — no Gatekeeper "unidentified developer" prompt,
-# no trip to System Settings. We still strip the quarantine flag defensively
-# so the script behaves the same if it's ever re-run against a browser-
-# downloaded copy.
+# Downloads the latest release DMG from GitHub, checks it against the SHA-256
+# published next to it, copies the app into /Applications and launches it.
+# Because curl (unlike a browser) does NOT stamp the download with
+# `com.apple.quarantine`, the app opens on a plain double-click afterwards —
+# no Gatekeeper "unidentified developer" prompt, no trip to System Settings.
+# We still strip the quarantine flag defensively so the script behaves the
+# same if it's ever re-run against a browser-downloaded copy.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/DantesChmo/InMemNote/main/scripts/install.sh | bash
@@ -33,6 +33,7 @@ fi
 
 tmp="$(mktemp -d)"
 dmg="${tmp}/${ASSET}"
+sum="${tmp}/${ASSET}.sha256"
 mount="${tmp}/mnt"
 
 # Always detach the image and clean up the temp dir, even on error.
@@ -44,9 +45,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Releases after v0.6.0 publish the DMG's SHA-256 as `${ASSET}.sha256`. It
+# catches a truncated or corrupted download, not a tampered release: the sum
+# comes from the same place as the DMG (docs/adr/0007). Fetched first, so a
+# garbled sum fails before the big download.
+expected=""
+if curl -fsL -o "${sum}" "${URL}.sha256"; then
+  expected="$(awk 'NR == 1 { print tolower($1) }' "${sum}")"
+  if ! [[ "${expected}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "Install failed: the published checksum file is malformed." >&2
+    exit 1
+  fi
+else
+  echo "Warning: this release publishes no checksum (v0.6.0 or older); installing without verification." >&2
+fi
+
 echo "Downloading ${ASSET}…"
 # -f fails on 404 (e.g. no release yet) instead of saving an HTML error page.
 curl -fL --progress-bar -o "${dmg}" "${URL}"
+
+if [[ -n "${expected}" ]]; then
+  echo "Verifying checksum…"
+  if ! printf '%s  %s\n' "${expected}" "${dmg}" | shasum -a 256 -c - >/dev/null; then
+    echo "Install failed: checksum mismatch, the download is corrupted. Nothing was changed; try again." >&2
+    exit 1
+  fi
+fi
 
 echo "Mounting…"
 # Force an explicit, private mount point so we never collide with a stray
