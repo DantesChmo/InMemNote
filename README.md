@@ -1,5 +1,29 @@
 # Inmemnote
 
+[![CI](https://github.com/DantesChmo/InMemNote/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DantesChmo/InMemNote/actions/workflows/ci.yml)
+[![Release](https://github.com/DantesChmo/InMemNote/actions/workflows/release.yml/badge.svg)](https://github.com/DantesChmo/InMemNote/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/DantesChmo/InMemNote?sort=semver)](https://github.com/DantesChmo/InMemNote/releases/latest)
+[![Release date](https://img.shields.io/github/release-date/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/DantesChmo/InMemNote/total)](https://github.com/DantesChmo/InMemNote/releases)
+
+[![macOS 13+](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)](#install-on-macos)
+[![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-000000?logo=apple&logoColor=white)](#install-on-macos)
+[![Local only](https://img.shields.io/badge/storage-local_only-3f7d6b)](#storage)
+[![Electron](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/dev/electron?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/react?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/dev/typescript?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/dev/vite?logo=vite&logoColor=white)](https://vite.dev/)
+[![CodeMirror](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/codemirror)](https://codemirror.net/)
+[![SQLite](https://img.shields.io/github/package-json/dependency-version/DantesChmo/InMemNote/better-sqlite3?logo=sqlite&logoColor=white&label=better-sqlite3)](https://github.com/WiseLibs/better-sqlite3)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=nodedotjs&logoColor=white)](CONTRIBUTING.md)
+
+[![Last commit](https://img.shields.io/github/last-commit/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote/commits/main)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote/graphs/commit-activity)
+[![Top language](https://img.shields.io/github/languages/top/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote)
+[![Code size](https://img.shields.io/github/languages/code-size/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote)
+[![Open issues](https://img.shields.io/github/issues/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote/issues)
+[![Stars](https://img.shields.io/github/stars/DantesChmo/InMemNote)](https://github.com/DantesChmo/InMemNote/stargazers)
+
 A local quick-notes app for macOS. Two windows:
 
 - **Draft** — a Spotlight-style overlay summoned by a global hotkey
